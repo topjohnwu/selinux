@@ -1,2 +1,3 @@
-# This empty Android.mk file will prevent the build system
-# from building anything below this point.
+LOCAL_PATH:= $(call my-dir)
+
+include $(call first-makefiles-under,$(LOCAL_PATH))
