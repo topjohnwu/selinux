@@ -1,2 +1,1 @@
-# This empty Android.mk file will prevent the build system
-# from building anything below this point.
+include $(call all-named-subdir-makefiles, libsepol checkpolicy)
