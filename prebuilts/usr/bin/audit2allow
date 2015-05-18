@@ -1,0 +1,4 @@
+#!/bin/sh
+export LD_LIBRARY_PATH=$ANDROID_HOST_OUT/lib64
+export PYTHONPATH=$ANDROID_BUILD_TOP/external/selinux/prebuilts/usr/lib/python2.7/site-packages
+python $ANDROID_BUILD_TOP/external/selinux/policycoreutils/audit2allow/audit2allow "$@"
