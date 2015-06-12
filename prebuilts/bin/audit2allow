@@ -1,0 +1,10 @@
+#!/bin/sh
+
+unamestr=`uname`
+if [[ $unamestr == "Linux" ]]; then
+	export LD_LIBRARY_PATH=$ANDROID_BUILD_TOP/external/selinux/prebuilts/lib
+	export PYTHONPATH=$ANDROID_BUILD_TOP/external/selinux/prebuilts/lib
+	python $ANDROID_BUILD_TOP/external/selinux/policycoreutils/audit2allow/audit2allow "$@"
+else
+	echo "audit2allow is only supported on linux"
+fi
