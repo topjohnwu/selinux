@@ -1,3 +1,12 @@
+	* Add read_spec_entries function to replace sscanf, from Richard Haines.
+	* Support consistent mode size for bin files, from Richard Haines.
+	* Expunge remaining references to flask.h and av_permissions.h, from Stephen Smalley.
+	* Fix more bin file processing core dumps, from Richard Haines.
+	* add selinux_openssh_contexts_path(), from Petr Lautrbach.
+	* setrans_client: minimize overhead when mcstransd is not present, from Stephen Smalley.
+	* Ensure selabel_lookup_best_match links NULL terminated, from Richard Haines.
+	* is_selinux_enabled:  Add /etc/selinux/config test, from Stephen Smalley.
+	* matchpathcon/selabel_file: Fix man pages, from Stephen Smalley.
 	* Fix core dumps with corrupt *.bin files, from Richard Haines.
 	* Add selabel partial and best match APIs, from Richard Haines.
 	* Use os.walk() instead of the deprecated os.path.walk(), from Petr

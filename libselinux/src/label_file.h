@@ -6,9 +6,13 @@
 #include "label_internal.h"
 
 #define SELINUX_MAGIC_COMPILED_FCONTEXT	0xf97cff8a
+
+/* Version specific changes */
 #define SELINUX_COMPILED_FCONTEXT_NOPCRE_VERS	1
 #define SELINUX_COMPILED_FCONTEXT_PCRE_VERS	2
-#define SELINUX_COMPILED_FCONTEXT_MAX_VERS	2
+#define SELINUX_COMPILED_FCONTEXT_MODE		3
+
+#define SELINUX_COMPILED_FCONTEXT_MAX_VERS	SELINUX_COMPILED_FCONTEXT_MODE
 
 /* Prior to verison 8.20, libpcre did not have pcre_free_study() */
 #if (PCRE_MAJOR < 8 || (PCRE_MAJOR == 8 && PCRE_MINOR < 20))
@@ -43,8 +47,8 @@ struct stem {
 
 /* Where we map the file in during selabel_open() */
 struct mmap_area {
-	void *addr;
-	size_t len;
+	void *addr;	/* Start of area - gets incremented by next_entry() */
+	size_t len;	/* Length - gets decremented by next_entry() */
 	struct mmap_area *next;
 };
 
@@ -295,6 +299,22 @@ static inline int find_stem_from_spec(struct saved_data *data, const char *buf)
 		return -1;
 
 	return store_stem(data, stem, stem_len);
+}
+
+/* This will always check for buffer over-runs and either read the next entry
+ * if buf != NULL or skip over the entry (as these areas are mapped in the
+ * current buffer). */
+static inline int next_entry(void *buf, struct mmap_area *fp, size_t bytes)
+{
+	if (bytes > fp->len)
+		return -1;
+
+	if (buf)
+		memcpy(buf, fp->addr, bytes);
+
+	fp->addr = (char *)fp->addr + bytes;
+	fp->len -= bytes;
+	return 0;
 }
 
 #endif /* _SELABEL_FILE_H_ */
