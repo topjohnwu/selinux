@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 unamestr=`uname`
 if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
