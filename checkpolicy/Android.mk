@@ -37,7 +37,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := checkpolicy
 LOCAL_MODULE_TAGS := optional
 LOCAL_C_INCLUDES := $(common_includes) 
-LOCAL_CFLAGS := $(yacc_flags) $(common_cflags)
+LOCAL_CPPFLAGS := $(yacc_flags) $(common_cflags)
 LOCAL_SRC_FILES := $(common_src_files) checkpolicy.c
 LOCAL_STATIC_LIBRARIES := libsepol
 LOCAL_YACCFLAGS := -v
@@ -54,7 +54,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := checkmodule
 LOCAL_MODULE_TAGS := optional
 LOCAL_C_INCLUDES := $(common_includes) 
-LOCAL_CFLAGS := $(yacc_flags) $(common_cflags)
+LOCAL_CPPFLAGS := $(yacc_flags) $(common_cflags)
 LOCAL_SRC_FILES := $(common_src_files) checkmodule.c
 LOCAL_STATIC_LIBRARIES := libsepol
 LOCAL_YACCFLAGS := -v
