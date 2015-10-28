@@ -339,25 +339,50 @@ static int __cil_post_db_count_helper(struct cil_tree_node *node, uint32_t *fini
 	case CIL_MACRO:
 		*finished = CIL_TREE_SKIP_HEAD;
 		break;
-	case CIL_TYPE: {
-		struct cil_type *type = node->data;
-		if (type->datum.nodes->head->data == node) {
-			// multiple AST nodes can point to the same cil_type data (like if
-			// copied from a macro). This check ensures we only count the
-			// duplicates once
-			type->value = db->num_types;
-			db->num_types++;
+	case CIL_CLASS: {
+		struct cil_class *class = node->data;
+		if (class->datum.nodes->head->data == node) {
+			// Multiple nodes can point to the same datum. Only count once.
+			db->num_classes++;
 		}
 		break;
 	}
+	case CIL_TYPE: {
+		struct cil_type *type = node->data;
+		if (type->datum.nodes->head->data == node) {
+			// Multiple nodes can point to the same datum. Only count once.
+			type->value = db->num_types;
+			db->num_types++;
+			db->num_types_and_attrs++;
+		}
+		break;
+	}
+	case CIL_TYPEATTRIBUTE: {
+		struct cil_typeattribute *attr = node->data;
+		if (attr->datum.nodes->head->data == node) {
+			// Multiple nodes can point to the same datum. Only count once.
+			db->num_types_and_attrs++;
+		}
+		break;
+	}
+
 	case CIL_ROLE: {
 		struct cil_role *role = node->data;
 		if (role->datum.nodes->head->data == node) {
-			// multiple AST nodes can point to the same cil_role data (like if
-			// copied from a macro). This check ensures we only count the
-			// duplicates once
+			// Multiple nodes can point to the same datum. Only count once.
 			role->value = db->num_roles;
 			db->num_roles++;
+		}
+		break;
+	}
+	case CIL_USER: {
+		struct cil_user *user = node->data;
+		if (user->datum.nodes->head->data == node) {
+			// multiple AST nodes can point to the same cil_user data (like if
+			// copied from a macro). This check ensures we only count the
+			// duplicates once
+			user->value = db->num_users;
+			db->num_users++;
 		}
 		break;
 	}
@@ -430,6 +455,14 @@ static int __cil_post_db_array_helper(struct cil_tree_node *node, __attribute__(
 			db->val_to_role = cil_malloc(sizeof(*db->val_to_role) * db->num_roles);
 		}
 		db->val_to_role[role->value] = role;
+		break;
+	}
+	case CIL_USER: {
+		struct cil_user *user= node->data;
+		if (db->val_to_user == NULL) {
+			db->val_to_user = cil_malloc(sizeof(*db->val_to_user) * db->num_users);
+		}
+		db->val_to_user[user->value] = user;
 		break;
 	}
 	case CIL_USERPREFIX: {
@@ -624,6 +657,54 @@ exit:
 	return rc;
 }
 
+static int __evaluate_user_expression(struct cil_userattribute *attr, struct cil_db *db)
+{
+	int rc;
+
+	attr->users = cil_malloc(sizeof(*attr->users));
+	rc = __cil_expr_list_to_bitmap(attr->expr_list, attr->users, db->num_users, db);
+	if (rc != SEPOL_OK) {
+		cil_log(CIL_ERR, "Failed to expand user attribute to bitmap\n");
+		ebitmap_destroy(attr->users);
+		free(attr->users);
+		attr->users = NULL;
+	}
+	return rc;
+}
+
+static int __cil_user_to_bitmap(struct cil_symtab_datum *datum, ebitmap_t *bitmap, struct cil_db *db)
+{
+	int rc = SEPOL_ERR;
+	struct cil_tree_node *node = datum->nodes->head->data;
+	struct cil_userattribute *attr = NULL;
+	struct cil_user *user = NULL;
+
+	ebitmap_init(bitmap);
+
+	if (node->flavor == CIL_USERATTRIBUTE) {
+		attr = (struct cil_userattribute *)datum;
+		if (attr->users == NULL) {
+			rc = __evaluate_user_expression(attr, db);
+			if (rc != SEPOL_OK) {
+				goto exit;
+			}
+		}
+		ebitmap_union(bitmap, attr->users);
+	} else {
+		user = (struct cil_user *)datum;
+		if (ebitmap_set_bit(bitmap, user->value, 1)) {
+			cil_log(CIL_ERR, "Failed to set user bit\n");
+			ebitmap_destroy(bitmap);
+			goto exit;
+		}
+	}
+
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
 static int __evaluate_role_expression(struct cil_roleattribute *attr, struct cil_db *db)
 {
 	int rc;
@@ -660,6 +741,70 @@ static int __cil_role_to_bitmap(struct cil_symtab_datum *datum, ebitmap_t *bitma
 			ebitmap_destroy(bitmap);
 			goto exit;
 		}
+	}
+
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
+static int __evaluate_permissionx_expression(struct cil_permissionx *permx, struct cil_db *db)
+{
+	int rc;
+
+	permx->perms = cil_malloc(sizeof(*permx->perms));
+	ebitmap_init(permx->perms);
+
+	rc = __cil_expr_to_bitmap(permx->expr_str, permx->perms, 0x10000, db); // max is one more than 0xFFFF
+	if (rc != SEPOL_OK) {
+		cil_log(CIL_ERR, "Failed to expand permissionx expression\n");
+		ebitmap_destroy(permx->perms);
+		free(permx->perms);
+		permx->perms = NULL;
+	}
+
+	return rc;
+}
+
+static int __cil_permx_str_to_int(char *permx_str, uint16_t *val)
+{
+	char *endptr = NULL;
+	long lval = strtol(permx_str, &endptr, 0);
+
+	if (*endptr != '\0') {
+		cil_log(CIL_ERR, "permissionx value %s not valid number\n", permx_str);
+		goto exit;
+	}
+	if (lval < 0x0000 || lval > 0xFFFF) {
+		cil_log(CIL_ERR, "permissionx value %s must be between 0x0000 and 0xFFFF\n", permx_str);
+		goto exit;
+	}
+
+	*val = (uint16_t)lval;
+
+	return SEPOL_OK;
+
+exit:
+	return SEPOL_ERR;
+}
+
+static int __cil_permx_to_bitmap(struct cil_symtab_datum *datum, ebitmap_t *bitmap, __attribute__((unused)) struct cil_db *db)
+{
+	int rc = SEPOL_ERR;
+	uint16_t val;
+
+	ebitmap_init(bitmap);
+
+	rc = __cil_permx_str_to_int((char*)datum, &val);
+	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+
+	if (ebitmap_set_bit(bitmap, (unsigned int)val, 1)) {
+		cil_log(CIL_ERR, "Failed to set permissionx bit\n");
+		ebitmap_destroy(bitmap);
+		goto exit;
 	}
 
 	return SEPOL_OK;
@@ -778,7 +923,7 @@ exit:
 	return rc;
 }
 
-static int __cil_expr_range_to_bitmap_helper(struct cil_list_item *i1, struct cil_list_item *i2, ebitmap_t *bitmap)
+static int __cil_cat_expr_range_to_bitmap_helper(struct cil_list_item *i1, struct cil_list_item *i2, ebitmap_t *bitmap)
 {
 	int rc = SEPOL_ERR;
 	struct cil_symtab_datum *d1 = i1->data;
@@ -818,6 +963,39 @@ exit:
 	return rc;
 }
 
+static int __cil_permissionx_expr_range_to_bitmap_helper(struct cil_list_item *i1, struct cil_list_item *i2, ebitmap_t *bitmap)
+{
+	int rc = SEPOL_ERR;
+	char *p1 = i1->data;
+	char *p2 = i2->data;
+	uint16_t v1;
+	uint16_t v2;
+	uint32_t i;
+
+	rc = __cil_permx_str_to_int(p1, &v1);
+	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+
+	rc = __cil_permx_str_to_int(p2, &v2);
+	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+
+	for (i = v1; i <= v2; i++) {
+		if (ebitmap_set_bit(bitmap, i, 1)) {
+			cil_log(CIL_ERR, "Failed to set permissionx bit\n");
+			ebitmap_destroy(bitmap);
+			goto exit;
+		}
+	}
+
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
 static int __cil_expr_to_bitmap_helper(struct cil_list_item *curr, enum cil_flavor flavor, ebitmap_t *bitmap, int max, struct cil_db *db)
 {
 	int rc = SEPOL_ERR;
@@ -829,6 +1007,9 @@ static int __cil_expr_to_bitmap_helper(struct cil_list_item *curr, enum cil_flav
 			break;
 		case CIL_ROLE:
 			rc = __cil_role_to_bitmap(curr->data, bitmap, db);
+			break;
+		case CIL_USER:
+			rc = __cil_user_to_bitmap(curr->data, bitmap, db);
 			break;
 		case CIL_PERM:
 			rc = __cil_perm_to_bitmap(curr->data, bitmap, db);
@@ -846,6 +1027,10 @@ static int __cil_expr_to_bitmap_helper(struct cil_list_item *curr, enum cil_flav
 		if (rc != SEPOL_OK) {
 			ebitmap_destroy(bitmap);
 		}	
+	} else if (flavor == CIL_PERMISSIONX) {
+		// permissionx expressions aren't resolved into anything, so curr->flavor
+		// is just a CIL_STRING, not a CIL_DATUM, so just check on flavor for those
+		rc = __cil_permx_to_bitmap(curr->data, bitmap, db);
 	}
 
 	return rc;
@@ -878,16 +1063,25 @@ static int __cil_expr_to_bitmap(struct cil_list *expr, ebitmap_t *out, int max, 
 				goto exit;
 			}
 		} else if (op == CIL_RANGE) {
-			if (flavor != CIL_CAT) {
-				cil_log(CIL_INFO, "Range operation only supported for categories\n");
+			if (flavor == CIL_CAT) {
+				ebitmap_init(&tmp);
+				rc = __cil_cat_expr_range_to_bitmap_helper(curr->next, curr->next->next, &tmp);
+				if (rc != SEPOL_OK) {
+					cil_log(CIL_INFO, "Failed to expand category range\n");
+					ebitmap_destroy(&tmp);
+					goto exit;
+				}
+			} else if (flavor == CIL_PERMISSIONX) {
+				ebitmap_init(&tmp);
+				rc = __cil_permissionx_expr_range_to_bitmap_helper(curr->next, curr->next->next, &tmp);
+				if (rc != SEPOL_OK) {
+					cil_log(CIL_INFO, "Failed to expand category range\n");
+					ebitmap_destroy(&tmp);
+					goto exit;
+				}
+			} else {
+				cil_log(CIL_INFO, "Range operation only supported for categories permissionx\n");
 				rc = SEPOL_ERR;
-				goto exit;
-			}
-			ebitmap_init(&tmp);
-			rc = __cil_expr_range_to_bitmap_helper(curr->next, curr->next->next, &tmp);
-			if (rc != SEPOL_OK) {
-				cil_log(CIL_INFO, "Failed to expand category range\n");
-				ebitmap_destroy(&tmp);
 				goto exit;
 			}
 		} else {
@@ -1025,6 +1219,30 @@ static int __cil_post_db_attr_helper(struct cil_tree_node *node, __attribute__((
 		}
 		break;
 	}
+	case CIL_AVRULEX: {
+		struct cil_avrulex *rule = node->data;
+		if (rule->permx_str == NULL) {
+			rc = __evaluate_permissionx_expression(rule->permx, db);
+			if (rc != SEPOL_OK) goto exit;
+		}
+		break;
+	}
+	case CIL_PERMISSIONX: {
+		struct cil_permissionx *permx = node->data;
+		rc = __evaluate_permissionx_expression(permx, db);
+		if (rc != SEPOL_OK) goto exit;
+		break;
+	}
+	case CIL_USERATTRIBUTE: {
+		struct cil_userattribute *attr = node->data;
+		if (attr->users == NULL) {
+			rc = __evaluate_user_expression(attr, db);
+			if (rc != SEPOL_OK) {
+				goto exit;
+			}
+		}
+		break;
+	}
 	default:
 		break;
 	}
@@ -1127,6 +1345,102 @@ static int __cil_post_db_roletype_helper(struct cil_tree_node *node, __attribute
 	return SEPOL_OK;
 exit:
 	cil_log(CIL_INFO, "cil_post_db_roletype_helper failed\n");
+	return rc;
+}
+
+static int __cil_user_assign_roles(struct cil_user *user, struct cil_symtab_datum *datum)
+{
+	struct cil_tree_node *node = datum->nodes->head->data;
+	struct cil_role *role = NULL;
+	struct cil_roleattribute *attr = NULL;
+
+	if (user->roles == NULL) {
+		user->roles = cil_malloc(sizeof(*user->roles));
+		ebitmap_init(user->roles);
+	}
+
+	if (node->flavor == CIL_ROLE) {
+		role = (struct cil_role *)datum;
+		if (ebitmap_set_bit(user->roles, role->value, 1)) {
+			cil_log(CIL_INFO, "Failed to set bit in user roles bitmap\n");
+			goto exit;
+		}
+	} else if (node->flavor == CIL_ROLEATTRIBUTE) {
+		attr = (struct cil_roleattribute *)datum;
+		ebitmap_union(user->roles, attr->roles);
+	}
+
+	return SEPOL_OK;
+
+exit:
+	return SEPOL_ERR;
+}
+
+static int __cil_post_db_userrole_helper(struct cil_tree_node *node, __attribute__((unused)) uint32_t *finished, void *extra_args)
+{
+	int rc = SEPOL_ERR;
+	struct cil_db *db = extra_args;
+	struct cil_block *blk = NULL;
+	struct cil_userrole *userrole = NULL;
+	struct cil_symtab_datum *user_datum = NULL;
+	struct cil_symtab_datum *role_datum = NULL;
+	struct cil_tree_node *user_node = NULL;
+	struct cil_userattribute *u_attr = NULL;
+	unsigned int i;
+	struct cil_user *user = NULL;
+	ebitmap_node_t *unode = NULL;
+
+	switch (node->flavor) {
+	case CIL_BLOCK: {
+		blk = node->data;
+		if (blk->is_abstract == CIL_TRUE) {
+			*finished = CIL_TREE_SKIP_HEAD;
+		}
+		break;
+	}
+	case CIL_MACRO: {
+		*finished = CIL_TREE_SKIP_HEAD;
+		break;
+	}
+	case CIL_USERROLE: {
+		userrole = node->data;
+		user_datum = userrole->user;
+		role_datum = userrole->role;
+		user_node = user_datum->nodes->head->data;
+
+		if (user_node->flavor == CIL_USERATTRIBUTE) {
+			u_attr = userrole->user;
+
+			ebitmap_for_each_bit(u_attr->users, unode, i) {
+				if (!ebitmap_get_bit(u_attr->users, i)) {
+					continue;
+				}
+
+				user = db->val_to_user[i];
+
+				rc = __cil_user_assign_roles(user, role_datum);
+				if (rc != SEPOL_OK) {
+					goto exit;
+				}
+			}
+		} else {
+			user = userrole->user;
+
+			rc = __cil_user_assign_roles(user, role_datum);
+			if (rc != SEPOL_OK) {
+				goto exit;
+			}
+		}
+
+		break;
+	}
+	default:
+		break;
+	}
+
+	return SEPOL_OK;
+exit:
+	cil_log(CIL_INFO, "cil_post_db_userrole_helper failed\n");
 	return rc;
 }
 
@@ -1598,6 +1912,12 @@ static int cil_post_db(struct cil_db *db)
 	rc = cil_tree_walk(db->ast->root, __cil_post_db_roletype_helper, NULL, NULL, db);
 	if (rc != SEPOL_OK) {
 		cil_log(CIL_INFO, "Failed during roletype association\n");
+		goto exit;
+	}
+
+	rc = cil_tree_walk(db->ast->root, __cil_post_db_userrole_helper, NULL, NULL, db);
+	if (rc != SEPOL_OK) {
+		cil_log(CIL_INFO, "Failed during userrole association\n");
 		goto exit;
 	}
 

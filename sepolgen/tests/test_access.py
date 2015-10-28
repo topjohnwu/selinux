@@ -32,7 +32,7 @@ class TestAccessVector(unittest.TestCase):
         self.assertEqual(a.obj_class, None)
         self.assertTrue(isinstance(a.perms, refpolicy.IdSet))
         self.assertTrue(isinstance(a.audit_msgs, type([])))
-        self.assertEquals(len(a.audit_msgs), 0)
+        self.assertEqual(len(a.audit_msgs), 0)
 
         # Construction from a list
         a = access.AccessVector()
@@ -72,8 +72,10 @@ class TestAccessVector(unittest.TestCase):
         self.assertEqual(l[0], "foo")
         self.assertEqual(l[1], "bar")
         self.assertEqual(l[2], "file")
-        self.assertEqual(l[3], "read")
-        self.assertEqual(l[4], "write")
+        perms = l[3:]
+        perms.sort()
+        self.assertEqual(perms[0], "read")
+        self.assertEqual(perms[1], "write")
 
     def test_to_string(self):
         a = access.AccessVector()
@@ -82,8 +84,21 @@ class TestAccessVector(unittest.TestCase):
         a.obj_class = "file"
         a.perms.update(["read", "write"])
 
-        self.assertEquals(str(a), "allow foo bar:file { read write };")
-        self.assertEquals(a.to_string(), "allow foo bar:file { read write };")
+        first, second = str(a).split(':')
+        self.assertEqual(first, "allow foo bar")
+        second = second.split(' ')
+        second.sort()
+        expected = "file { read write };".split(' ')
+        expected.sort()
+        self.assertEqual(second, expected)
+
+        first, second = a.to_string().split(':')
+        self.assertEqual(first, "allow foo bar")
+        second = second.split(' ')
+        second.sort()
+        expected = "file { read write };".split(' ')
+        expected.sort()
+        self.assertEqual(second, expected)
 
     def test_cmp(self):
         a = access.AccessVector()
@@ -98,36 +113,38 @@ class TestAccessVector(unittest.TestCase):
         b.obj_class = "file"
         b.perms.update(["read", "write"])
 
-        self.assertEquals(a, b)
+        self.assertEqual(a, b)
 
         # Source Type
         b.src_type = "baz"
-        self.assertEquals(cmp(a, b), 1)
+        self.assertNotEqual(a, b)
+        self.assertTrue(a > b)
 
         b.src_type = "gaz"
-        self.assertEquals(cmp(a, b), -1)
+        self.assertNotEqual(a, b)
+        self.assertTrue(a < b)
 
         # Target Type
         b.src_type = "foo"
         b.tgt_type = "aar"
-        self.assertEquals(cmp(a, b), 1)
+        self.assertNotEqual(a, b)
+        self.assertTrue(a > b)
 
         b.tgt_type = "gaz"
-        self.assertEquals(cmp(a, b), -1)
+        self.assertNotEqual(a, b)
+        self.assertTrue(a < b)
 
         # Perms
         b.tgt_type = "bar"
         b.perms = refpolicy.IdSet(["read"])
-        ret = cmp(a, b)
-        self.assertEquals(ret, 1)
+        self.assertNotEqual(a, b)
+        self.assertTrue(a > b)
 
         b.perms = refpolicy.IdSet(["read", "write", "append"])
-        ret = cmp(a, b)
-        self.assertEquals(ret, -1)
+        self.assertNotEqual(a, b)
 
         b.perms = refpolicy.IdSet(["read", "append"])
-        ret = cmp(a, b)
-        self.assertEquals(ret, 1)
+        self.assertNotEqual(a, b)
                          
 class TestUtilFunctions(unittest.TestCase):
     def test_is_idparam(self):
@@ -149,7 +166,7 @@ class TestUtilFunctions(unittest.TestCase):
         rule.perms.add("write")
 
         avs = access.avrule_to_access_vectors(rule)
-        self.assertEquals(len(avs), 8)
+        self.assertEqual(len(avs), 8)
         comps = [("foo", "what", "dir"),
                  ("foo", "what", "file"),
                  ("foo", "bar", "dir"),
@@ -160,15 +177,15 @@ class TestUtilFunctions(unittest.TestCase):
                  ("baz", "bar", "file")]
         status = [False] * 8
         for av in access.avrule_to_access_vectors(rule):
-            self.assertEquals(av.perms, refpolicy.IdSet(["read", "write"]))
-            for i in xrange(len(comps)):
+            self.assertEqual(av.perms, refpolicy.IdSet(["read", "write"]))
+            for i in range(len(comps)):
                 if comps[i][0] == av.src_type and \
                    comps[i][1] == av.tgt_type and \
                    comps[i][2] == av.obj_class:
                     status[i] = True
 
         for s in status:
-            self.assertEquals(s, True)
+            self.assertEqual(s, True)
                    
 
 class TestAccessVectorSet(unittest.TestCase):
@@ -203,18 +220,18 @@ class TestAccessVectorSet(unittest.TestCase):
                  ("baz", "bar", "file")]
         status = [False] * 8
         for av in self.s:
-            self.assertEquals(av.perms, refpolicy.IdSet(["read", "write"]))
-            for i in xrange(len(comps)):
+            self.assertEqual(av.perms, refpolicy.IdSet(["read", "write"]))
+            for i in range(len(comps)):
                 if comps[i][0] == av.src_type and \
                    comps[i][1] == av.tgt_type and \
                    comps[i][2] == av.obj_class:
                     status[i] = True
 
         for s in status:
-            self.assertEquals(s, True)
+            self.assertEqual(s, True)
 
     def test_len(self):
-        self.assertEquals(len(self.s), 8)
+        self.assertEqual(len(self.s), 8)
 
     def test_list(self):
         a = access.AccessVectorSet()
@@ -223,15 +240,22 @@ class TestAccessVectorSet(unittest.TestCase):
         a.add("what", "bar", "file", refpolicy.IdSet(["read", "write"]))
 
         avl = a.to_list()
+        avl.sort()
 
         test_l = [['what','bar','file','read','write'],
                   ['$1','foo','file','read','write'],
                   ['$1','bar','file','read','write']]
+        test_l.sort()
 
         for a,b in zip(test_l, avl):
             self.assertEqual(len(a), len(b))
-            for x,y in zip(a,b):
+            for x,y in list(zip(a,b))[:3]:
                 self.assertEqual(x, y)
+            perms1 = a[3:]
+            perms2 = b[3:]
+            perms1.sort()
+            perms2.sort()
+            self.assertEqual(perms1, perms2)
                 
         b = access.AccessVectorSet()
         b.from_list(avl)

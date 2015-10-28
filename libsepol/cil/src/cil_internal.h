@@ -127,6 +127,8 @@ char *CIL_KEY_TRANS;
 char *CIL_KEY_TYPE;
 char *CIL_KEY_ROLE;
 char *CIL_KEY_USER;
+char *CIL_KEY_USERATTRIBUTE;
+char *CIL_KEY_USERATTRIBUTESET;
 char *CIL_KEY_SENSITIVITY;
 char *CIL_KEY_CATEGORY;
 char *CIL_KEY_CATSET;
@@ -216,6 +218,11 @@ char *CIL_KEY_DEFAULTTYPE;
 char *CIL_KEY_ROOT;
 char *CIL_KEY_NODE;
 char *CIL_KEY_PERM;
+char *CIL_KEY_ALLOWX;
+char *CIL_KEY_AUDITALLOWX;
+char *CIL_KEY_DONTAUDITX;
+char *CIL_KEY_PERMISSIONX;
+char *CIL_KEY_IOCTL;
 
 /*
 	Symbol Table Array Indices
@@ -239,6 +246,7 @@ enum cil_sym_index {
 	CIL_SYM_POLICYCAPS,
 	CIL_SYM_IPADDRS,
 	CIL_SYM_NAMES,
+	CIL_SYM_PERMX,
 	CIL_SYM_NUM,
 	CIL_SYM_UNKNOWN,
 	CIL_SYM_PERMS	// Special case for permissions. This symtab is not included in arrays
@@ -279,11 +287,15 @@ struct cil_db {
 	struct cil_list *userprefixes;
 	struct cil_list *selinuxusers;
 	struct cil_list *names;
+	int num_types_and_attrs;
+	int num_classes;
 	int num_cats;
 	int num_types;
 	int num_roles;
+	int num_users;
 	struct cil_type **val_to_type;
 	struct cil_role **val_to_role;
+	struct cil_user **val_to_user;
 	int disable_dontaudit;
 	int disable_neverallow;
 	int preserve_tunables;
@@ -410,14 +422,27 @@ struct cil_sidorder {
 struct cil_user {
 	struct cil_symtab_datum datum;
 	struct cil_user *bounds;
-	struct cil_list *roles;
+	ebitmap_t *roles;
 	struct cil_level *dftlevel;
 	struct cil_levelrange *range;
+	int value;
+};
+
+struct cil_userattribute {
+	struct cil_symtab_datum datum;
+	struct cil_list *expr_list;
+	ebitmap_t *users;
+};
+
+struct cil_userattributeset {
+	char *attr_str;
+	struct cil_list *str_expr;
+	struct cil_list *datum_expr;
 };
 
 struct cil_userrole {
 	char *user_str;
-	struct cil_user *user;
+	void *user;
 	char *role_str;
 	void *role;
 };
@@ -550,6 +575,26 @@ struct cil_avrule {
 	char *tgt_str;	
 	void *tgt; /* type, alias, or attribute */
 	struct cil_list *classperms;
+};
+
+#define CIL_PERMX_KIND_IOCTL 1
+struct cil_permissionx {
+	struct cil_symtab_datum datum;
+	uint32_t kind;
+	char *obj_str;
+	void *obj;
+	struct cil_list *expr_str;
+	ebitmap_t *perms;
+};
+
+struct cil_avrulex {
+	uint32_t rule_kind;
+	char *src_str;
+	void *src; /* type, alias, or attribute */
+	char *tgt_str;
+	void *tgt; /* type, alias, or attribute */
+	char *permx_str;
+	struct cil_permissionx *permx;
 };
 
 #define CIL_TYPE_TRANSITION 16
@@ -928,6 +973,8 @@ void cil_condblock_init(struct cil_condblock **cb);
 void cil_tunable_init(struct cil_tunable **ciltun);
 void cil_tunif_init(struct cil_tunableif **tif);
 void cil_avrule_init(struct cil_avrule **avrule);
+void cil_avrulex_init(struct cil_avrulex **avrulex);
+void cil_permissionx_init(struct cil_permissionx **permx);
 void cil_type_rule_init(struct cil_type_rule **type_rule);
 void cil_roletransition_init(struct cil_roletransition **roletrans);
 void cil_roleallow_init(struct cil_roleallow **role_allow);
@@ -972,5 +1019,7 @@ void cil_default_init(struct cil_default **def);
 void cil_defaultrange_init(struct cil_defaultrange **def);
 void cil_handleunknown_init(struct cil_handleunknown **unk);
 void cil_mls_init(struct cil_mls **mls);
+void cil_userattribute_init(struct cil_userattribute **attribute);
+void cil_userattributeset_init(struct cil_userattributeset **attrset);
 
 #endif

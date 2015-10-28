@@ -1,3 +1,8 @@
+	* Reset line numbers when parsing files, from Nicolas Iooss.
+	* Convert cmp functions to key functions, from Robert Kuska.
+	* Decode output from Popen in Python3, from Robert Kuska.
+	* Comment constraint rules in output, from Miroslav Grepl via Petr Lautrbach.
+	* Add support for python3, from Robert Kuska.
 	* Add device tree ocontext nodes to Xen policy, from Daniel De Graaf.
 
 1.2.2 2015-02-02

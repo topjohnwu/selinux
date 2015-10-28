@@ -34,12 +34,11 @@ import os
 import re
 import traceback
 
-import refpolicy
-import access
-import defaults
-
-import lex
-import yacc
+from . import access
+from . import defaults
+from . import lex
+from . import refpolicy
+from . import yacc
 
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 #
@@ -269,7 +268,7 @@ def t_comment(t):
     t.lexer.lineno += 1
 
 def t_error(t):
-    print "Illegal character '%s'" % t.value[0]
+    print("Illegal character '%s'" % t.value[0])
     t.skip(1)
 
 def t_newline(t):
@@ -971,7 +970,7 @@ def p_optional_semi(p):
 def p_error(tok):
     global error, parse_file, success, parser
     error = "%s: Syntax error on line %d %s [type=%s]" % (parse_file, tok.lineno, tok.value, tok.type)
-    print error
+    print(error)
     success = False
 
 def prep_spt(spt):
@@ -1004,11 +1003,12 @@ def parse(text, module=None, support=None, debug=False):
     create_globals(module, support, debug)
     global error, parser, lexer, success
 
+    lexer.lineno = 1
     success = True
 
     try:
         parser.parse(text, debug=debug, lexer=lexer)
-    except Exception, e:
+    except Exception as e:
         parser = None
         lexer = None
         error = "internal parser error: %s" % str(e) + "\n" + traceback.format_exc()
@@ -1041,7 +1041,7 @@ def list_headers(root):
 
 
 def parse_headers(root, output=None, expand=True, debug=False):
-    import util
+    from . import util
 
     headers = refpolicy.Headers()
 
@@ -1075,9 +1075,9 @@ def parse_headers(root, output=None, expand=True, debug=False):
             fd.close()
             parse_file = f
             parse(txt, module, spt, debug)
-        except IOError, e:
+        except IOError as e:
             return
-        except ValueError, e:
+        except ValueError as e:
             raise ValueError("error parsing file %s: %s" % (f, str(e)))
 
     spt = None
@@ -1113,7 +1113,7 @@ def parse_headers(root, output=None, expand=True, debug=False):
                 parse_file(x[1], m, spt)
             else:
                 parse_file(x[1], m)
-        except ValueError, e:
+        except ValueError as e:
             o(str(e) + "\n")
             failures.append(x[1])
             continue

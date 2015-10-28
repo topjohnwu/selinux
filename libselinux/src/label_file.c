@@ -5,6 +5,7 @@
  * Author : Stephen Smalley <sds@tycho.nsa.gov>
  */
 
+#include <assert.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <string.h>
@@ -15,13 +16,11 @@
 #include <limits.h>
 #include <stdint.h>
 #include <pcre.h>
-
-#include <linux/limits.h>
-
+#include <unistd.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
+
 #include "callbacks.h"
 #include "label_internal.h"
 #include "label_file.h"
@@ -72,12 +71,14 @@ static int nodups_specs(struct saved_data *data, const char *path)
 	for (ii = 0; ii < data->nspec; ii++) {
 		curr_spec = &spec_arr[ii];
 		for (jj = ii + 1; jj < data->nspec; jj++) {
-			if ((!strcmp(spec_arr[jj].regex_str, curr_spec->regex_str))
+			if ((!strcmp(spec_arr[jj].regex_str,
+				curr_spec->regex_str))
 			    && (!spec_arr[jj].mode || !curr_spec->mode
 				|| spec_arr[jj].mode == curr_spec->mode)) {
 				rc = -1;
 				errno = EINVAL;
-				if (strcmp(spec_arr[jj].lr.ctx_raw, curr_spec->lr.ctx_raw)) {
+				if (strcmp(spec_arr[jj].lr.ctx_raw,
+					    curr_spec->lr.ctx_raw)) {
 					COMPAT_LOG
 						(SELINUX_ERROR,
 						 "%s: Multiple different specifications for %s  (%s and %s).\n",
@@ -96,136 +97,9 @@ static int nodups_specs(struct saved_data *data, const char *path)
 	return rc;
 }
 
-static int compile_regex(struct saved_data *data, struct spec *spec, const char **errbuf)
-{
-	const char *tmperrbuf;
-	char *reg_buf, *anchored_regex, *cp;
-	struct stem *stem_arr = data->stem_arr;
-	size_t len;
-	int erroff;
-
-	if (spec->regcomp)
-		return 0; /* already done */
-
-	/* Skip the fixed stem. */
-	reg_buf = spec->regex_str;
-	if (spec->stem_id >= 0)
-		reg_buf += stem_arr[spec->stem_id].len;
-
-	/* Anchor the regular expression. */
-	len = strlen(reg_buf);
-	cp = anchored_regex = malloc(len + 3);
-	if (!anchored_regex)
-		return -1;
-
-	/* Create ^...$ regexp.  */
-	*cp++ = '^';
-	cp = mempcpy(cp, reg_buf, len);
-	*cp++ = '$';
-	*cp = '\0';
-
-	/* Compile the regular expression. */
-	spec->regex = pcre_compile(anchored_regex, PCRE_DOTALL, &tmperrbuf, &erroff, NULL);
-	free(anchored_regex);
-	if (!spec->regex) {
-		if (errbuf)
-			*errbuf=tmperrbuf;
-		return -1;
-	}
-
-	spec->sd = pcre_study(spec->regex, 0, &tmperrbuf);
-	if (!spec->sd && tmperrbuf) {
-		if (errbuf)
-			*errbuf=tmperrbuf;
-		return -1;
-	}
-
-	/* Done. */
-	spec->regcomp = 1;
-
-	return 0;
-}
-
-static int process_line(struct selabel_handle *rec,
-			const char *path, const char *prefix,
-			char *line_buf, unsigned lineno)
-{
-	int items, len, rc;
-	char *regex = NULL, *type = NULL, *context = NULL;
-	struct saved_data *data = (struct saved_data *)rec->data;
-	struct spec *spec_arr;
-	unsigned int nspec = data->nspec;
-	const char *errbuf = NULL;
-
-	items = read_spec_entries(line_buf, 3, &regex, &type, &context);
-	if (items <= 0)
-		return items;
-
-	if (items < 2) {
-		COMPAT_LOG(SELINUX_WARNING,
-			    "%s:  line %u is missing fields, skipping\n", path,
-			    lineno);
-		if (items == 1)
-			free(regex);
-		return 0;
-	} else if (items == 2) {
-		/* The type field is optional. */
-		free(context);
-		context = type;
-		type = 0;
-	}
-
-	len = get_stem_from_spec(regex);
-	if (len && prefix && strncmp(prefix, regex, len)) {
-		/* Stem of regex does not match requested prefix, discard. */
-		free(regex);
-		free(type);
-		free(context);
-		return 0;
-	}
-
-	rc = grow_specs(data);
-	if (rc)
-		return rc;
-
-	spec_arr = data->spec_arr;
-
-	/* process and store the specification in spec. */
-	spec_arr[nspec].stem_id = find_stem_from_spec(data, regex);
-	spec_arr[nspec].regex_str = regex;
-	if (rec->validating && compile_regex(data, &spec_arr[nspec], &errbuf)) {
-		COMPAT_LOG(SELINUX_WARNING, "%s:  line %u has invalid regex %s:  %s\n",
-			   path, lineno, regex, (errbuf ? errbuf : "out of memory"));
-	}
-
-	/* Convert the type string to a mode format */
-	spec_arr[nspec].type_str = type;
-	spec_arr[nspec].mode = 0;
-	if (type) {
-		mode_t mode = string_to_mode(type);
-		if (mode == (mode_t)-1) {
-			COMPAT_LOG(SELINUX_WARNING, "%s:  line %u has invalid file type %s\n",
-				   path, lineno, type);
-			mode = 0;
-		}
-		spec_arr[nspec].mode = mode;
-	}
-
-	spec_arr[nspec].lr.ctx_raw = context;
-
-	/* Determine if specification has
-	 * any meta characters in the RE */
-	spec_hasMetaChars(&spec_arr[nspec]);
-
-	if (strcmp(context, "<<none>>") && rec->validating)
-		compat_validate(rec, &spec_arr[nspec].lr, path, lineno);
-
-	data->nspec = ++nspec;
-
-	return 0;
-}
-
-static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *sb)
+static int load_mmap(struct selabel_handle *rec, const char *path,
+				    struct stat *sb, bool isbinary,
+				    struct selabel_digest *digest)
 {
 	struct saved_data *data = (struct saved_data *)rec->data;
 	char mmap_path[PATH_MAX + 1];
@@ -239,9 +113,16 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 	uint32_t i, magic, version;
 	uint32_t entry_len, stem_map_len, regex_array_len;
 
-	rc = snprintf(mmap_path, sizeof(mmap_path), "%s.bin", path);
-	if (rc >= (int)sizeof(mmap_path))
-		return -1;
+	if (isbinary) {
+		len = strlen(path);
+		if (len >= sizeof(mmap_path))
+			return -1;
+		strcpy(mmap_path, path);
+	} else {
+		rc = snprintf(mmap_path, sizeof(mmap_path), "%s.bin", path);
+		if (rc >= (int)sizeof(mmap_path))
+			return -1;
+	}
 
 	mmapfd = open(mmap_path, O_RDONLY | O_CLOEXEC);
 	if (mmapfd < 0)
@@ -255,12 +136,6 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 
 	/* if mmap is old, ignore it */
 	if (mmap_stat.st_mtime < sb->st_mtime) {
-		close(mmapfd);
-		return -1;
-	}
-
-	if (mmap_stat.st_mtime == sb->st_mtime &&
-	    mmap_stat.st_mtim.tv_nsec < sb->st_mtim.tv_nsec) {
 		close(mmapfd);
 		return -1;
 	}
@@ -285,8 +160,8 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 	}
 
 	/* save where we mmap'd the file to cleanup on close() */
-	mmap_area->addr = addr;
-	mmap_area->len = len;
+	mmap_area->addr = mmap_area->next_addr = addr;
+	mmap_area->len = mmap_area->next_len = len;
 	mmap_area->next = data->mmap_areas;
 	data->mmap_areas = mmap_area;
 
@@ -357,7 +232,7 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 
 		/* Check for stem_len wrap around. */
 		if (stem_len < UINT32_MAX) {
-			buf = (char *)mmap_area->addr;
+			buf = (char *)mmap_area->next_addr;
 			/* Check if over-run before null check. */
 			rc = next_entry(NULL, mmap_area, (stem_len + 1));
 			if (rc < 0)
@@ -395,7 +270,7 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 	for (i = 0; i < regex_array_len; i++) {
 		struct spec *spec;
 		int32_t stem_id, meta_chars;
-		uint32_t mode = 0;
+		uint32_t mode = 0, prefix_len = 0;
 
 		rc = grow_specs(data);
 		if (rc < 0)
@@ -428,6 +303,14 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 		}
 		spec->lr.ctx_raw = str_buf;
 
+		if (strcmp(spec->lr.ctx_raw, "<<none>>") && rec->validating) {
+			if (selabel_validate(rec, &spec->lr) < 0) {
+				selinux_log(SELINUX_ERROR,
+					    "%s: context %s is invalid\n", mmap_path, spec->lr.ctx_raw);
+				goto err;
+			}
+		}
+
 		/* Process regex string */
 		rc = next_entry(&entry_len, mmap_area, sizeof(uint32_t));
 		if (rc < 0 || !entry_len) {
@@ -435,7 +318,7 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 			goto err;
 		}
 
-		spec->regex_str = (char *)mmap_area->addr;
+		spec->regex_str = (char *)mmap_area->next_addr;
 		rc = next_entry(NULL, mmap_area, entry_len);
 		if (rc < 0)
 			goto err;
@@ -460,7 +343,7 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 		if (rc < 0)
 			goto err;
 
-		if (stem_id < 0 || stem_id >= stem_map_len)
+		if (stem_id < 0 || stem_id >= (int32_t)stem_map_len)
 			spec->stem_id = -1;
 		 else
 			spec->stem_id = stem_map[stem_id];
@@ -471,6 +354,15 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 			goto err;
 
 		spec->hasMetaChars = meta_chars;
+		/* and prefix length for use by selabel_lookup_best_match */
+		if (version >= SELINUX_COMPILED_FCONTEXT_PREFIX_LEN) {
+			rc = next_entry(&prefix_len, mmap_area,
+					    sizeof(uint32_t));
+			if (rc < 0)
+				goto err;
+
+			spec->prefix_len = prefix_len;
+		}
 
 		/* Process regex and study_data entries */
 		rc = next_entry(&entry_len, mmap_area, sizeof(uint32_t));
@@ -478,7 +370,7 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 			rc = -1;
 			goto err;
 		}
-		spec->regex = (pcre *)mmap_area->addr;
+		spec->regex = (pcre *)mmap_area->next_addr;
 		rc = next_entry(NULL, mmap_area, entry_len);
 		if (rc < 0)
 			goto err;
@@ -496,7 +388,7 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 			rc = -1;
 			goto err;
 		}
-		spec->lsd.study_data = (void *)mmap_area->addr;
+		spec->lsd.study_data = (void *)mmap_area->next_addr;
 		spec->lsd.flags |= PCRE_EXTRA_STUDY_DATA;
 		rc = next_entry(NULL, mmap_area, entry_len);
 		if (rc < 0)
@@ -512,27 +404,36 @@ static int load_mmap(struct selabel_handle *rec, const char *path, struct stat *
 
 		data->nspec++;
 	}
-	/* win */
-	rc = 0;
+
+	rc = digest_add_specfile(digest, NULL, addr, mmap_stat.st_size,
+								    mmap_path);
+	if (rc)
+		goto err;
+
 err:
 	free(stem_map);
 
 	return rc;
 }
 
-static int process_file(const char *path, const char *suffix, struct selabel_handle *rec, const char *prefix)
+static int process_file(const char *path, const char *suffix,
+			  struct selabel_handle *rec,
+			  const char *prefix, struct selabel_digest *digest)
 {
 	FILE *fp;
 	struct stat sb;
 	unsigned int lineno;
-	size_t line_len;
+	size_t line_len = 0;
 	char *line_buf = NULL;
 	int rc;
 	char stack_path[PATH_MAX + 1];
+	bool isbinary = false;
+	uint32_t magic;
 
 	/* append the path suffix if we have one */
 	if (suffix) {
-		rc = snprintf(stack_path, sizeof(stack_path), "%s.%s", path, suffix);
+		rc = snprintf(stack_path, sizeof(stack_path),
+					    "%s.%s", path, suffix);
 		if (rc >= (int)sizeof(stack_path)) {
 			errno = ENAMETOOLONG;
 			return -1;
@@ -541,38 +442,74 @@ static int process_file(const char *path, const char *suffix, struct selabel_han
 	}
 
 	/* Open the specification file. */
-	if ((fp = fopen(path, "r")) == NULL)
-		return -1;
-	__fsetlocking(fp, FSETLOCKING_BYCALLER);
+	fp = fopen(path, "r");
+	if (fp) {
+		__fsetlocking(fp, FSETLOCKING_BYCALLER);
 
-	if (fstat(fileno(fp), &sb) < 0)
-		return -1;
-	if (!S_ISREG(sb.st_mode)) {
-		errno = EINVAL;
-		return -1;
+		if (fstat(fileno(fp), &sb) < 0)
+			return -1;
+		if (!S_ISREG(sb.st_mode)) {
+			errno = EINVAL;
+			return -1;
+		}
+
+		magic = 0;
+		if (fread(&magic, sizeof magic, 1, fp) != 1) {
+			if (ferror(fp)) {
+				errno = EINVAL;
+				fclose(fp);
+				return -1;
+			}
+			clearerr(fp);
+		}
+
+		if (magic == SELINUX_MAGIC_COMPILED_FCONTEXT) {
+			/* file_contexts.bin format */
+			fclose(fp);
+			fp = NULL;
+			isbinary = true;
+		} else {
+			rewind(fp);
+		}
+	} else {
+		/*
+		 * Text file does not exist, so clear the timestamp
+		 * so that we will always pass the timestamp comparison
+		 * with the bin file in load_mmap().
+		 */
+		sb.st_mtime = 0;
 	}
 
-	rc = load_mmap(rec, path, &sb);
+	rc = load_mmap(rec, path, &sb, isbinary, digest);
 	if (rc == 0)
 		goto out;
 
+	if (!fp)
+		return -1; /* no text or bin file */
+
 	/*
-	 * The do detailed validation of the input and fill the spec array
+	 * Then do detailed validation of the input and fill the spec array
 	 */
 	lineno = 0;
+	rc = 0;
 	while (getline(&line_buf, &line_len, fp) > 0) {
 		rc = process_line(rec, path, prefix, line_buf, ++lineno);
 		if (rc)
-			return rc;
+			goto out;
 	}
+
+	rc = digest_add_specfile(digest, fp, NULL, sb.st_size, path);
+
 out:
 	free(line_buf);
-	fclose(fp);
-
-	return 0;
+	if (fp)
+		fclose(fp);
+	return rc;
 }
 
-static int init(struct selabel_handle *rec, struct selinux_opt *opts,
+static void closef(struct selabel_handle *rec);
+
+static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 		unsigned n)
 {
 	struct saved_data *data = (struct saved_data *)rec->data;
@@ -597,22 +534,27 @@ static int init(struct selabel_handle *rec, struct selinux_opt *opts,
 
 	/* Process local and distribution substitution files */
 	if (!path) {
-		rec->dist_subs = selabel_subs_init(selinux_file_context_subs_dist_path(), rec->dist_subs);
-		rec->subs = selabel_subs_init(selinux_file_context_subs_path(), rec->subs);
+		rec->dist_subs =
+		    selabel_subs_init(selinux_file_context_subs_dist_path(),
+		    rec->dist_subs, rec->digest);
+		rec->subs = selabel_subs_init(selinux_file_context_subs_path(),
+		    rec->subs, rec->digest);
 		path = selinux_file_context_path();
 	} else {
 		snprintf(subs_file, sizeof(subs_file), "%s.subs_dist", path);
-		rec->dist_subs = selabel_subs_init(subs_file, rec->dist_subs);
+		rec->dist_subs = selabel_subs_init(subs_file, rec->dist_subs,
+							    rec->digest);
 		snprintf(subs_file, sizeof(subs_file), "%s.subs", path);
-		rec->subs = selabel_subs_init(subs_file, rec->subs);
+		rec->subs = selabel_subs_init(subs_file, rec->subs,
+							    rec->digest);
 	}
 
 	rec->spec_file = strdup(path);
 
-	/* 
+	/*
 	 * The do detailed validation of the input and fill the spec array
 	 */
-	status = process_file(path, NULL, rec, prefix);
+	status = process_file(path, NULL, rec, prefix, rec->digest);
 	if (status)
 		goto finish;
 
@@ -623,21 +565,25 @@ static int init(struct selabel_handle *rec, struct selinux_opt *opts,
 	}
 
 	if (!baseonly) {
-		status = process_file(path, "homedirs", rec, prefix);
+		status = process_file(path, "homedirs", rec, prefix,
+							    rec->digest);
 		if (status && errno != ENOENT)
 			goto finish;
 
-		status = process_file(path, "local", rec, prefix);
+		status = process_file(path, "local", rec, prefix,
+							    rec->digest);
 		if (status && errno != ENOENT)
 			goto finish;
 	}
 
+	digest_gen_hash(rec->digest);
+
 	status = sort_specs(data);
 
-	status = 0;
 finish:
 	if (status)
-		free(data->spec_arr);
+		closef(rec);
+
 	return status;
 }
 
@@ -731,7 +677,7 @@ static struct spec *lookup_common(struct selabel_handle *rec,
 	if (partial)
 		pcre_options |= PCRE_PARTIAL_SOFT;
 
-	/* 
+	/*
 	 * Check for matching specifications in reverse order, so that
 	 * the last matching specification is used.
 	 */
@@ -857,6 +803,96 @@ out:
 	return lr;
 }
 
+static enum selabel_cmp_result incomp(struct spec *spec1, struct spec *spec2, const char *reason, int i, int j)
+{
+	selinux_log(SELINUX_INFO,
+		    "selabel_cmp: mismatched %s on entry %d: (%s, %x, %s) vs entry %d: (%s, %x, %s)\n",
+		    reason,
+		    i, spec1->regex_str, spec1->mode, spec1->lr.ctx_raw,
+		    j, spec2->regex_str, spec2->mode, spec2->lr.ctx_raw);
+	return SELABEL_INCOMPARABLE;
+}
+
+static enum selabel_cmp_result cmp(struct selabel_handle *h1,
+				   struct selabel_handle *h2)
+{
+	struct saved_data *data1 = (struct saved_data *)h1->data;
+	struct saved_data *data2 = (struct saved_data *)h2->data;
+	unsigned int i, nspec1 = data1->nspec, j, nspec2 = data2->nspec;
+	struct spec *spec_arr1 = data1->spec_arr, *spec_arr2 = data2->spec_arr;
+	struct stem *stem_arr1 = data1->stem_arr, *stem_arr2 = data2->stem_arr;
+	bool skipped1 = false, skipped2 = false;
+
+	i = 0;
+	j = 0;
+	while (i < nspec1 && j < nspec2) {
+		struct spec *spec1 = &spec_arr1[i];
+		struct spec *spec2 = &spec_arr2[j];
+
+		/*
+		 * Because sort_specs() moves exact pathnames to the
+		 * end, we might need to skip over additional regex
+		 * entries that only exist in one of the configurations.
+		 */
+		if (!spec1->hasMetaChars && spec2->hasMetaChars) {
+			j++;
+			skipped2 = true;
+			continue;
+		}
+
+		if (spec1->hasMetaChars && !spec2->hasMetaChars) {
+			i++;
+			skipped1 = true;
+			continue;
+		}
+
+		if (spec1->regcomp && spec2->regcomp) {
+			size_t len1, len2;
+			int rc;
+
+			rc = pcre_fullinfo(spec1->regex, NULL, PCRE_INFO_SIZE, &len1);
+			assert(rc == 0);
+			rc = pcre_fullinfo(spec2->regex, NULL, PCRE_INFO_SIZE, &len2);
+			assert(rc == 0);
+			if (len1 != len2 ||
+			    memcmp(spec1->regex, spec2->regex, len1))
+				return incomp(spec1, spec2, "regex", i, j);
+		} else {
+			if (strcmp(spec1->regex_str, spec2->regex_str))
+				return incomp(spec1, spec2, "regex_str", i, j);
+		}
+
+		if (spec1->mode != spec2->mode)
+			return incomp(spec1, spec2, "mode", i, j);
+
+		if (spec1->stem_id == -1 && spec2->stem_id != -1)
+			return incomp(spec1, spec2, "stem_id", i, j);
+		if (spec2->stem_id == -1 && spec1->stem_id != -1)
+			return incomp(spec1, spec2, "stem_id", i, j);
+		if (spec1->stem_id != -1 && spec2->stem_id != -1) {
+			struct stem *stem1 = &stem_arr1[spec1->stem_id];
+			struct stem *stem2 = &stem_arr2[spec2->stem_id];
+			if (stem1->len != stem2->len ||
+			    strncmp(stem1->buf, stem2->buf, stem1->len))
+				return incomp(spec1, spec2, "stem", i, j);
+		}
+
+		if (strcmp(spec1->lr.ctx_raw, spec2->lr.ctx_raw))
+			return incomp(spec1, spec2, "ctx_raw", i, j);
+
+		i++;
+		j++;
+	}
+
+	if ((skipped1 || i < nspec1) && !skipped2)
+		return SELABEL_SUPERSET;
+	if ((skipped2 || j < nspec2) && !skipped1)
+		return SELABEL_SUBSET;
+	if (skipped1 && skipped2)
+		return SELABEL_INCOMPARABLE;
+	return SELABEL_EQUAL;
+}
+
 
 static void stats(struct selabel_handle *rec)
 {
@@ -882,8 +918,9 @@ static void stats(struct selabel_handle *rec)
 	}
 }
 
-int selabel_file_init(struct selabel_handle *rec, struct selinux_opt *opts,
-		      unsigned nopts)
+int selabel_file_init(struct selabel_handle *rec,
+				    const struct selinux_opt *opts,
+				    unsigned nopts)
 {
 	struct saved_data *data;
 
@@ -898,6 +935,7 @@ int selabel_file_init(struct selabel_handle *rec, struct selinux_opt *opts,
 	rec->func_lookup = &lookup;
 	rec->func_partial_match = &partial_match;
 	rec->func_lookup_best_match = &lookup_best_match;
+	rec->func_cmp = &cmp;
 
 	return init(rec, opts, nopts);
 }

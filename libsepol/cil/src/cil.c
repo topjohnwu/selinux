@@ -70,11 +70,11 @@ asm(".symver cil_filecons_to_string_nopdb, cil_filecons_to_string@@LIBSEPOL_1.1"
 #endif
 
 int cil_sym_sizes[CIL_SYM_ARRAY_NUM][CIL_SYM_NUM] = {
-	{64, 64, 64, 1 << 13, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64},
-	{64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	{64, 64, 64, 1 << 13, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64},
+	{64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
 };
 
 static void cil_init_keys(void)
@@ -122,6 +122,8 @@ static void cil_init_keys(void)
 	CIL_KEY_TYPE = cil_strpool_add("type");
 	CIL_KEY_ROLE = cil_strpool_add("role");
 	CIL_KEY_USER = cil_strpool_add("user");
+	CIL_KEY_USERATTRIBUTE = cil_strpool_add("userattribute");
+	CIL_KEY_USERATTRIBUTESET = cil_strpool_add("userattributeset");
 	CIL_KEY_SENSITIVITY = cil_strpool_add("sensitivity");
 	CIL_KEY_CATEGORY = cil_strpool_add("category");
 	CIL_KEY_CATSET = cil_strpool_add("categoryset");
@@ -223,6 +225,11 @@ static void cil_init_keys(void)
 	CIL_KEY_ROOT = cil_strpool_add("<root>");
 	CIL_KEY_NODE = cil_strpool_add("<node>");
 	CIL_KEY_PERM = cil_strpool_add("perm");
+	CIL_KEY_ALLOWX = cil_strpool_add("allowx");
+	CIL_KEY_AUDITALLOWX = cil_strpool_add("auditallowx");
+	CIL_KEY_DONTAUDITX = cil_strpool_add("dontauditx");
+	CIL_KEY_PERMISSIONX = cil_strpool_add("permissionx");
+	CIL_KEY_IOCTL = cil_strpool_add("ioctl");
 }
 
 void cil_db_init(struct cil_db **db)
@@ -257,12 +264,15 @@ void cil_db_init(struct cil_db **db)
 	cil_type_init(&(*db)->selftype);
 	(*db)->selftype->datum.name = CIL_KEY_SELF;
 	(*db)->selftype->datum.fqn = CIL_KEY_SELF;
-
+	(*db)->num_types_and_attrs = 0;
+	(*db)->num_classes = 0;
 	(*db)->num_types = 0;
 	(*db)->num_roles = 0;
+	(*db)->num_users = 0;
 	(*db)->num_cats = 0;
 	(*db)->val_to_type = NULL;
 	(*db)->val_to_role = NULL;
+	(*db)->val_to_user = NULL;
 
 	(*db)->disable_dontaudit = CIL_FALSE;
 	(*db)->disable_neverallow = CIL_FALSE;
@@ -305,6 +315,7 @@ void cil_db_destroy(struct cil_db **db)
 	cil_strpool_destroy();
 	free((*db)->val_to_type);
 	free((*db)->val_to_role);
+	free((*db)->val_to_user);
 
 	free(*db);
 	*db = NULL;	
@@ -340,7 +351,7 @@ int cil_add_file(cil_db_t *db, char *name, char *data, size_t size)
 
 	rc = cil_parser(name, buffer, size + 2, &db->parse);
 	if (rc != SEPOL_OK) {
-		cil_log(CIL_ERR, "Failed to parse %s\n", name);
+		cil_log(CIL_INFO, "Failed to parse %s\n", name);
 		goto exit;
 	}
 
@@ -370,7 +381,7 @@ int cil_compile_nopdb(struct cil_db *db)
 	cil_log(CIL_INFO, "Building AST from Parse Tree\n");
 	rc = cil_build_ast(db, db->parse->root, db->ast->root);
 	if (rc != SEPOL_OK) {
-		cil_log(CIL_ERR, "Failed to build ast\n");
+		cil_log(CIL_INFO, "Failed to build ast\n");
 		goto exit;
 	}
 
@@ -380,21 +391,21 @@ int cil_compile_nopdb(struct cil_db *db)
 	cil_log(CIL_INFO, "Resolving AST\n");
 	rc = cil_resolve_ast(db, db->ast->root);
 	if (rc != SEPOL_OK) {
-		cil_log(CIL_ERR, "Failed to resolve ast\n");
+		cil_log(CIL_INFO, "Failed to resolve ast\n");
 		goto exit;
 	}
 
 	cil_log(CIL_INFO, "Qualifying Names\n");
 	rc = cil_fqn_qualify(db->ast->root);
 	if (rc != SEPOL_OK) {
-		cil_log(CIL_ERR, "Failed to qualify names\n");
+		cil_log(CIL_INFO, "Failed to qualify names\n");
 		goto exit;
 	}
 
 	cil_log(CIL_INFO, "Compile post process\n");
 	rc = cil_post_process(db);
 	if (rc != SEPOL_OK ) {
-		cil_log(CIL_ERR, "Post process failed\n");
+		cil_log(CIL_INFO, "Post process failed\n");
 		goto exit;
 	}
 
@@ -546,6 +557,12 @@ void cil_destroy_data(void **data, enum cil_flavor flavor)
 	case CIL_USER:
 		cil_destroy_user(*data);
 		break;
+	case CIL_USERATTRIBUTE:
+		cil_destroy_userattribute(*data);
+		break;
+	case CIL_USERATTRIBUTESET:
+		cil_destroy_userattributeset(*data);
+		break;
 	case CIL_USERPREFIX:
 		cil_destroy_userprefix(*data);
 		break;
@@ -651,6 +668,12 @@ void cil_destroy_data(void **data, enum cil_flavor flavor)
 		break;
 	case CIL_AVRULE:
 		cil_destroy_avrule(*data);
+		break;
+	case CIL_AVRULEX:
+		cil_destroy_avrulex(*data);
+		break;
+	case CIL_PERMISSIONX:
+		cil_destroy_permissionx(*data);
 		break;
 	case CIL_ROLETRANSITION:
 		cil_destroy_roletransition(*data);
@@ -782,6 +805,7 @@ int cil_flavor_to_symtab_index(enum cil_flavor flavor, enum cil_sym_index *sym_i
 		*sym_index = CIL_SYM_CLASSPERMSETS;
 		break;
 	case CIL_USER:
+	case CIL_USERATTRIBUTE:
 		*sym_index = CIL_SYM_USERS;
 		break;
 	case CIL_ROLE:
@@ -822,6 +846,9 @@ int cil_flavor_to_symtab_index(enum cil_flavor flavor, enum cil_sym_index *sym_i
 		break;
 	case CIL_POLICYCAP:
 		*sym_index = CIL_SYM_POLICYCAPS;
+		break;
+	case CIL_PERMISSIONX:
+		*sym_index = CIL_SYM_PERMX;
 		break;
 	default:
 		*sym_index = CIL_SYM_UNKNOWN;
@@ -909,6 +936,10 @@ const char * cil_node_to_string(struct cil_tree_node *node)
 		return CIL_KEY_CLASSPERMISSIONSET;
 	case CIL_USER:
 		return CIL_KEY_USER;
+	case CIL_USERATTRIBUTE:
+		return CIL_KEY_USERATTRIBUTE;
+	case CIL_USERATTRIBUTESET:
+		return CIL_KEY_USERATTRIBUTESET;
 	case CIL_USERPREFIX:
 		return CIL_KEY_USERPREFIX;
 	case CIL_USERROLE:
@@ -993,6 +1024,20 @@ const char * cil_node_to_string(struct cil_tree_node *node)
 			break;
 		}
 		break;
+	case CIL_AVRULEX:
+		switch (((struct cil_avrulex *)node->data)->rule_kind) {
+		case CIL_AVRULE_ALLOWED:
+			return CIL_KEY_ALLOWX;
+		case CIL_AVRULE_AUDITALLOW:
+			return CIL_KEY_AUDITALLOWX;
+		case CIL_AVRULE_DONTAUDIT:
+			return CIL_KEY_DONTAUDITX;
+		default:
+			break;
+		}
+		break;
+	case CIL_PERMISSIONX:
+		return CIL_KEY_PERMISSIONX;
 	case CIL_ROLETRANSITION:
 		return CIL_KEY_ROLETRANSITION;
 	case CIL_TYPE_RULE:
@@ -2078,6 +2123,31 @@ void cil_avrule_init(struct cil_avrule **avrule)
 	(*avrule)->classperms = NULL;
 }
 
+void cil_permissionx_init(struct cil_permissionx **permx)
+{
+	*permx = cil_malloc(sizeof(**permx));
+
+	cil_symtab_datum_init(&(*permx)->datum);
+	(*permx)->kind = CIL_NONE;
+	(*permx)->obj_str = NULL;
+	(*permx)->obj = NULL;
+	(*permx)->expr_str = NULL;
+	(*permx)->perms = NULL;
+}
+
+void cil_avrulex_init(struct cil_avrulex **avrule)
+{
+	*avrule = cil_malloc(sizeof(**avrule));
+
+	(*avrule)->rule_kind = CIL_NONE;
+	(*avrule)->src_str = NULL;
+	(*avrule)->src = NULL;
+	(*avrule)->tgt_str = NULL;
+	(*avrule)->tgt = NULL;
+	(*avrule)->permx_str = NULL;
+	(*avrule)->permx = NULL;
+}
+
 void cil_type_rule_init(struct cil_type_rule **type_rule)
 {
 	*type_rule = cil_malloc(sizeof(**type_rule));
@@ -2325,6 +2395,26 @@ void cil_user_init(struct cil_user **user)
 	(*user)->roles = NULL;
 	(*user)->dftlevel = NULL;
 	(*user)->range = NULL;
+	(*user)->value = 0;
+}
+
+void cil_userattribute_init(struct cil_userattribute **attr)
+{
+	*attr = cil_malloc(sizeof(**attr));
+
+	cil_symtab_datum_init(&(*attr)->datum);
+
+	(*attr)->expr_list = NULL;
+	(*attr)->users = NULL;
+}
+
+void cil_userattributeset_init(struct cil_userattributeset **attrset)
+{
+	*attrset = cil_malloc(sizeof(**attrset));
+
+	(*attrset)->attr_str = NULL;
+	(*attrset)->str_expr = NULL;
+	(*attrset)->datum_expr = NULL;
 }
 
 void cil_userlevel_init(struct cil_userlevel **usrlvl)

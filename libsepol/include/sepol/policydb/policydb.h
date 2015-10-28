@@ -241,11 +241,19 @@ typedef struct class_perm_node {
 	struct class_perm_node *next;
 } class_perm_node_t;
 
-typedef struct av_operations {
-	uint8_t type;
-	/* 256 bits of ioctl number permissions */
-	uint32_t perms[8];
-} av_operations_t;
+#define xperm_test(x, p) (1 & (p[x >> 5] >> (x & 0x1f)))
+#define xperm_set(x, p) (p[x >> 5] |= (1 << (x & 0x1f)))
+#define xperm_clear(x, p) (p[x >> 5] &= ~(1 << (x & 0x1f)))
+#define EXTENDED_PERMS_LEN 8
+
+typedef struct av_extended_perms {
+#define AVRULE_XPERMS_IOCTLFUNCTION	0x01
+#define AVRULE_XPERMS_IOCTLDRIVER	0x02
+	uint8_t specified;
+	uint8_t driver;
+	/* 256 bits of permissions */
+	uint32_t perms[EXTENDED_PERMS_LEN];
+} av_extended_perms_t;
 
 typedef struct avrule {
 /* these typedefs are almost exactly the same as those in avtab.h - they are
@@ -260,24 +268,19 @@ typedef struct avrule {
 #define AVRULE_MEMBER			0x0020
 #define AVRULE_CHANGE			0x0040
 #define AVRULE_TYPE       (AVRULE_TRANSITION | AVRULE_MEMBER | AVRULE_CHANGE)
-#define AVRULE_OPNUM_ALLOWED 		0x0100
-#define AVRULE_OPNUM_AUDITALLOW		0x0200
-#define AVRULE_OPNUM_DONTAUDIT		0x0400
-#define AVRULE_OPNUM         (AVRULE_OPNUM_ALLOWED | AVRULE_OPNUM_AUDITALLOW | \
-				AVRULE_OPNUM_DONTAUDIT)
-#define AVRULE_OPTYPE_ALLOWED		0x1000
-#define AVRULE_OPTYPE_AUDITALLOW	0x2000
-#define AVRULE_OPTYPE_DONTAUDIT		0x4000
-#define AVRULE_OPTYPE         (AVRULE_OPTYPE_ALLOWED | AVRULE_OPTYPE_AUDITALLOW | \
-				AVRULE_OPTYPE_DONTAUDIT)
-#define AVRULE_OP         (AVRULE_OPNUM | AVRULE_OPTYPE)
+#define AVRULE_XPERMS_ALLOWED 		0x0100
+#define AVRULE_XPERMS_AUDITALLOW	0x0200
+#define AVRULE_XPERMS_DONTAUDIT		0x0400
+#define AVRULE_XPERMS_NEVERALLOW	0x0800
+#define AVRULE_XPERMS	(AVRULE_XPERMS_ALLOWED | AVRULE_XPERMS_AUDITALLOW | \
+				AVRULE_XPERMS_DONTAUDIT | AVRULE_XPERMS_NEVERALLOW)
 	uint32_t specified;
 #define RULE_SELF 1
 	uint32_t flags;
 	type_set_t stypes;
 	type_set_t ttypes;
 	class_perm_node_t *perms;
-	av_operations_t * ops;
+	av_extended_perms_t *xperms;
 	unsigned long line;	/* line number from policy.conf where
 				 * this rule originated  */
 	/* source file name and line number (e.g. .te file) */
@@ -652,7 +655,7 @@ extern void level_datum_init(level_datum_t * x);
 extern void level_datum_destroy(level_datum_t * x);
 extern void cat_datum_init(cat_datum_t * x);
 extern void cat_datum_destroy(cat_datum_t * x);
-
+extern int check_assertion(policydb_t *p, avrule_t *avrule);
 extern int check_assertions(sepol_handle_t * handle,
 			    policydb_t * p, avrule_t * avrules);
 
@@ -709,11 +712,11 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 #define POLICYDB_VERSION_DEFAULT_TYPE	28
 #define POLICYDB_VERSION_CONSTRAINT_NAMES	29
 #define POLICYDB_VERSION_XEN_DEVICETREE		30 /* Xen-specific */
-#define POLICYDB_VERSION_IOCTL_OPERATIONS	30 /* Linux-specific */
+#define POLICYDB_VERSION_XPERMS_IOCTL	30 /* Linux-specific */
 
 /* Range of policy versions we understand*/
 #define POLICYDB_VERSION_MIN	POLICYDB_VERSION_BASE
-#define POLICYDB_VERSION_MAX	POLICYDB_VERSION_IOCTL_OPERATIONS
+#define POLICYDB_VERSION_MAX	POLICYDB_VERSION_XPERMS_IOCTL
 
 /* Module versions and specific changes*/
 #define MOD_POLICYDB_VERSION_BASE		4

@@ -1,3 +1,8 @@
+	* Add neverallow support for ioctl extended permissions, from Jeff Vander Stoep.
+	* fix double free on name-based type transitions, from Stephen Smalley.
+	* switch operations to extended perms, from Jeff Vander Stoep.
+	* policy_define.c: fix compiler warnings, from Nick Kralevich.
+	* Remove uses of -Wno-return-type, from Dan Albert.
 	* Fix -Wreturn-type issues, from Dan Albert.
 	* dispol: display operations as ranges, from Jeff Vander Stoep.
 	* dispol: Extend to display operations, from Stephen Smalley.

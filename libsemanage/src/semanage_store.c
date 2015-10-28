@@ -110,10 +110,14 @@ static const char *semanage_sandbox_paths[SEMANAGE_STORE_NUM_PATHS] = {
 	"/disable_dontaudit",
 	"/preserve_tunables",
 	"/modules/disabled",
+	"/policy.kern",
+	"/file_contexts.local",
+	"/file_contexts",
+	"/seusers"
 };
 
 static char const * const semanage_final_prefix[SEMANAGE_FINAL_NUM] = {
-	"/tmp",
+	"/final",
 	"",
 };
 
@@ -664,7 +668,7 @@ static int semanage_filename_select(const struct dirent *d)
 
 /* Copies a file from src to dst.  If dst already exists then
  * overwrite it.  Returns 0 on success, -1 on error. */
-static int semanage_copy_file(const char *src, const char *dst, mode_t mode)
+int semanage_copy_file(const char *src, const char *dst, mode_t mode)
 {
 	int in, out, retval = 0, amount_read, n, errsv = errno;
 	char tmp[PATH_MAX];
@@ -943,9 +947,7 @@ int semanage_make_final(semanage_handle_t *sh)
 		goto cleanup;
 	}
 
-	/* Copy in exported databases.
-	 * i = 1 to avoid copying the top level directory.
-	 */
+	// Build final directory structure
 	int i;
 	for (i = 1; i < SEMANAGE_FINAL_PATH_NUM; i++) {
 		if (strlen(semanage_final_path(SEMANAGE_FINAL_TMP, i)) >= sizeof(fn)) {
@@ -959,12 +961,6 @@ int semanage_make_final(semanage_handle_t *sh)
 			status = -1;
 			goto cleanup;
 		}
-
-		semanage_copy_file(
-			semanage_final_path(SEMANAGE_FINAL_SELINUX, i),
-			semanage_final_path(SEMANAGE_FINAL_TMP, i),
-			sh->conf->file_mode);
-		/* ignore errors, these files may not exist */
 	}
 
 cleanup:
@@ -1431,11 +1427,11 @@ int semanage_split_fc(semanage_handle_t * sh)
 		goto cleanup;
 	}
 
-	fc = open(semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_FC),
+	fc = open(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC),
 		  O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 	if (fc < 0) {
 		ERR(sh, "Could not open %s for writing.",
-		    semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_FC));
+		    semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC));
 		goto cleanup;
 	}
 	hd = open(semanage_path(SEMANAGE_TMP, SEMANAGE_HOMEDIR_TMPL),
@@ -1460,8 +1456,7 @@ int semanage_split_fc(semanage_handle_t * sh)
 		} else {
 			if (write(fc, buf, strlen(buf)) < 0) {
 				ERR(sh, "Write to %s failed.",
-				    semanage_final_path(SEMANAGE_FINAL_TMP,
-							SEMANAGE_FC));
+				    semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC));
 				goto cleanup;
 			}
 		}
@@ -2019,8 +2014,7 @@ int semanage_read_policydb(semanage_handle_t * sh, sepol_policydb_t * in)
 	FILE *infile = NULL;
 
 	if ((kernel_filename =
-	     semanage_final_path(SEMANAGE_FINAL_SELINUX,
-				 SEMANAGE_KERNEL)) == NULL) {
+	     semanage_path(SEMANAGE_ACTIVE, SEMANAGE_STORE_KERNEL)) == NULL) {
 		goto cleanup;
 	}
 	if ((infile = fopen(kernel_filename, "r")) == NULL) {
@@ -2061,7 +2055,7 @@ int semanage_write_policydb(semanage_handle_t * sh, sepol_policydb_t * out)
 	FILE *outfile = NULL;
 
 	if ((kernel_filename =
-	     semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_KERNEL)) == NULL) {
+	     semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_KERNEL)) == NULL) {
 		goto cleanup;
 	}
 	if ((outfile = fopen(kernel_filename, "wb")) == NULL) {
