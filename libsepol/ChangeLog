@@ -1,8 +1,25 @@
+	* Add neverallow support for ioctl extended permissions, from Jeff Vander Stoep.
+	* Improve CIL block and macro call recursion detection, from Steve Lawrence
+	* Fix CIL uninitialized false positive in cil_binary, from Yuli Khodorkovskiy
+	* Provide error in CIL if classperms are empty, from Yuli Khodorkovskiy
+	* Add userattribute{set} functionality to CIL, from Yuli Khodorkovskiy
+	* fix CIL blockinherit copying segfault and add macro restrictions, from Steve Lawrence
+	* fix CIL NULL pointer dereference when copying classpermission/set, from Steve Lawrence
+	* Add CIL support for ioctl whitelists, from Steve Lawrence
+	* Fix memory leak when destroying avtab, from Steve Lawrence
+	* Replace sscanf in module_to_cil, from Yuli Khodorkovskiy.
+	* Improve CIL resolution error messages, from Steve Lawrence
+	* Fix policydb_read for policy versions < 24, from Stephen Smalley.
+	* Added CIL bounds checking and refactored CIL Neverallow checking, from James Carter
+	* Refactored libsepol Neverallow and bounds (hierarchy) checking, from James Carter
+	* Treat types like an attribute in the attr_type_map, from James Carter
+	* Add new ebitmap function named ebitmap_match_any(), from James Carter
+	* switch operations to extended perms, from Jeff Vander Stoep.
 	* Write auditadm_r and secadm_r roles to base module when writing CIL, from Steve Lawrence
 	* Fix module to CIL to only associate declared roleattributes with in-scope types, from Steve Lawrence
 	* Don't allow categories/sensitivities inside blocks in CIL, from Yuli Khodorkovskiy.
 	* Replace fmemopen() with internal function in libsepol, from James Carter.
-	* Verify users prior to evaluating users in cil, from Yuli Khodorkovskiy. 
+	* Verify users prior to evaluating users in cil, from Yuli Khodorkovskiy.
 	* Binary modules do not support ioctl rules, from Stephen Smalley.
 	* Add support for ioctl command whitelisting, from Jeff Vander Stoep.
 	* Don't use symbol versioning for static object files, from Yuli Khodorkovskiy.

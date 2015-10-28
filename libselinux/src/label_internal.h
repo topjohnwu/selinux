@@ -10,23 +10,30 @@
 
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <selinux/selinux.h>
 #include <selinux/label.h>
 #include "dso.h"
+#include "sha1.h"
 
 /*
  * Installed backends
  */
-int selabel_file_init(struct selabel_handle *rec, struct selinux_opt *opts,
-		      unsigned nopts) hidden;
-int selabel_media_init(struct selabel_handle *rec, struct selinux_opt *opts,
-		      unsigned nopts) hidden;
-int selabel_x_init(struct selabel_handle *rec, struct selinux_opt *opts,
-		   unsigned nopts) hidden;
+int selabel_file_init(struct selabel_handle *rec,
+			    const struct selinux_opt *opts,
+			    unsigned nopts) hidden;
+int selabel_media_init(struct selabel_handle *rec,
+			    const struct selinux_opt *opts,
+			    unsigned nopts) hidden;
+int selabel_x_init(struct selabel_handle *rec,
+			    const struct selinux_opt *opts,
+			    unsigned nopts) hidden;
 int selabel_db_init(struct selabel_handle *rec,
-		    struct selinux_opt *opts, unsigned nopts) hidden;
+			    const struct selinux_opt *opts,
+			    unsigned nopts) hidden;
 int selabel_property_init(struct selabel_handle *rec,
-			  struct selinux_opt *opts, unsigned nopts) hidden;
+			    const struct selinux_opt *opts,
+			    unsigned nopts) hidden;
 
 /*
  * Labeling internal structures
@@ -38,8 +45,31 @@ struct selabel_sub {
 	struct selabel_sub *next;
 };
 
+/*
+ * Calculate an SHA1 hash of all the files used to build the specs.
+ * The hash value is held in rec->digest if SELABEL_OPT_DIGEST set. To
+ * calculate the hash the hashbuf will hold a concatenation of all the files
+ * used. This is released once the value has been calculated.
+ */
+#define DIGEST_SPECFILE_SIZE SHA1_HASH_SIZE
+#define DIGEST_FILES_MAX 8
+struct selabel_digest {
+	unsigned char *digest;	/* SHA1 digest of specfiles */
+	unsigned char *hashbuf;	/* buffer to hold specfiles */
+	size_t hashbuf_size;	/* buffer size */
+	size_t specfile_cnt;	/* how many specfiles processed */
+	char **specfile_list;	/* and their names */
+};
+
+extern int digest_add_specfile(struct selabel_digest *digest, FILE *fp,
+						    char *from_addr,
+						    size_t buf_len,
+						    const char *path);
+extern void digest_gen_hash(struct selabel_digest *digest);
+
 extern struct selabel_sub *selabel_subs_init(const char *path,
-					     struct selabel_sub *list);
+				    struct selabel_sub *list,
+				    struct selabel_digest *digest);
 
 struct selabel_lookup_rec {
 	char * ctx_raw;
@@ -63,6 +93,8 @@ struct selabel_handle {
 						    const char *key,
 						    const char **aliases,
 						    int type);
+	enum selabel_cmp_result (*func_cmp)(struct selabel_handle *h1,
+					    struct selabel_handle *h2);
 
 	/* supports backend-specific state information */
 	void *data;
@@ -76,6 +108,8 @@ struct selabel_handle {
 	/* substitution support */
 	struct selabel_sub *dist_subs;
 	struct selabel_sub *subs;
+	/* ptr to SHA1 hash information if SELABEL_OPT_DIGEST set */
+	struct selabel_digest *digest;
 };
 
 /*
@@ -90,7 +124,7 @@ selabel_validate(struct selabel_handle *rec,
  */
 extern int myprintf_compat;
 extern void __attribute__ ((format(printf, 1, 2)))
-(*myprintf) (const char *fmt,...);
+(*myprintf) (const char *fmt, ...);
 
 #define COMPAT_LOG(type, fmt...) if (myprintf_compat)	  \
 		myprintf(fmt);				  \

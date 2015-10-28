@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <selinux/selinux.h>
 #include "callbacks.h"
 #include "label_internal.h"
@@ -17,7 +18,8 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 typedef int (*selabel_initfunc)(struct selabel_handle *rec,
-				struct selinux_opt *opts, unsigned nopts);
+				const struct selinux_opt *opts,
+				unsigned nopts);
 
 static selabel_initfunc initfuncs[] = {
 	&selabel_file_init,
@@ -64,13 +66,19 @@ static char *selabel_sub(struct selabel_sub *ptr, const char *src)
 	return NULL;
 }
 
-struct selabel_sub *selabel_subs_init(const char *path, struct selabel_sub *list)
+struct selabel_sub *selabel_subs_init(const char *path,
+					    struct selabel_sub *list,
+					    struct selabel_digest *digest)
 {
 	char buf[1024];
 	FILE *cfg = fopen(path, "r");
-	struct selabel_sub *sub;
+	struct selabel_sub *sub = NULL;
+	struct stat sb;
 
 	if (!cfg)
+		return list;
+
+	if (fstat(fileno(cfg), &sb) < 0)
 		return list;
 
 	while (fgets_unlocked(buf, sizeof(buf) - 1, cfg)) {
@@ -114,6 +122,10 @@ struct selabel_sub *selabel_subs_init(const char *path, struct selabel_sub *list
 		sub->next = list;
 		list = sub;
 	}
+
+	if (digest_add_specfile(digest, cfg, NULL, sb.st_size, path) < 0)
+		goto err;
+
 out:
 	fclose(cfg);
 	return list;
@@ -124,11 +136,63 @@ err:
 	goto out;
 }
 
+static inline struct selabel_digest *selabel_is_digest_set
+				    (const struct selinux_opt *opts,
+				    unsigned n,
+				    struct selabel_digest *entry)
+{
+	struct selabel_digest *digest = NULL;
+
+	while (n--) {
+		if (opts[n].type == SELABEL_OPT_DIGEST &&
+					    opts[n].value == (char *)1) {
+			digest = calloc(1, sizeof(*digest));
+			if (!digest)
+				goto err;
+
+			digest->digest = calloc(1, DIGEST_SPECFILE_SIZE + 1);
+			if (!digest->digest)
+				goto err;
+
+			digest->specfile_list = calloc(DIGEST_FILES_MAX,
+							    sizeof(char *));
+			if (!digest->specfile_list)
+				goto err;
+
+			entry = digest;
+			return entry;
+		}
+	}
+	return NULL;
+
+err:
+	free(digest->digest);
+	free(digest->specfile_list);
+	free(digest);
+	return NULL;
+}
+
+static void selabel_digest_fini(struct selabel_digest *ptr)
+{
+	int i;
+
+	free(ptr->digest);
+	free(ptr->hashbuf);
+
+	if (ptr->specfile_list) {
+		for (i = 0; ptr->specfile_list[i]; i++)
+			free(ptr->specfile_list[i]);
+		free(ptr->specfile_list);
+	}
+	free(ptr);
+}
+
 /*
  * Validation functions
  */
 
-static inline int selabel_is_validate_set(struct selinux_opt *opts, unsigned n)
+static inline int selabel_is_validate_set(const struct selinux_opt *opts,
+					  unsigned n)
 {
 	while (n--)
 		if (opts[n].type == SELABEL_OPT_VALIDATE)
@@ -251,7 +315,8 @@ selabel_lookup_bm_common(struct selabel_handle *rec, int translating,
  */
 
 struct selabel_handle *selabel_open(unsigned int backend,
-				    struct selinux_opt *opts, unsigned nopts)
+				    const struct selinux_opt *opts,
+				    unsigned nopts)
 {
 	struct selabel_handle *rec = NULL;
 
@@ -270,8 +335,10 @@ struct selabel_handle *selabel_open(unsigned int backend,
 
 	rec->subs = NULL;
 	rec->dist_subs = NULL;
+	rec->digest = selabel_is_digest_set(opts, nopts, rec->digest);
 
 	if ((*initfuncs[backend])(rec, opts, nopts)) {
+		free(rec->spec_file);
 		free(rec);
 		rec = NULL;
 	}
@@ -366,10 +433,37 @@ int selabel_lookup_best_match_raw(struct selabel_handle *rec, char **con,
 	return *con ? 0 : -1;
 }
 
+enum selabel_cmp_result selabel_cmp(struct selabel_handle *h1,
+				    struct selabel_handle *h2)
+{
+	if (!h1->func_cmp || h1->func_cmp != h2->func_cmp)
+		return SELABEL_INCOMPARABLE;
+
+	return h1->func_cmp(h1, h2);
+}
+
+int selabel_digest(struct selabel_handle *rec,
+				    unsigned char **digest, size_t *digest_len,
+				    char ***specfiles, size_t *num_specfiles)
+{
+	if (!rec->digest) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	*digest = rec->digest->digest;
+	*digest_len = DIGEST_SPECFILE_SIZE;
+	*specfiles = rec->digest->specfile_list;
+	*num_specfiles = rec->digest->specfile_cnt;
+	return 0;
+}
+
 void selabel_close(struct selabel_handle *rec)
 {
 	selabel_subs_fini(rec->subs);
 	selabel_subs_fini(rec->dist_subs);
+	if (rec->digest)
+		selabel_digest_fini(rec->digest);
 	rec->func_close(rec);
 	free(rec->spec_file);
 	free(rec);

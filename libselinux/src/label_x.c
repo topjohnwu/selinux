@@ -94,7 +94,7 @@ static int process_line(const char *path, char *line_buf, int pass,
 	return 0;
 }
 
-static int init(struct selabel_handle *rec, struct selinux_opt *opts,
+static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 		unsigned n)
 {
 	FILE *fp;
@@ -163,7 +163,12 @@ static int init(struct selabel_handle *rec, struct selinux_opt *opts,
 	}
 	free(line_buf);
 
-	status = 0;
+	status = digest_add_specfile(rec->digest, fp, NULL, sb.st_size, path);
+	if (status)
+		goto finish;
+
+	digest_gen_hash(rec->digest);
+
 finish:
 	fclose(fp);
 	return status;
@@ -188,7 +193,7 @@ static void close(struct selabel_handle *rec)
 	if (spec_arr)
 	    free(spec_arr);
 
-	memset(data, 0, sizeof(*data));
+	free(data);
 }
 
 static struct selabel_lookup_rec *lookup(struct selabel_handle *rec,
@@ -227,7 +232,7 @@ static void stats(struct selabel_handle *rec)
 		  data->nspec, total);
 }
 
-int selabel_x_init(struct selabel_handle *rec, struct selinux_opt *opts,
+int selabel_x_init(struct selabel_handle *rec, const struct selinux_opt *opts,
 		   unsigned nopts)
 {
 	struct saved_data *data;

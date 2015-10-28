@@ -2,7 +2,7 @@
 #
 # Authors: Karl MacMillan <kmacmillan@mentalrootkit.com>
 #
-# Copyright (C) 2006 Red Hat 
+# Copyright (C) 2006 Red Hat
 # see file 'COPYING' for use and warranty information
 #
 # This program is free software; you can redistribute it and/or
@@ -41,6 +41,7 @@ import sepolgen.interfaces as interfaces
 VERSION = "%prog .1"
 ATTR_HELPER = "/usr/bin/sepolgen-ifgen-attr-helper"
 
+
 def parse_options():
     from optparse import OptionParser
 
@@ -54,12 +55,13 @@ def parse_options():
     parser.add_option("-v", "--verbose", action="store_true", default=False,
                       help="print debuging output")
     parser.add_option("-d", "--debug", action="store_true", default=False,
-                     help="extra debugging output")
+                      help="extra debugging output")
     parser.add_option("--no_attrs", action="store_true", default=False,
                       help="do not retrieve attribute access from kernel policy")
     options, args = parser.parse_args()
-    
+
     return options
+
 
 def get_policy():
     p = selinux.selinux_current_policy_path()
@@ -74,6 +76,7 @@ def get_policy():
         return p
     return None
 
+
 def get_attrs(policy_path):
     try:
         if not policy_path:
@@ -82,14 +85,14 @@ def get_attrs(policy_path):
             sys.stderr.write("No installed policy to check\n")
             return None
         outfile = tempfile.NamedTemporaryFile()
-    except IOError, e:
+    except IOError as e:
         sys.stderr.write("could not open attribute output file\n")
         return None
     except OSError:
         # SELinux Disabled Machine
         return None
 
-    fd = open("/dev/null","w")
+    fd = open("/dev/null", "w")
     ret = subprocess.Popen([ATTR_HELPER, policy_path, outfile.name], stdout=fd).wait()
     fd.close()
     if ret != 0:
@@ -100,10 +103,11 @@ def get_attrs(policy_path):
     try:
         attrs.from_file(outfile)
     except:
-        print "error parsing attribute info"
+        print("error parsing attribute info")
         return None
 
     return attrs
+
 
 def main():
     options = parse_options()
@@ -111,7 +115,7 @@ def main():
     # Open the output first to generate errors before parsing
     try:
         f = open(options.output, "w")
-    except IOError, e:
+    except IOError as e:
         sys.stderr.write("could not open output file [%s]\n" % options.output)
         return 1
 
@@ -130,9 +134,9 @@ def main():
     # Parse the headers
     try:
         headers = refparser.parse_headers(options.headers, output=log, debug=options.debug)
-    except ValueError, e:
-        print "error parsing headers"
-        print str(e)
+    except ValueError as e:
+        print("error parsing headers")
+        print(str(e))
         return 1
 
     if_set = interfaces.InterfaceSet(output=log)
@@ -144,6 +148,6 @@ def main():
         return 0
     else:
         return 1
-    
+
 if __name__ == "__main__":
     sys.exit(main())

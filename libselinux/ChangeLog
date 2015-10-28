@@ -1,3 +1,30 @@
+	* label_file: fix memory leaks and uninitialized jump, from William Roberts.
+	* Replace selabel_digest hash function, from Richard Haines.
+	* Fix selabel_open(3) services if no digest requested, from Richard Haines.
+	* Add selabel_digest function, from Richard Haines.
+	* Fix parallel build with swig python, from Jason Zaman.
+	* Flush the class/perm string mapping cache on policy reload, from Stephen Smalley.
+	* Fix restorecon when path has no context, from Nir Soffer.
+	* Free memory when processing media and x specfiles, from Richard Haines.
+	* Fix mmap memory release for file labeling, from Richard Haines.
+	* Add explicit dependency for pywrap on selinux.py, from Wenzong Fan.
+	* Add policy context validation to sefcontext_compile, from Richard Haines.
+	* Do not treat an empty file_contexts(.local) as an error, from Stephen Smalley.
+	* Fail hard on invalid property_contexts entries, from Stephen Smalley.
+	* Fail hard on invalid file_contexts entries, from Stephen Smalley.
+	* Support context validation on file_contexts.bin, from Stephen Smalley.
+	* Test for file_contexts.bin format by magic number, from Stephen Smalley.
+	* Add selabel_cmp interface and label_file backend, from Stephen Smalley.
+	* Support specifying file_contexts.bin file path, from Stephen Smalley.
+	* Support file_contexts.bin without file_contexts, from Stephen Smalley.
+	* Simplify procattr cache, from Stephen Smalley.
+	* Use /proc/thread-self when available, from Stephen Smalley.
+	* Add const to selinux_opt for label backends, from Richard Haines.
+	* Fix binary file labels for regexes with metachars, from Richard Haines.
+	* Fix file labels for regexes with metachars, from Jeff Vander Stoep.
+	* Fix if file_contexts not '\n' terminated, from Richard Haines.
+	* Enhance file context support, from Richard Haines.
+	* Fix property processing and cleanup formatting, from Richard Haines.
 	* Add read_spec_entries function to replace sscanf, from Richard Haines.
 	* Support consistent mode size for bin files, from Richard Haines.
 	* Expunge remaining references to flask.h and av_permissions.h, from Stephen Smalley.

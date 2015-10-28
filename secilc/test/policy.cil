@@ -91,6 +91,9 @@
 	;;(allow console_t console_device_t file_rw)
 	(allow console_t console_device_t (files (read)))
 
+	(permissionx ioctl_test (ioctl files (and (range 0x1600 0x19FF) (not (range 0x1750 0x175F)))))
+	(allowx console_t console_device_t ioctl_test)
+
 	(boolean secure_mode false)
 	(boolean console_login true)
 	
@@ -114,9 +117,6 @@
 	(typealias sbin_t)
 	(typealiasactual sbin_t bin_t)
 	(typepermissive device_t) 
-	(typebounds device_t bin_t)
-	;;(typebounds bin_t kernel_t)    ;; This statement and the next can be used
-	;;(typebounds kernel_t device_t) ;; to verify that circular bounds can be found 
 	(typemember device_t bin_t file exec_t)
 	(typetransition device_t console_t files console_device_t)
 
@@ -124,7 +124,9 @@
 	(roleattribute foo_role)
 	(roleattribute bar_role)
 	(roleattribute baz_role)
+	(roleattribute foo_role_a)
 	(roleattributeset exec_role (or user_r system_r))
+	(roleattributeset foo_role_a (baz_r user_r system_r))
 	(roleattributeset foo_role (and exec_role system_r))
 	(roleattributeset bar_role (xor exec_role foo_role))
 	(roleattributeset baz_role (not user_r))
@@ -194,6 +196,7 @@
 
 	(role system_r)
 	(role user_r)
+	(role baz_r)
 
 	(roletype system_r bin_t)
 	(roletype system_r kernel_t)
@@ -203,17 +206,32 @@
 	(roletype exec_role bin_t)
 	(roletype exec_role exec_type)
 	(roleallow system_r user_r)
-	(rolebounds system_r user_r)
 	(roletransition system_r bin_t file user_r)
 
 	(userrole foo_u foo_role)
 	(userlevel foo_u low)
+
+	(userattribute ua1)
+	(userattribute ua2)
+	(userattribute ua3)
+	(userattribute ua4)
+	(userattributeset ua1 (user_u system_u))
+	(userattributeset ua2 (foo_u system_u))
+	(userattributeset ua3 (and ua1 ua2))
+	(user u5)
+	(user u6)
+	(userlevel u5 low)
+	(userlevel u6 low)
+	(userrange u5 low_high)
+	(userrange u6 low_high)
+	(userattributeset ua4 (u5 u6))
+	(userrole ua4 foo_role_a)
+
 	(userrange foo_u low_high)
 
 	(userrole system_u system_r)
 	(userlevel system_u low)
 	(userrange system_u low_high)
-	(userbounds system_u user_u)
 
 	(userrole user_u user_r)
 	(userlevel user_u (s0 (range c0 c2)))
@@ -255,7 +273,7 @@
 	(constrain (files (read)) (not (or (and (eq t1 exec_t) (eq t2 bin_t)) (eq r1 r2))))
 	(constrain char_w (not (or (and (eq t1 exec_t) (eq t2 bin_t)) (eq r1 r2))))
 
-	(constrain (file (read)) (or (and (eq t1 exec_t) (neq t2 bin_t) ) (eq u1 u2) ) )
+	(constrain (file (read)) (or (and (eq t1 exec_t) (neq t2 bin_t) ) (eq u1 ua4) ) )
 	(constrain (file (open)) (dom r1 r2))
 	(constrain (file (open)) (domby r1 r2))
 	(constrain (file (open)) (incomp r1 r2))
@@ -286,6 +304,7 @@
 
 (macro all ((type x))
 	(allow x bin_t (policy.file (execute)))
+	(allowx x bin_t (ioctl policy.file (range 0x1000 0x11FF)))
 )
 (call all (bin_t))
 

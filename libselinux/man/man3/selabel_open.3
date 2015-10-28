@@ -12,7 +12,7 @@ selabel_open, selabel_close \- userspace SELinux labeling interface
 .sp
 .BI "struct selabel_handle *selabel_open(int " backend , 
 .in +\w'struct selabel_handle *selabel_open('u
-.BI "struct selinux_opt *" options ,
+.BI "const struct selinux_opt *" options ,
 .br
 .BI "unsigned " nopt ");"
 .in
@@ -67,6 +67,11 @@ A non-null value for this option enables context validation.  By default,
 is used; a custom validation function can be provided via
 .BR selinux_set_callback (3).
 Note that an invalid context may not be treated as an error unless it is actually encountered during a lookup operation.
+.TP
+.B SELABEL_OPT_DIGEST
+A non-null value for this option enables the generation of an SHA1 digest of
+the spec files loaded as described in
+.BR selabel_digest (3)
 .
 .SH "BACKENDS"
 .TP

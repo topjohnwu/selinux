@@ -21,15 +21,15 @@
 Classes for representing and manipulating interfaces.
 """
 
-import access
-import refpolicy
-import itertools
-import objectmodel
-import matching
-
-from sepolgeni18n import _
-
 import copy
+import itertools
+
+from . import access
+from . import refpolicy
+from . import objectmodel
+from . import matching
+from .sepolgeni18n import _
+
 
 class Param:
     """
@@ -276,7 +276,7 @@ class InterfaceVector:
         if attributes:
             for typeattribute in interface.typeattributes():
                 for attr in typeattribute.attributes:
-                    if not attributes.attributes.has_key(attr):
+                    if attr not in attributes.attributes:
                         # print "missing attribute " + attr
                         continue
                     attr_vec = attributes.attributes[attr]

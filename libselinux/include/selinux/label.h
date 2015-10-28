@@ -49,8 +49,10 @@ struct selabel_handle;
 #define SELABEL_OPT_PATH	3
 /* select a subset of the search space as an optimization (file backend) */
 #define SELABEL_OPT_SUBSET	4
+/* require a hash calculation on spec files */
+#define SELABEL_OPT_DIGEST	5
 /* total number of options */
-#define SELABEL_NOPT		5
+#define SELABEL_NOPT		6
 
 /*
  * Label operations
@@ -69,7 +71,8 @@ struct selabel_handle;
  * @errno set on failure.
  */
 struct selabel_handle *selabel_open(unsigned int backend,
-				    struct selinux_opt *opts, unsigned nopts);
+				    const struct selinux_opt *opts,
+				    unsigned nopts);
 
 /**
  * selabel_close - Close a labeling handle.
@@ -104,6 +107,43 @@ int selabel_lookup_best_match(struct selabel_handle *rec, char **con,
 			      const char *key, const char **aliases, int type);
 int selabel_lookup_best_match_raw(struct selabel_handle *rec, char **con,
 			      const char *key, const char **aliases, int type);
+
+/**
+ * selabel_digest - Retrieve the SHA1 digest and the list of specfiles used to
+ *		    generate the digest. The SELABEL_OPT_DIGEST option must
+ *		    be set in selabel_open() to initiate the digest generation.
+ * @handle: specifies backend instance to query
+ * @digest: returns a pointer to the SHA1 digest.
+ * @digest_len: returns length of digest in bytes.
+ * @specfiles: a list of specfiles used in the SHA1 digest generation.
+ *	       The list is NULL terminated and will hold @num_specfiles entries.
+ * @num_specfiles: number of specfiles in the list.
+ *
+ * Return %0 on success, -%1 with @errno set on failure.
+ */
+int selabel_digest(struct selabel_handle *rec,
+			    unsigned char **digest, size_t *digest_len,
+			    char ***specfiles, size_t *num_specfiles);
+
+enum selabel_cmp_result {
+	SELABEL_SUBSET,
+	SELABEL_EQUAL,
+	SELABEL_SUPERSET,
+	SELABEL_INCOMPARABLE
+};
+
+/**
+ * selabel_cmp - Compare two label configurations.
+ * @h1: handle for the first label configuration
+ * @h2: handle for the first label configuration
+ *
+ * Compare two label configurations.
+ * Return %SELABEL_SUBSET if @h1 is a subset of @h2, %SELABEL_EQUAL
+ * if @h1 is identical to @h2, %SELABEL_SUPERSET if @h1 is a superset
+ * of @h2, and %SELABEL_INCOMPARABLE if @h1 and @h2 are incomparable.
+ */
+enum selabel_cmp_result selabel_cmp(struct selabel_handle *h1,
+				    struct selabel_handle *h2);
 
 /**
  * selabel_stats - log labeling operation statistics.

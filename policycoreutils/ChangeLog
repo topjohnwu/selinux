@@ -1,3 +1,11 @@
+	* audit2allow/why: ignore setlocale errors, from Petr Lautrbach.
+	* semodule: Add --extract/-E, --cil/-c, and --hll/-H to extract modules, from Yuli Khodorkovskiy.
+	* audit2allow: Comment constraint rules in output, from Miroslav Grepl via Petr Lautrbach.
+	* Fix PEP8 issues, from Jason Zaman.
+	* semanage: fix moduleRecords deleteall method, from Stephen Smalley.
+	* Improve compatibility with Python 3, from Michal Srb.
+	* semanage: Set self.sename to sename after calling semanage_seuser_set_sename(), from Laurent Bigonville.
+	* semanage: Fix typo in semanage args for minimium policy store, from Petr Lautrbach.
 	* sepolicy: Only invoke RPM on RPM-enabled Linux distributions, from Sven Vermeulen.
 	* mcstransd: don't reinvent getpeercon, from Stephen Smalley.
 	* setfiles/restorecon: fix -r/-R option, from Petr Lautrbach.
