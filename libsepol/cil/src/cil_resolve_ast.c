@@ -58,6 +58,7 @@ struct cil_args_resolve {
 	struct cil_tree_node *blockstack;
 	struct cil_list *sidorder_lists;
 	struct cil_list *classorder_lists;
+	struct cil_list *unordered_classorder_lists;
 	struct cil_list *catorder_lists;
 	struct cil_list *sensitivityorder_lists;
 	struct cil_list *in_list;
@@ -272,6 +273,23 @@ int cil_type_used(struct cil_symtab_datum *datum)
 	return 0;
 }
 
+int cil_resolve_permissionx(struct cil_tree_node *current, struct cil_permissionx *permx, void *extra_args)
+{
+	struct cil_symtab_datum *obj_datum = NULL;
+	int rc = SEPOL_ERR;
+
+	rc = cil_resolve_name(current, permx->obj_str, CIL_SYM_CLASSES, extra_args, &obj_datum);
+	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+	permx->obj = (struct cil_class*)obj_datum;
+
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
 int cil_resolve_avrule(struct cil_tree_node *current, void *extra_args)
 {
 	struct cil_args_resolve *args = extra_args;
@@ -280,6 +298,7 @@ int cil_resolve_avrule(struct cil_tree_node *current, void *extra_args)
 	struct cil_avrule *rule = current->data;
 	struct cil_symtab_datum *src_datum = NULL;
 	struct cil_symtab_datum *tgt_datum = NULL;
+	struct cil_symtab_datum *permx_datum = NULL;
 	int rc = SEPOL_ERR;
 
 	if (args != NULL) {
@@ -308,77 +327,23 @@ int cil_resolve_avrule(struct cil_tree_node *current, void *extra_args)
 		}
 	}
 
-	rc = cil_resolve_classperms_list(current, rule->classperms, extra_args);
-	if (rc != SEPOL_OK) {
-		goto exit;
-	}
-
-	return SEPOL_OK;
-
-exit:
-	return rc;
-}
-
-int cil_resolve_permissionx(struct cil_tree_node *current, struct cil_permissionx *permx, void *extra_args)
-{
-	struct cil_symtab_datum *obj_datum = NULL;
-	int rc = SEPOL_ERR;
-
-	rc = cil_resolve_name(current, permx->obj_str, CIL_SYM_CLASSES, extra_args, &obj_datum);
-	if (rc != SEPOL_OK) {
-		goto exit;
-	}
-	permx->obj = (struct cil_class*)obj_datum;
-
-	return SEPOL_OK;
-
-exit:
-	return rc;
-}
-
-int cil_resolve_avrulex(struct cil_tree_node *current, void *extra_args)
-{
-	struct cil_args_resolve *args = extra_args;
-	struct cil_db *db = NULL;
-
-	struct cil_avrulex *rule = current->data;
-	struct cil_symtab_datum *src_datum = NULL;
-	struct cil_symtab_datum *tgt_datum = NULL;
-	struct cil_symtab_datum *permx_datum = NULL;
-	int rc = SEPOL_ERR;
-
-	if (args != NULL) {
-		db = args->db;
-	}
-
-	rc = cil_resolve_name(current, rule->src_str, CIL_SYM_TYPES, args, &src_datum);
-	if (rc != SEPOL_OK) {
-		goto exit;
-	}
-	rule->src = src_datum;
-	cil_type_used(src_datum);
-
-	if (rule->tgt_str == CIL_KEY_SELF) {
-		rule->tgt = db->selftype;
-	} else {
-		rc = cil_resolve_name(current, rule->tgt_str, CIL_SYM_TYPES, args, &tgt_datum);
+	if (!rule->is_extended) {
+		rc = cil_resolve_classperms_list(current, rule->perms.classperms, extra_args);
 		if (rc != SEPOL_OK) {
 			goto exit;
 		}
-		rule->tgt = tgt_datum;
-		cil_type_used(tgt_datum);
-	}
-
-	if (rule->permx_str != NULL) {
-		rc = cil_resolve_name(current, rule->permx_str, CIL_SYM_PERMX, args, &permx_datum);
-		if (rc != SEPOL_OK) {
-			goto exit;
-		}
-		rule->permx = (struct cil_permissionx*)permx_datum;
 	} else {
-		rc = cil_resolve_permissionx(current, rule->permx, extra_args);
-		if (rc != SEPOL_OK) {
-			goto exit;
+		if (rule->perms.x.permx_str != NULL) {
+			rc = cil_resolve_name(current, rule->perms.x.permx_str, CIL_SYM_PERMX, args, &permx_datum);
+			if (rc != SEPOL_OK) {
+				goto exit;
+			}
+			rule->perms.x.permx = (struct cil_permissionx*)permx_datum;
+		} else {
+			rc = cil_resolve_permissionx(current, rule->perms.x.permx, extra_args);
+			if (rc != SEPOL_OK) {
+				goto exit;
+			}
 		}
 	}
 
@@ -1175,7 +1140,7 @@ void __cil_ordered_lists_destroy(struct cil_list **ordered_lists)
 {
 	struct cil_list_item *item = NULL;
 
-	if (*ordered_lists == NULL) {
+	if (ordered_lists == NULL || *ordered_lists == NULL) {
 		return;
 	}
 
@@ -1350,7 +1315,42 @@ int __cil_ordered_lists_merge(struct cil_list *old, struct cil_list *new)
 	return SEPOL_OK;
 }
 
-struct cil_list *__cil_ordered_lists_merge_all(struct cil_list **ordered_lists)
+static int insert_unordered(struct cil_list *merged, struct cil_list *unordered)
+{
+	struct cil_list_item *curr = NULL;
+	struct cil_ordered_list *unordered_list = NULL;
+	struct cil_list_item *item = NULL;
+	struct cil_list_item *ret = NULL;
+	int rc = SEPOL_ERR;
+
+	cil_list_for_each(curr, unordered) {
+		unordered_list = curr->data;
+
+		cil_list_for_each(item, unordered_list->list) {
+			if (cil_list_contains(merged, item->data)) {
+				/* item was declared in an ordered statement, which supercedes
+				 * all unordered statements */
+				if (item->flavor == CIL_CLASS) {
+					cil_log(CIL_WARN, "Ignoring '%s' as it has already been declared in classorder.\n", ((struct cil_class*)(item->data))->datum.name);
+				}
+				continue;
+			}
+
+			ret = __cil_ordered_item_insert(merged, merged->tail, item);
+			if (ret == NULL) {
+				rc = SEPOL_ERR;
+				goto exit;
+			}
+		}
+	}
+
+	rc = SEPOL_OK;
+
+exit:
+	return rc;
+}
+
+struct cil_list *__cil_ordered_lists_merge_all(struct cil_list **ordered_lists, struct cil_list **unordered_lists)
 {
 	struct cil_list *composite = NULL;
 	struct cil_list_item *curr = NULL;
@@ -1387,11 +1387,21 @@ struct cil_list *__cil_ordered_lists_merge_all(struct cil_list **ordered_lists)
 		}
 	}
 
+	if (unordered_lists != NULL) {
+		rc = insert_unordered(composite, *unordered_lists);
+		if (rc != SEPOL_OK) {
+			goto exit;
+		}
+	}
+
 	__cil_ordered_lists_destroy(ordered_lists);
+	__cil_ordered_lists_destroy(unordered_lists);
 
 	return composite;
 
 exit:
+	__cil_ordered_lists_destroy(ordered_lists);
+	__cil_ordered_lists_destroy(unordered_lists);
 	cil_list_destroy(&composite, CIL_FALSE);
 	return NULL;
 }
@@ -1400,16 +1410,23 @@ int cil_resolve_classorder(struct cil_tree_node *current, void *extra_args)
 {
 	struct cil_args_resolve *args = extra_args;
 	struct cil_list *classorder_list = args->classorder_lists;
+	struct cil_list *unordered_classorder_list = args->unordered_classorder_lists;
 	struct cil_classorder *classorder = current->data;
 	struct cil_list *new = NULL;
 	struct cil_list_item *curr = NULL;
 	struct cil_symtab_datum *datum = NULL;
-	struct cil_ordered_list *ordered = NULL;
+	struct cil_ordered_list *class_list = NULL;
 	int rc = SEPOL_ERR;
+	int unordered = CIL_FALSE;
 
 	cil_list_init(&new, CIL_CLASSORDER);
 
 	cil_list_for_each(curr, classorder->class_list_str) {
+		if (curr->data == CIL_KEY_UNORDERED) {
+			unordered = CIL_TRUE;
+			continue;
+		}
+
 		rc = cil_resolve_name(current, (char *)curr->data, CIL_SYM_CLASSES, extra_args, &datum);
 		if (rc != SEPOL_OK) {
 			cil_log(CIL_ERR, "Failed to resolve class %s in classorder\n", (char *)curr->data);
@@ -1418,10 +1435,14 @@ int cil_resolve_classorder(struct cil_tree_node *current, void *extra_args)
 		cil_list_append(new, CIL_CLASS, datum);
 	}
 
-	__cil_ordered_list_init(&ordered);
-	ordered->list = new;
-	ordered->node = current;
-	cil_list_append(classorder_list, CIL_CLASSORDER, ordered);
+	__cil_ordered_list_init(&class_list);
+	class_list->list = new;
+	class_list->node = current;
+	if (unordered) {
+		cil_list_append(unordered_classorder_list, CIL_CLASSORDER, class_list);
+	} else {
+		cil_list_append(classorder_list, CIL_CLASSORDER, class_list);
+	}
 
 	return SEPOL_OK;
 
@@ -3432,10 +3453,8 @@ int __cil_resolve_ast_node(struct cil_tree_node *node, void *extra_args)
 			rc = cil_resolve_classmapping(node, args);
 			break;
 		case CIL_AVRULE:
-			rc = cil_resolve_avrule(node, args);
-			break;
 		case CIL_AVRULEX:
-			rc = cil_resolve_avrulex(node, args);
+			rc = cil_resolve_avrule(node, args);
 			break;
 		case CIL_PERMISSIONX:
 			rc = cil_resolve_permissionx(node, (struct cil_permissionx*)node->data, args);
@@ -3774,6 +3793,7 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 	extra_args.macro = NULL;
 	extra_args.sidorder_lists = NULL;
 	extra_args.classorder_lists = NULL;
+	extra_args.unordered_classorder_lists = NULL;
 	extra_args.catorder_lists = NULL;
 	extra_args.sensitivityorder_lists = NULL;
 	extra_args.in_list = NULL;
@@ -3781,6 +3801,7 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 
 	cil_list_init(&extra_args.sidorder_lists, CIL_LIST_ITEM);
 	cil_list_init(&extra_args.classorder_lists, CIL_LIST_ITEM);
+	cil_list_init(&extra_args.unordered_classorder_lists, CIL_LIST_ITEM);
 	cil_list_init(&extra_args.catorder_lists, CIL_LIST_ITEM);
 	cil_list_init(&extra_args.sensitivityorder_lists, CIL_LIST_ITEM);
 	cil_list_init(&extra_args.in_list, CIL_IN);
@@ -3801,11 +3822,27 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 		}
 
 		if (pass == CIL_PASS_MISC1) {
-			db->sidorder = __cil_ordered_lists_merge_all(&extra_args.sidorder_lists);
-			db->classorder = __cil_ordered_lists_merge_all(&extra_args.classorder_lists);
-			db->catorder = __cil_ordered_lists_merge_all(&extra_args.catorder_lists);
+			db->sidorder = __cil_ordered_lists_merge_all(&extra_args.sidorder_lists, NULL);
+			if (db->sidorder == NULL) {
+				rc = SEPOL_ERR;
+				goto exit;
+			}
+			db->classorder = __cil_ordered_lists_merge_all(&extra_args.classorder_lists, &extra_args.unordered_classorder_lists);
+			if (db->classorder == NULL) {
+				rc = SEPOL_ERR;
+				goto exit;
+			}
+			db->catorder = __cil_ordered_lists_merge_all(&extra_args.catorder_lists, NULL);
+			if (db->catorder == NULL) {
+				rc = SEPOL_ERR;
+				goto exit;
+			}
 			cil_set_cat_values(db->catorder, db);
-			db->sensitivityorder = __cil_ordered_lists_merge_all(&extra_args.sensitivityorder_lists);
+			db->sensitivityorder = __cil_ordered_lists_merge_all(&extra_args.sensitivityorder_lists, NULL);
+			if (db->sensitivityorder == NULL) {
+				rc = SEPOL_ERR;
+				goto exit;
+			}
 
 			rc = __cil_verify_ordered(current, CIL_SID);
 			if (rc != SEPOL_OK) {
@@ -3841,6 +3878,7 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 			if (pass >= CIL_PASS_MISC1) {
 				__cil_ordered_lists_reset(&extra_args.sidorder_lists);
 				__cil_ordered_lists_reset(&extra_args.classorder_lists);
+				__cil_ordered_lists_reset(&extra_args.unordered_classorder_lists);
 				__cil_ordered_lists_reset(&extra_args.catorder_lists);
 				__cil_ordered_lists_reset(&extra_args.sensitivityorder_lists);
 				cil_list_destroy(&db->sidorder, CIL_FALSE);

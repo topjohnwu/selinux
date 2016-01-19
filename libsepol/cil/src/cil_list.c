@@ -246,3 +246,32 @@ void cil_list_remove(struct cil_list *list, enum cil_flavor flavor, void *data, 
 		previous = item;
 	}
 }
+
+int cil_list_contains(struct cil_list *list, void *data)
+{
+	struct cil_list_item *curr = NULL;
+
+	cil_list_for_each(curr, list) {
+		if (curr->data == data) {
+			return CIL_TRUE;
+		}
+	}
+
+	return CIL_FALSE;
+}
+
+int cil_list_match_any(struct cil_list *l1, struct cil_list *l2)
+{
+	struct cil_list_item *i1;
+	struct cil_list_item *i2;
+
+	cil_list_for_each(i1, l1) {
+		cil_list_for_each(i2, l2) {
+			if (i1->data == i2->data && i1->flavor == i2->flavor) {
+				return CIL_TRUE;
+			}
+		}
+	}
+
+	return CIL_FALSE;
+}

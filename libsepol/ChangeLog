@@ -1,3 +1,8 @@
+2.5-rc1 2016-01-07
+	* Validate extended avrules and permissionxs in CIL, from Steve Lawrence.
+	* Add support in CIL for neverallowx, from Steve Lawrence.
+	* Fully expand neverallowxperm rules, from Richard Haines.
+	* Add support for unordered classes to CIL, from Yuli Khodorkovskiy.
 	* Add neverallow support for ioctl extended permissions, from Jeff Vander Stoep.
 	* Improve CIL block and macro call recursion detection, from Steve Lawrence
 	* Fix CIL uninitialized false positive in cil_binary, from Yuli Khodorkovskiy

@@ -846,7 +846,7 @@ class seluserRecords(semanageRecords):
     def __modify(self, name, roles=[], selevel="", serange="", prefix=""):
         oldserole = ""
         oldserange = ""
-        newroles = string.join(roles, ' ')
+        newroles = " ".join(roles)
         if prefix == "" and len(roles) == 0 and serange == "" and selevel == "":
             if is_mls_enabled == 1:
                 raise ValueError(_("Requires prefix, roles, level or range"))
@@ -870,7 +870,7 @@ class seluserRecords(semanageRecords):
         oldserange = semanage_user_get_mlsrange(u)
         (rc, rlist) = semanage_user_get_roles(self.sh, u)
         if rc >= 0:
-            oldserole = string.join(rlist, ' ')
+            oldserole = " ".join(rlist)
 
         if (is_mls_enabled == 1) and (serange != ""):
             semanage_user_set_mlsrange(self.sh, u, untranslate(serange))
@@ -980,7 +980,7 @@ class seluserRecords(semanageRecords):
             if rc < 0:
                 raise ValueError(_("Could not list roles for user %s") % name)
 
-            roles = string.join(rlist, ' ')
+            roles = " ".join(rlist)
             ddict[semanage_user_get_name(u)] = (semanage_user_get_prefix(u), semanage_user_get_mlslevel(u), semanage_user_get_mlsrange(u), roles)
 
         return ddict
@@ -1216,8 +1216,6 @@ class portRecords(semanageRecords):
         for port in self.plist:
             con = semanage_port_get_con(port)
             ctype = semanage_context_get_type(con)
-            if ctype == "reserved_port_t":
-                continue
             level = semanage_context_get_mls(con)
             proto = semanage_port_get_proto(port)
             proto_str = semanage_port_get_proto_str(proto)
@@ -1238,8 +1236,6 @@ class portRecords(semanageRecords):
         for port in self.plist:
             con = semanage_port_get_con(port)
             ctype = semanage_context_get_type(con)
-            if ctype == "reserved_port_t":
-                continue
             proto = semanage_port_get_proto(port)
             proto_str = semanage_port_get_proto_str(proto)
             low = semanage_port_get_low(port)
