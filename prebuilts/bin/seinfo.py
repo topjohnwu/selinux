@@ -27,7 +27,7 @@ import logging
 def expand_attr(attr):
     """Render type and role attributes."""
     items = "\n\t".join(sorted(str(i) for i in attr.expand()))
-    contents = items if items else "<empty set>"
+    contents = items if items else "<empty attribute>"
     return "{0}\n\t{1}".format(attr.statement(), contents)
 
 parser = argparse.ArgumentParser(
@@ -60,6 +60,8 @@ queries.add_argument("--category", help="Print MLS categories.", dest="mlscatsqu
 queries.add_argument("--common", help="Print common permission set.", dest="commonquery",
                      nargs='?', const=True, metavar="COMMON")
 queries.add_argument("--constrain", help="Print constraints.", dest="constraintquery",
+                     nargs='?', const=True, metavar="CLASS")
+queries.add_argument("--default", help="Print default_* rules.", dest="defaultquery",
                      nargs='?', const=True, metavar="CLASS")
 queries.add_argument("--fs_use", help="Print fs_use statements.", dest="fsusequery",
                      nargs='?', const=True, metavar="FS_TYPE")
@@ -132,6 +134,13 @@ try:
             q.tclass = [args.constraintquery]
 
         components.append(("Constraints", q, lambda x: x.statement()))
+
+    if args.defaultquery or args.all:
+        q = setools.DefaultQuery(p)
+        if isinstance(args.defaultquery, str):
+            q.tclass = [args.defaultquery]
+
+        components.append(("Default rules", q, lambda x: x.statement()))
 
     if args.fsusequery or args.all:
         q = setools.FSUseQuery(p)
@@ -245,7 +254,8 @@ try:
         mls = "enabled" if p.mls else "disabled"
 
         print("Statistics for policy file: {0}".format(p))
-        print("Policy Version: {0} (MLS {1})".format(p.version, mls))
+        print("Policy Version: {0} (MLS {1}, {2} unknown permissions)".format(
+            p.version, mls, p.handle_unknown))
         print("  Classes:       {0:7}    Permissions:   {1:7}".format(
             p.class_count, p.permission_count))
         print("  Sensitivities: {0:7}    Categories:    {1:7}".format(
@@ -278,6 +288,7 @@ try:
             p.netifcon_count, p.nodecon_count))
         print("  Permissives:   {0:7}    Polcap:        {1:7}".format(
             p.permissives_count, p.polcap_count))
+        print("  Defaults:      {0:7}".format(p.default_count))
 
     for desc, component, expander in components:
         results = sorted(component.results())
