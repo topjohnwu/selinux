@@ -70,9 +70,9 @@ static int openattr(pid_t pid, const char *attr, int flags)
 	char *path;
 	pid_t tid;
 
-	if (pid > 0)
+	if (pid > 0) {
 		rc = asprintf(&path, "/proc/%d/attr/%s", pid, attr);
-	else {
+	} else if (pid == 0) {
 		rc = asprintf(&path, "/proc/thread-self/attr/%s", attr);
 		if (rc < 0)
 			return -1;
@@ -82,6 +82,9 @@ static int openattr(pid_t pid, const char *attr, int flags)
 		free(path);
 		tid = gettid();
 		rc = asprintf(&path, "/proc/self/task/%d/attr/%s", tid, attr);
+	} else {
+		errno = EINVAL;
+		return -1;
 	}
 	if (rc < 0)
 		return -1;
@@ -303,11 +306,21 @@ static int setprocattrcon(const char * context,
 #define getpidattr_def(fn, attr) \
 	int get##fn##_raw(pid_t pid, char **c)	\
 	{ \
-		return getprocattrcon_raw(c, pid, #attr); \
+		if (pid <= 0) { \
+			errno = EINVAL; \
+			return -1; \
+		} else { \
+			return getprocattrcon_raw(c, pid, #attr); \
+		} \
 	} \
 	int get##fn(pid_t pid, char **c)	\
 	{ \
-		return getprocattrcon(c, pid, #attr); \
+		if (pid <= 0) { \
+			errno = EINVAL; \
+			return -1; \
+		} else { \
+			return getprocattrcon(c, pid, #attr); \
+		} \
 	}
 
 all_selfattr_def(con, current)
