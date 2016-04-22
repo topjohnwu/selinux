@@ -113,6 +113,7 @@ tokens = (
     'AUDITALLOW',
     'NEVERALLOW',
     'PERMISSIVE',
+    'TYPEBOUNDS',
     'TYPE_TRANSITION',
     'TYPE_CHANGE',
     'TYPE_MEMBER',
@@ -178,6 +179,7 @@ reserved = {
     'auditallow' : 'AUDITALLOW',
     'neverallow' : 'NEVERALLOW',
     'permissive' : 'PERMISSIVE',
+    'typebounds' : 'TYPEBOUNDS',
     'type_transition' : 'TYPE_TRANSITION',
     'type_change' : 'TYPE_CHANGE',
     'type_member' : 'TYPE_MEMBER',
@@ -219,7 +221,7 @@ t_BAR       = r'\|'
 t_EXPL      = r'\!'
 t_EQUAL     = r'\='
 t_NUMBER    = r'[0-9\.]+'
-t_PATH      = r'/[a-zA-Z0-9)_\.\*/]*'
+t_PATH      = r'/[a-zA-Z0-9)_\.\*/\$]*'
 #t_IPV6_ADDR = r'[a-fA-F0-9]{0,4}:[a-fA-F0-9]{0,4}:([a-fA-F0-9]{0,4}:)*'
 
 # Ignore whitespace - this is a special token for ply that more efficiently
@@ -417,6 +419,7 @@ def p_tunable_policy(p):
 def p_ifelse(p):
     '''ifelse : IFELSE OPAREN TICK IDENTIFIER SQUOTE COMMA COMMA TICK IDENTIFIER SQUOTE COMMA TICK interface_stmts SQUOTE CPAREN optional_semi
               | IFELSE OPAREN TICK IDENTIFIER SQUOTE COMMA TICK IDENTIFIER SQUOTE COMMA TICK interface_stmts SQUOTE COMMA TICK interface_stmts SQUOTE CPAREN optional_semi
+              | IFELSE OPAREN TICK IDENTIFIER SQUOTE COMMA TICK SQUOTE COMMA TICK interface_stmts SQUOTE COMMA TICK interface_stmts SQUOTE CPAREN optional_semi
     '''
 #    x = refpolicy.IfDef(p[4])
 #    v = True
@@ -501,6 +504,7 @@ def p_policy_stmt(p):
     '''policy_stmt : gen_require
                    | avrule_def
                    | typerule_def
+                   | typebound_def
                    | typeattribute_def
                    | roleattribute_def
                    | interface_call
@@ -820,6 +824,13 @@ def p_typerule_def(p):
     t.obj_classes = p[5]
     t.dest_type = p[6]
     t.file_name = p[7]
+    p[0] = t
+
+def p_typebound_def(p):
+    '''typebound_def : TYPEBOUNDS IDENTIFIER comma_list SEMI'''
+    t = refpolicy.TypeBound()
+    t.type = p[2]
+    t.tgt_types.update(p[3])
     p[0] = t
 
 def p_bool(p):
