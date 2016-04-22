@@ -291,7 +291,6 @@ static void semanage_direct_destroy(semanage_handle_t * sh
 					__attribute__ ((unused)))
 {
 	/* do nothing */
-	sh = NULL;
 }
 
 static int semanage_direct_disconnect(semanage_handle_t * sh)
@@ -1076,7 +1075,7 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 	/* Declare some variables */
 	int modified = 0, fcontexts_modified, ports_modified,
 	    seusers_modified, users_extra_modified, dontaudit_modified,
-	    preserve_tunables_modified, bools_modified,
+	    preserve_tunables_modified, bools_modified = 0,
 		disable_dontaudit, preserve_tunables;
 	dbase_config_t *users = semanage_user_dbase_local(sh);
 	dbase_config_t *users_base = semanage_user_base_dbase_local(sh);
@@ -2136,6 +2135,7 @@ static int semanage_direct_set_module_info(semanage_handle_t *sh,
 	char fn[PATH_MAX];
 	const char *path = NULL;
 	int enabled = 0;
+	semanage_module_info_t *modinfo_tmp = NULL;
 
 	semanage_module_key_t modkey;
 	ret = semanage_module_key_init(sh, &modkey);
@@ -2143,8 +2143,6 @@ static int semanage_direct_set_module_info(semanage_handle_t *sh,
 		status = -1;
 		goto cleanup;
 	}
-
-	semanage_module_info_t *modinfo_tmp = NULL;
 
 	/* check transaction */
 	if (!sh->is_in_transaction) {
@@ -2316,14 +2314,14 @@ static int semanage_direct_list_all(semanage_handle_t *sh,
 
 	uint16_t priority = 0;
 
+	semanage_module_info_t *modinfo_tmp = NULL;
+
 	semanage_module_info_t modinfo;
 	ret = semanage_module_info_init(sh, &modinfo);
 	if (ret != 0) {
 		status = -1;
 		goto cleanup;
 	}
-
-	semanage_module_info_t *modinfo_tmp = NULL;
 
 	if (sh->is_in_transaction) {
 		toplevel = semanage_path(SEMANAGE_TMP, SEMANAGE_MODULES);
