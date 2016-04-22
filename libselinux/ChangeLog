@@ -1,4 +1,13 @@
-2.5-rc1 2016-01-07
+	* Fix typo in sefcontext_compile.8, from Petr Lautrbach and Milos Malik
+	* Fix location of selinuxfs mount point, from Dan Walsh.
+	* Only mount /proc if necessary, from Stephen Smalley.
+	* procattr: return einval for <= 0 pid args, from Daniel Cashman.
+	* procattr: return error on invalid pid_t input, from Daniel Cashman.
+
+2.5 2016-02-23
+	* selinux_restorecon.3 man page corrections, from Richard Haines.
+	* Add selinux_restorecon function, from Richard Haines.
+	* read_spec_entry: fail on non-ascii, from William Roberts.
 	* Add man information about thread specific functions, from Dan Waslh.
 	* Don't wrap rpm_execcon with DISABLE_RPM with SWIG, from Petr Lautrbach.
 	* Correct line count for property and service context files, from Richard Haines.
