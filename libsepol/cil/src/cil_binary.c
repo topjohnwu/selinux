@@ -31,6 +31,9 @@
 #include <stdio.h>
 #include <assert.h>
 #include <netinet/in.h>
+#ifndef IPPROTO_DCCP
+#define IPPROTO_DCCP 33
+#endif
 
 #include <sepol/policydb/policydb.h>
 #include <sepol/policydb/polcaps.h>
@@ -606,9 +609,11 @@ int __cil_typeattr_bitmap_init(policydb_t *pdb)
 			rc = SEPOL_ERR;
 			goto exit;
 		}
-		if (ebitmap_set_bit(&pdb->attr_type_map[i], i, 1)) {
-			rc = SEPOL_ERR;
-			goto exit;
+		if (pdb->type_val_to_struct[i] && pdb->type_val_to_struct[i]->flavor != TYPE_ATTRIB) {
+			if (ebitmap_set_bit(&pdb->attr_type_map[i], i, 1)) {
+				rc = SEPOL_ERR;
+				goto exit;
+			}
 		}
 
 	}
