@@ -67,8 +67,11 @@ common_cflags := \
 	-D_GNU_SOURCE \
 	-Wall -W -Wundef \
 	-Wshadow -Wmissing-noreturn \
-	-Wmissing-format-attribute \
-        -include $(LOCAL_PATH)/mac_hack.h \
+	-Wmissing-format-attribute
+
+ifeq ($(HOST_OS), darwin)
+common_cflags += -DDARWIN
+endif
 
 common_includes := \
 	$(LOCAL_PATH)/include/ \
