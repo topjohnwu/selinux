@@ -108,8 +108,7 @@ int cil_gen_node(__attribute__((unused)) struct cil_db *db, struct cil_tree_node
 			if (cil_symtab_get_datum(symtab, key, &datum) == SEPOL_OK) {
 				if (sflavor == CIL_SYM_BLOCKS) {
 					struct cil_tree_node *node = datum->nodes->head->data;
-					cil_log(CIL_ERR, "Previous declaration at line %d of %s\n",
-						node->line, node->path);
+					cil_tree_log(node, CIL_ERR, "Previous declaration");
 				}
 			}
 			goto exit;
@@ -186,8 +185,7 @@ int cil_gen_block(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad block declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad block declaration");
 	cil_destroy_block(block);
 	cil_clear_node(ast_node);
 	return rc;
@@ -236,8 +234,7 @@ int cil_gen_blockinherit(struct cil_db *db, struct cil_tree_node *parse_current,
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad blockinherit declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad blockinherit declaration");
 	cil_destroy_blockinherit(inherit);
 	return rc;
 }
@@ -281,8 +278,7 @@ int cil_gen_blockabstract(struct cil_db *db, struct cil_tree_node *parse_current
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad blockabstract declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad blockabstract declaration");
 	cil_destroy_blockabstract(abstract);
 	return rc;
 }
@@ -326,8 +322,7 @@ int cil_gen_in(struct cil_db *db, struct cil_tree_node *parse_current, struct ci
 
 	return SEPOL_OK;
 exit:
-	cil_log(CIL_ERR, "Bad in statement at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad in statement");
 	cil_destroy_in(in);
 	return rc;
 }
@@ -387,8 +382,7 @@ int cil_gen_class(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad class declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad class declaration");
 	cil_destroy_class(class);
 	cil_clear_node(ast_node);
 	return rc;
@@ -456,8 +450,7 @@ int cil_gen_classorder(struct cil_db *db, struct cil_tree_node *parse_current, s
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad classorder declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad classorder declaration");
 	cil_destroy_classorder(classorder);
 	return rc;
 }
@@ -527,7 +520,7 @@ int cil_gen_perm_nodes(struct cil_db *db, struct cil_tree_node *current_perm, st
 		cil_tree_node_init(&new_ast);
 		new_ast->parent = ast_node;
 		new_ast->line = current_perm->line;
-		new_ast->path = current_perm->path;
+		new_ast->hll_line = current_perm->hll_line;
 
 		rc = cil_gen_perm(db, current_perm, new_ast, flavor, num_perms);
 		if (rc != SEPOL_OK) {
@@ -738,8 +731,7 @@ int cil_gen_classpermission(struct cil_db *db, struct cil_tree_node *parse_curre
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad classpermission declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad classpermission declaration");
 	cil_destroy_classpermission(cp);
 	cil_clear_node(ast_node);
 	return rc;
@@ -800,8 +792,7 @@ int cil_gen_classpermissionset(struct cil_db *db, struct cil_tree_node *parse_cu
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad classpermissionset at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad classpermissionset");
 	cil_destroy_classpermissionset(cps);
 	return rc;
 }
@@ -852,8 +843,7 @@ int cil_gen_map_class(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad map class declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad map class declaration");
 	cil_destroy_class(map);
 	cil_clear_node(ast_node);
 	return rc;
@@ -897,8 +887,7 @@ int cil_gen_classmapping(struct cil_db *db, struct cil_tree_node *parse_current,
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad classmapping declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad classmapping declaration");
 	cil_destroy_classmapping(mapping);
 	return rc;
 }
@@ -954,8 +943,7 @@ int cil_gen_common(struct cil_db *db, struct cil_tree_node *parse_current, struc
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad common declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad common declaration");
 	cil_destroy_class(common);
 	cil_clear_node(ast_node);
 	return rc;
@@ -994,8 +982,7 @@ int cil_gen_classcommon(struct cil_db *db, struct cil_tree_node *parse_current, 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad classcommon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad classcommon declaration");
 	cil_destroy_classcommon(clscom);
 	return rc;
 
@@ -1043,8 +1030,7 @@ int cil_gen_sid(struct cil_db *db, struct cil_tree_node *parse_current, struct c
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad sid declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad sid declaration");
 	cil_destroy_sid(sid);
 	cil_clear_node(ast_node);
 	return rc;
@@ -1102,8 +1088,7 @@ int cil_gen_sidcontext(struct cil_db *db, struct cil_tree_node *parse_current, s
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad sidcontext declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad sidcontext declaration");
 	cil_destroy_sidcontext(sidcon);
 	return rc;
 }
@@ -1163,8 +1148,7 @@ int cil_gen_sidorder(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad sidorder declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad sidorder declaration");
 	cil_destroy_sidorder(sidorder);
 	return rc;
 }
@@ -1215,8 +1199,7 @@ int cil_gen_user(struct cil_db *db, struct cil_tree_node *parse_current, struct 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad user declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad user declaration");
 	cil_destroy_user(user);
 	cil_clear_node(ast_node);
 	return rc;
@@ -1265,8 +1248,7 @@ int cil_gen_userattribute(struct cil_db *db, struct cil_tree_node *parse_current
 
 	return SEPOL_OK;
 exit:
-	cil_log(CIL_ERR, "Bad userattribute declaration at line %d of %s\n",
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad userattribute declaration");
 	cil_destroy_userattribute(attr);
 	cil_clear_node(ast_node);
 	return rc;
@@ -1336,8 +1318,7 @@ int cil_gen_userattributeset(struct cil_db *db, struct cil_tree_node *parse_curr
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad userattributeset declaration at line %d of %s\n",
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad userattributeset declaration");
 	cil_destroy_userattributeset(attrset);
 
 	return rc;
@@ -1397,8 +1378,7 @@ int cil_gen_userlevel(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad userlevel declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad userlevel declaration");
 	cil_destroy_userlevel(usrlvl);
 	return rc;
 }
@@ -1458,8 +1438,7 @@ int cil_gen_userrange(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad userrange declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad userrange declaration");
 	cil_destroy_userrange(userrange);
 	return rc;
 }
@@ -1508,8 +1487,7 @@ int cil_gen_userprefix(struct cil_db *db, struct cil_tree_node *parse_current, s
 
 	return SEPOL_OK;
 exit:
-	cil_log(CIL_ERR, "Bad userprefix declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad userprefix declaration");
 	cil_destroy_userprefix(userprefix);
 	return rc;
 }
@@ -1566,8 +1544,7 @@ int cil_gen_selinuxuser(struct cil_db *db, struct cil_tree_node *parse_current, 
 
 	return SEPOL_OK;
 exit:
-	cil_log(CIL_ERR, "Bad selinuxuser declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad selinuxuser declaration");
 	cil_destroy_selinuxuser(selinuxuser);
 	return rc;
 }
@@ -1614,8 +1591,7 @@ int cil_gen_selinuxuserdefault(struct cil_db *db, struct cil_tree_node *parse_cu
 
 	return SEPOL_OK;
 exit:
-	cil_log(CIL_ERR, "Bad selinuxuserdefault declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad selinuxuserdefault declaration");
 	cil_destroy_selinuxuser(selinuxuser);
 	return rc;
 }
@@ -1666,8 +1642,7 @@ int cil_gen_role(struct cil_db *db, struct cil_tree_node *parse_current, struct 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad role declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad role declaration");
 	cil_destroy_role(role);
 	cil_clear_node(ast_node);
 	return rc;
@@ -1717,8 +1692,7 @@ int cil_gen_roletype(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad roletype declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad roletype declaration");
 	cil_destroy_roletype(roletype);
 	return rc;
 }
@@ -1764,8 +1738,7 @@ int cil_gen_userrole(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad userrole declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad userrole declaration");
 	cil_destroy_userrole(userrole);
 	return rc;
 }
@@ -1815,8 +1788,7 @@ int cil_gen_roletransition(struct cil_tree_node *parse_current, struct cil_tree_
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad roletransition rule at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad roletransition rule");
 	cil_destroy_roletransition(roletrans);
 	return rc;
 }
@@ -1862,8 +1834,7 @@ int cil_gen_roleallow(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad roleallow rule at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad roleallow rule");
 	cil_destroy_roleallow(roleallow);
 	return rc;
 }
@@ -1914,8 +1885,7 @@ int cil_gen_roleattribute(struct cil_db *db, struct cil_tree_node *parse_current
 
 	return SEPOL_OK;
 exit:
-	cil_log(CIL_ERR, "Bad roleattribute declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad roleattribute declaration");
 	cil_destroy_roleattribute(attr);
 	cil_clear_node(ast_node);
 	return rc;
@@ -1982,8 +1952,7 @@ int cil_gen_roleattributeset(struct cil_db *db, struct cil_tree_node *parse_curr
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad roleattributeset declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad roleattributeset declaration");
 	cil_destroy_roleattributeset(attrset);
 
 	return rc;
@@ -2042,8 +2011,7 @@ int cil_gen_avrule(struct cil_tree_node *parse_current, struct cil_tree_node *as
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad allow rule at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad allow rule");
 	cil_destroy_avrule(rule);
 	return rc;
 }
@@ -2099,8 +2067,7 @@ int cil_fill_permissionx(struct cil_tree_node *parse_current, struct cil_permiss
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad permissionx content at line %d of %s\n",
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad permissionx content");
 	return rc;
 }
 
@@ -2143,8 +2110,7 @@ int cil_gen_permissionx(struct cil_db *db, struct cil_tree_node *parse_current, 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad permissionx statement at line %d of %s\n",
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad permissionx statement");
 	cil_destroy_permissionx(permx);
 	cil_clear_node(ast_node);
 	return rc;
@@ -2210,8 +2176,7 @@ int cil_gen_avrulex(struct cil_tree_node *parse_current, struct cil_tree_node *a
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad allowx rule at line %d of %s\n",
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad allowx rule");
 	cil_destroy_avrule(rule);
 	return rc;
 }
@@ -2253,8 +2218,7 @@ int cil_gen_type_rule(struct cil_tree_node *parse_current, struct cil_tree_node 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad type rule at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad type rule");
 	cil_destroy_type_rule(rule);
 	return rc;
 }
@@ -2306,8 +2270,7 @@ int cil_gen_type(struct cil_db *db, struct cil_tree_node *parse_current, struct 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad type declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad type declaration");
 	cil_destroy_type(type);
 	cil_clear_node(ast_node);
 	return rc;
@@ -2361,8 +2324,7 @@ int cil_gen_typeattribute(struct cil_db *db, struct cil_tree_node *parse_current
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad typeattribute declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad typeattribute declaration");
 	cil_destroy_typeattribute(attr);
 	cil_clear_node(ast_node);
 	return rc;
@@ -2439,11 +2401,9 @@ int cil_gen_bool(struct cil_db *db, struct cil_tree_node *parse_current, struct 
 
 exit:
 	if (tunableif) {
-		cil_log(CIL_ERR, "Bad tunable (treated as a boolean due to preserve-tunables) declaration at line %d of %s\n",
-			parse_current->line, parse_current->path);
+		cil_tree_log(parse_current, CIL_ERR, "Bad tunable (treated as a boolean due to preserve-tunables) declaration");
 	} else {
-		cil_log(CIL_ERR, "Bad boolean declaration at line %d of %s\n",
-			parse_current->line, parse_current->path);
+		cil_tree_log(parse_current, CIL_ERR, "Bad boolean declaration");
 	}
 	cil_destroy_bool(boolean);
 	cil_clear_node(ast_node);
@@ -2504,8 +2464,7 @@ int cil_gen_tunable(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad tunable declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad tunable declaration");
 	cil_destroy_tunable(tunable);
 	cil_clear_node(ast_node);
 	return rc;
@@ -2880,11 +2839,9 @@ int cil_gen_boolif(struct cil_db *db, struct cil_tree_node *parse_current, struc
 
 exit:
 	if (tunableif) {
-		cil_log(CIL_ERR, "Bad tunableif (treated as a booleanif due to preserve-tunables) declaration at line %d of %s\n",
-				parse_current->line, parse_current->path);
+		cil_tree_log(parse_current, CIL_ERR, "Bad tunableif (treated as a booleanif due to preserve-tunables) declaration");
 	} else {
-		cil_log(CIL_ERR, "Bad booleanif declaration at line %d of %s\n",
-				parse_current->line, parse_current->path);
+		cil_tree_log(parse_current, CIL_ERR, "Bad booleanif declaration");
 	}
 	cil_destroy_boolif(bif);
 	return rc;
@@ -2964,8 +2921,7 @@ int cil_gen_tunif(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad tunableif declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad tunableif declaration");
 	cil_destroy_tunif(tif);
 	return rc;
 }
@@ -3018,8 +2974,8 @@ int cil_gen_condblock(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad %s condition declaration at line %d of %s\n",
-		(char*)parse_current->data, parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad %s condition declaration",
+		(char*)parse_current->data);
 	cil_destroy_condblock(cb);
 	return rc;
 }
@@ -3079,8 +3035,7 @@ int cil_gen_alias(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad %s declaration at line %d of %s\n",
-		(char*)parse_current->data, parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad %s declaration", (char*)parse_current->data);
 	cil_destroy_alias(alias);
 	cil_clear_node(ast_node);
 	return rc;
@@ -3137,8 +3092,7 @@ int cil_gen_aliasactual(struct cil_db *db, struct cil_tree_node *parse_current, 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad %s association at line %d of %s\n", 
-			cil_node_to_string(parse_current),parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad %s association", cil_node_to_string(parse_current));
 	cil_clear_node(ast_node);
 	return rc;
 }
@@ -3187,8 +3141,7 @@ int cil_gen_typeattributeset(struct cil_db *db, struct cil_tree_node *parse_curr
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad typeattributeset statement at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad typeattributeset statement");
 	cil_destroy_typeattributeset(attrset);
 	return rc;
 }
@@ -3235,8 +3188,7 @@ int cil_gen_typepermissive(struct cil_db *db, struct cil_tree_node *parse_curren
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad typepermissive declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad typepermissive declaration");
 	cil_destroy_typepermissive(typeperm);
 	return rc;
 }
@@ -3319,8 +3271,7 @@ int cil_gen_typetransition(struct cil_db *db, struct cil_tree_node *parse_curren
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad typetransition declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad typetransition declaration");
 	return rc;
 }
 
@@ -3391,8 +3342,7 @@ int cil_gen_rangetransition(struct cil_db *db, struct cil_tree_node *parse_curre
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad rangetransition declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad rangetransition declaration");
 	cil_destroy_rangetransition(rangetrans);
 	return rc;
 }
@@ -3443,8 +3393,7 @@ int cil_gen_sensitivity(struct cil_db *db, struct cil_tree_node *parse_current, 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad sensitivity declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad sensitivity declaration");
 	cil_destroy_sensitivity(sens);
 	cil_clear_node(ast_node);
 	return rc;
@@ -3496,8 +3445,7 @@ int cil_gen_category(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad category declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad category declaration");
 	cil_destroy_category(cat);
 	cil_clear_node(ast_node);
 	return rc;
@@ -3552,8 +3500,7 @@ int cil_gen_catset(struct cil_db *db, struct cil_tree_node *parse_current, struc
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad categoryset declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad categoryset declaration");
 	cil_destroy_catset(catset);
 	cil_clear_node(ast_node);
 	return rc;
@@ -3614,8 +3561,7 @@ int cil_gen_catorder(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad categoryorder declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad categoryorder declaration");
 	cil_destroy_catorder(catorder);
 	return rc;
 }
@@ -3675,8 +3621,7 @@ int cil_gen_sensitivityorder(struct cil_db *db, struct cil_tree_node *parse_curr
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad sensitivityorder declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad sensitivityorder declaration");
 	cil_destroy_sensitivityorder(sensorder);
 	return rc;
 }
@@ -3730,8 +3675,7 @@ int cil_gen_senscat(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad sensitivitycategory declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad sensitivitycategory declaration");
 	cil_destroy_senscat(senscat);
 	return rc;
 }
@@ -3786,8 +3730,7 @@ int cil_gen_level(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad level declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad level declaration");
 	cil_destroy_level(level);
 	cil_clear_node(ast_node);
 	return rc;
@@ -3893,8 +3836,7 @@ int cil_gen_levelrange(struct cil_db *db, struct cil_tree_node *parse_current, s
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad levelrange declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad levelrange declaration");
 	cil_destroy_levelrange(lvlrange);
 	cil_clear_node(ast_node);
 	return rc;
@@ -3958,8 +3900,7 @@ int cil_gen_constrain(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad constrain declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad constrain declaration");
 	cil_destroy_constrain(cons);
 	return rc;
 }
@@ -4013,8 +3954,7 @@ int cil_gen_validatetrans(struct cil_db *db, struct cil_tree_node *parse_current
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad validatetrans declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad validatetrans declaration");
 	cil_destroy_validatetrans(validtrans);
 	return rc;
 
@@ -4118,8 +4058,7 @@ int cil_gen_context(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad context declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad context declaration");
 	cil_destroy_context(context);
 	cil_clear_node(ast_node);
 	return SEPOL_ERR;
@@ -4211,8 +4150,7 @@ int cil_gen_filecon(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad filecon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad filecon declaration");
 	cil_destroy_filecon(filecon);
 	return rc;
 }
@@ -4313,8 +4251,7 @@ int cil_gen_portcon(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad portcon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad portcon declaration");
 	cil_destroy_portcon(portcon);
 	return rc;
 }
@@ -4395,8 +4332,7 @@ int cil_gen_nodecon(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad nodecon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad nodecon declaration");
 	cil_destroy_nodecon(nodecon);
 	return rc;
 }
@@ -4466,8 +4402,7 @@ int cil_gen_genfscon(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad genfscon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad genfscon declaration");
 	cil_destroy_genfscon(genfscon);
 	return SEPOL_ERR;
 }
@@ -4540,8 +4475,7 @@ int cil_gen_netifcon(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad netifcon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad netifcon declaration");
 	cil_destroy_netifcon(netifcon);
 	return SEPOL_ERR;
 }
@@ -4608,8 +4542,7 @@ int cil_gen_pirqcon(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad pirqcon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad pirqcon declaration");
 	cil_destroy_pirqcon(pirqcon);
 	return rc;
 }
@@ -4694,8 +4627,7 @@ int cil_gen_iomemcon(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad iomemcon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad iomemcon declaration");
 	cil_destroy_iomemcon(iomemcon);
 	return rc;
 }
@@ -4780,8 +4712,7 @@ int cil_gen_ioportcon(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad ioportcon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad ioportcon declaration");
 	cil_destroy_ioportcon(ioportcon);
 	return rc;
 }
@@ -4844,8 +4775,7 @@ int cil_gen_pcidevicecon(struct cil_db *db, struct cil_tree_node *parse_current,
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad pcidevicecon declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad pcidevicecon declaration");
 	cil_destroy_pcidevicecon(pcidevicecon);
 	return rc;
 }
@@ -4905,8 +4835,7 @@ int cil_gen_devicetreecon(struct cil_db *db, struct cil_tree_node *parse_current
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad devicetreecon declaration at line %d of %s\n",
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad devicetreecon declaration");
 	cil_destroy_devicetreecon(devicetreecon);
 	return rc;
 }
@@ -4981,8 +4910,7 @@ int cil_gen_fsuse(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad fsuse declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad fsuse declaration");
 	cil_destroy_fsuse(fsuse);
 	return SEPOL_ERR;
 }
@@ -5139,8 +5067,7 @@ int cil_gen_macro(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad macro declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad macro declaration");
 	cil_destroy_macro(macro);
 	cil_clear_node(ast_node);
 	return SEPOL_ERR;
@@ -5198,8 +5125,7 @@ int cil_gen_call(struct cil_db *db, struct cil_tree_node *parse_current, struct 
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad macro call at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad macro call");
 	cil_destroy_call(call);
 	return rc;
 }
@@ -5301,8 +5227,7 @@ int cil_gen_optional(struct cil_db *db, struct cil_tree_node *parse_current, str
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad optional at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad optional");
 	cil_destroy_optional(optional);
 	cil_clear_node(ast_node);
 	return rc;
@@ -5350,8 +5275,7 @@ int cil_gen_policycap(struct cil_db *db, struct cil_tree_node *parse_current, st
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad policycap statement at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad policycap statement");
 	cil_destroy_policycap(polcap);
 	cil_clear_node(ast_node);
 	return rc;
@@ -5406,8 +5330,7 @@ int cil_gen_ipaddr(struct cil_db *db, struct cil_tree_node *parse_current, struc
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad ipaddr statement at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad ipaddr statement");
 	cil_destroy_ipaddr(ipaddr);
 	cil_clear_node(ast_node);
 	return rc;
@@ -5611,8 +5534,7 @@ int cil_gen_bounds(struct cil_db *db, struct cil_tree_node *parse_current, struc
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad bounds declaration at line %d of %s\n", 
-		parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad bounds declaration");
 	cil_destroy_bounds(bounds);
 	return rc;
 }
@@ -5673,8 +5595,7 @@ int cil_gen_default(struct cil_tree_node *parse_current, struct cil_tree_node *a
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad %s declaration at line %d of %s\n", 
-			cil_node_to_string(parse_current), parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad %s declaration", cil_node_to_string(parse_current));
 	cil_destroy_default(def);
 	return rc;
 }
@@ -5760,8 +5681,7 @@ int cil_gen_defaultrange(struct cil_tree_node *parse_current, struct cil_tree_no
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad defaultrange declaration at line %d of %s\n", 
-			parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad defaultrange declaration");
 	cil_destroy_defaultrange(def);
 	return rc;
 }
@@ -5821,8 +5741,7 @@ int cil_gen_handleunknown(struct cil_tree_node *parse_current, struct cil_tree_n
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad handleunknown at line %d of %s\n",
-			parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad handleunknown");
 	cil_destroy_handleunknown(unknown);
 	return rc;
 }
@@ -5870,8 +5789,7 @@ int cil_gen_mls(struct cil_tree_node *parse_current, struct cil_tree_node *ast_n
 	return SEPOL_OK;
 
 exit:
-	cil_log(CIL_ERR, "Bad mls at line %d of %s\n",
-			parse_current->line, parse_current->path);
+	cil_tree_log(parse_current, CIL_ERR, "Bad mls");
 	cil_destroy_mls(mls);
 	return rc;
 }
@@ -5879,6 +5797,27 @@ exit:
 void cil_destroy_mls(struct cil_mls *mls)
 {
 	free(mls);
+}
+
+int cil_gen_src_info(struct cil_tree_node *parse_current, struct cil_tree_node *ast_node)
+{
+	/* No need to check syntax, because this is auto generated */
+	struct cil_src_info *info = NULL;
+
+	cil_src_info_init(&info);
+
+	info->is_cil = (parse_current->next->data == CIL_KEY_SRC_CIL) ? CIL_TRUE : CIL_FALSE;
+	info->path = parse_current->next->next->data;
+
+	ast_node->data = info;
+	ast_node->flavor = CIL_SRC_INFO;
+
+	return SEPOL_OK;
+}
+
+void cil_destroy_src_info(struct cil_src_info *info)
+{
+	free(info);
 }
 
 int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *finished, void *extra_args)
@@ -5915,7 +5854,7 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 		if (parse_current->parent->parent == NULL) {
 			rc = SEPOL_OK;
 		} else {
-			cil_log(CIL_ERR, "Keyword expected after open parenthesis in line %d of %s\n", parse_current->line, parse_current->path);
+			cil_tree_log(parse_current, CIL_ERR, "Keyword expected after open parenthesis");
 		}
 		goto exit;
 	}
@@ -5928,7 +5867,7 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 			parse_current->data == CIL_KEY_BLOCKINHERIT ||
 			parse_current->data == CIL_KEY_BLOCKABSTRACT) {
 			rc = SEPOL_ERR;
-			cil_log(CIL_ERR, "%s is not allowed in macros (%s:%d)\n", (char *)parse_current->data, parse_current->path, parse_current->line);
+			cil_tree_log(parse_current, CIL_ERR, "%s is not allowed in macros", (char *)parse_current->data);
 			goto exit;
 		}
 	}
@@ -5944,8 +5883,7 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 			parse_current->data != CIL_KEY_TYPECHANGE &&
 			parse_current->data != CIL_KEY_CALL) {
 			rc = SEPOL_ERR;
-			cil_log(CIL_ERR, "Found %s at line %d of %s\n",
-				(char*)parse_current->data, parse_current->line, parse_current->path);
+			cil_tree_log(parse_current, CIL_ERR, "Found %s", (char*)parse_current->data);
 			if (((struct cil_booleanif*)boolif->data)->preserved_tunable) {
 				cil_log(CIL_ERR, "%s cannot be defined within tunableif statement (treated as a booleanif due to preserve-tunables)\n",
 						(char*)parse_current->data);
@@ -5960,8 +5898,7 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 	if (tunif != NULL) {
 		if (parse_current->data == CIL_KEY_TUNABLE) {
 			rc = SEPOL_ERR;
-			cil_log(CIL_ERR, "Found tunable at line %d of %s\n",
-				parse_current->line, parse_current->path);
+			cil_tree_log(parse_current, CIL_ERR, "Found tunable");
 			cil_log(CIL_ERR, "Tunables cannot be defined within tunableif statement\n");
 			goto exit;
 		}
@@ -5970,8 +5907,7 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 	if (in != NULL) {
 		if (parse_current->data == CIL_KEY_IN) {
 			rc = SEPOL_ERR;
-			cil_log(CIL_ERR, "Found in-statement at line %d of %s\n",
-				parse_current->line, parse_current->path);
+			cil_tree_log(parse_current, CIL_ERR, "Found in-statement");
 			cil_log(CIL_ERR, "in-statements cannot be defined within in-statements\n");
 			goto exit;
 		}
@@ -5981,7 +5917,7 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 
 	ast_node->parent = ast_current;
 	ast_node->line = parse_current->line;
-	ast_node->path = parse_current->path;
+	ast_node->hll_line = parse_current->hll_line;
 
 	if (parse_current->data == CIL_KEY_BLOCK) {
 		rc = cil_gen_block(db, parse_current, ast_node, 0);
@@ -6244,8 +6180,10 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 	} else if (parse_current->data == CIL_KEY_MLS) {
 		rc = cil_gen_mls(parse_current, ast_node);
 		*finished = CIL_TREE_SKIP_NEXT;
+	} else if (parse_current->data == CIL_KEY_SRC_INFO) {
+		rc = cil_gen_src_info(parse_current, ast_node);
 	} else {
-		cil_log(CIL_ERR, "Error: Unknown keyword %s\n", (char*)parse_current->data);
+		cil_log(CIL_ERR, "Error: Unknown keyword %s\n", (char *)parse_current->data);
 		rc = SEPOL_ERR;
 	}
 
@@ -6266,7 +6204,7 @@ int __cil_build_ast_node_helper(struct cil_tree_node *parse_current, uint32_t *f
 			if (ast_current->flavor == CIL_IN) {
 				args->in = ast_current;
 			}
-		
+
 			ast_current->cl_head = ast_node;
 		} else {
 			ast_current->cl_tail->next = ast_node;
