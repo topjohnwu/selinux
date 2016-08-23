@@ -127,7 +127,7 @@ static void usage(char *progname)
 	printf("  -B, --build		    build and reload policy\n");
 	printf("  -i,--install=MODULE_PKG   install a new module\n");
 	printf("  -r,--remove=MODULE_NAME   remove existing module\n");
-	printf("  -l,--list-modules=[KIND]  display list of installed modules\n");
+	printf("  -l[KIND],--list-modules[=KIND]  display list of installed modules\n");
 	printf("     KIND:  standard  list highest priority, enabled modules\n");
 	printf("            full      list all modules\n");
 	printf("  -X,--priority=PRIORITY    set priority for following operations (1-999)\n");
@@ -209,7 +209,7 @@ static void parse_command_line(int argc, char **argv)
 	no_reload = 0;
 	priority = 400;
 	while ((i =
-		getopt_long(argc, argv, "s:b:hi:l::vqr:u:RnNBDCPX:e:d:p:S:E:cH", opts,
+		getopt_long(argc, argv, "s:b:hi:l::vr:u:RnNBDCPX:e:d:p:S:E:cH", opts,
 			    NULL)) != -1) {
 		switch (i) {
 		case 'b':

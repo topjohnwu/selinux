@@ -49,7 +49,7 @@ ifeq ($(DISABLE_BOOL),y)
 endif
 
 GENERATED=$(SWIGCOUT) $(SWIGRUBYCOUT) selinuxswig_python_exception.i
-SRCS= $(filter-out $(UNUSED_SRCS) $(GENERATED) audit2why.c, $(wildcard *.c))
+SRCS= $(filter-out $(UNUSED_SRCS) $(GENERATED) audit2why.c, $(sort $(wildcard *.c)))
 
 MAX_STACK_SIZE=32768
 
@@ -156,7 +156,7 @@ install: all
 
 install-pywrap: pywrap
 	test -d $(PYLIBDIR)/site-packages/selinux || install -m 755 -d $(PYLIBDIR)/site-packages/selinux
-	install -m 755 $(SWIGSO) $(PYLIBDIR)/site-packages/selinux/_selinux.so
+	install -m 755 $(SWIGSO) $(PYLIBDIR)/site-packages/_selinux.so
 	install -m 755 $(AUDIT2WHYSO) $(PYLIBDIR)/site-packages/selinux/audit2why.so
 	install -m 644 $(SWIGPYOUT) $(PYLIBDIR)/site-packages/selinux/__init__.py
 
