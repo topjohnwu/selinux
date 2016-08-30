@@ -25,15 +25,10 @@
 __all__ = ['ManPage', 'HTMLManPages', 'manpage_domains', 'manpage_roles', 'gen_domains']
 
 import string
-import argparse
 import selinux
 import sepolicy
-from sepolicy import *
-
 import commands
-import sys
 import os
-import re
 import time
 
 equiv_dict = {"smbd": ["samba"], "httpd": ["apache"], "virtd": ["virt", "libvirt", "svirt", "svirt_tcg", "svirt_lxc_t", "svirt_lxc_net_t"], "named": ["bind"], "fsdaemon": ["smartmon"], "mdadm": ["raid"]}
@@ -50,7 +45,7 @@ def gen_modules_dict(path="/usr/share/selinux/devel/policy.xml"):
     import xml.etree.ElementTree
     modules_dict = {}
     try:
-        tree = xml.etree.ElementTree.fromstring(policy_xml(path))
+        tree = xml.etree.ElementTree.fromstring(sepolicy.policy_xml(path))
         for l in tree.findall("layer"):
             for m in l.findall("module"):
                 name = m.get("name")
@@ -62,7 +57,7 @@ def gen_modules_dict(path="/usr/share/selinux/devel/policy.xml"):
                     name = "unconfined"
                 for b in m.findall("summary"):
                     modules_dict[name] = b.text
-    except IOError, e:
+    except IOError:
         pass
     return modules_dict
 
@@ -79,7 +74,7 @@ def get_all_users_info():
     users = []
     users_range = {}
     allusers = []
-    allusers_info = info(USER)
+    allusers_info = sepolicy.info(sepolicy.USER)
 
     for d in allusers_info:
         allusers.append(d['name'])
@@ -108,7 +103,7 @@ def gen_domains():
     if domains:
         return domains
     domains = []
-    for d in get_all_domains():
+    for d in sepolicy.get_all_domains():
         found = False
         domain = d[:-2]
 #		if domain + "_exec_t" not in get_entrypoints():
@@ -117,7 +112,7 @@ def gen_domains():
             continue
         domains.append(domain)
 
-    for role in get_all_roles():
+    for role in sepolicy.get_all_roles():
         if role[:-2] in domains or role == "system_r":
             continue
         domains.append(role[:-2])
@@ -169,7 +164,7 @@ def get_alphabet_manpages(manpage_list):
 def convert_manpage_to_html(html_manpage, manpage):
     rc, output = commands.getstatusoutput("/usr/bin/groff -man -Thtml %s 2>/dev/null" % manpage)
     if rc == 0:
-        print html_manpage, " has been created"
+        print(html_manpage, "has been created")
         fd = open(html_manpage, 'w')
         fd.write(output)
         fd.close()
@@ -238,7 +233,7 @@ Fedora or Red Hat Enterprise Linux Man Pages.</h2>
 """)
         for f in fedora_releases:
             fd.write("""
-<a href=%s/%s.html>%s</a> - SELinux man pages for %s """  % (f, f, f, f))
+<a href=%s/%s.html>%s</a> - SELinux man pages for %s """ % (f, f, f, f))
 
         fd.write("""
 </pre>
@@ -307,7 +302,7 @@ Fedora or Red Hat Enterprise Linux Man Pages.</h2>
             if len(self.manpage_domains[letter]):
                 fd.write("""
 <a href=#%s_domain>%s</a>
-			"""	% (letter, letter))
+			""" % (letter, letter))
 
         fd.write("""
 </td>
@@ -407,17 +402,17 @@ class ManPage:
         self.html = html
         self.source_files = source_files
         self.root = root
-        self.portrecs = gen_port_dict()[0]
+        self.portrecs = sepolicy.gen_port_dict()[0]
         self.domains = gen_domains()
-        self.all_domains = get_all_domains()
-        self.all_attributes = get_all_attributes()
-        self.all_bools = get_all_bools()
-        self.all_port_types = get_all_port_types()
-        self.all_roles = get_all_roles()
+        self.all_domains = sepolicy.get_all_domains()
+        self.all_attributes = sepolicy.get_all_attributes()
+        self.all_bools = sepolicy.get_all_bools()
+        self.all_port_types = sepolicy.get_all_port_types()
+        self.all_roles = sepolicy.get_all_roles()
         self.all_users = get_all_users_info()[0]
         self.all_users_range = get_all_users_info()[1]
-        self.all_file_types = get_all_file_types()
-        self.role_allows = get_all_role_allows()
+        self.all_file_types = sepolicy.get_all_file_types()
+        self.role_allows = sepolicy.get_all_role_allows()
         self.types = _gen_types()
 
         if self.source_files:
@@ -425,7 +420,7 @@ class ManPage:
         else:
             self.fcpath = self.root + selinux.selinux_file_context_path()
 
-        self.fcdict = get_fcdict(self.fcpath)
+        self.fcdict = sepolicy.get_fcdict(self.fcpath)
 
         if not os.path.exists(path):
             os.makedirs(path)
@@ -436,9 +431,9 @@ class ManPage:
             self.xmlpath = self.root + "policy.xml"
         else:
             self.xmlpath = self.root + "/usr/share/selinux/devel/policy.xml"
-        self.booleans_dict = gen_bool_dict(self.xmlpath)
+        self.booleans_dict = sepolicy.gen_bool_dict(self.xmlpath)
 
-        self.domainname, self.short_name = gen_short_name(domainname)
+        self.domainname, self.short_name = sepolicy.gen_short_name(domainname)
 
         self.type = self.domainname + "_t"
         self._gen_bools()
@@ -469,7 +464,7 @@ class ManPage:
                     types.append(t + "_t")
 
         for t in types:
-            domainbools, bools = get_bools(t)
+            domainbools, bools = sepolicy.get_bools(t)
             self.bools += bools
             self.domainbools += domainbools
 
@@ -514,7 +509,7 @@ class ManPage:
         self.fd = open("%s/%s_selinux.8" % (self.path, alias), 'w')
         self.fd.write(".so man8/%s_selinux.8" % self.domainname)
         self.fd.close()
-        print path
+        print(path)
 
     def __gen_man_page(self):
         self.anon_list = []
@@ -744,7 +739,7 @@ SELinux %(domainname)s policy is very flexible allowing users to setup their %(d
 .br
 .B restorecon -R -v /srv/%(alt)s
 .PP
-""" % {'domainname': self.domainname, 'equiv': e, 'alt': e.split('/')[-1] })
+""" % {'domainname': self.domainname, 'equiv': e, 'alt': e.split('/')[-1]})
 
         self.fd.write(r"""
 .PP
@@ -758,7 +753,7 @@ store files with these types in a diffent paths, you need to execute the semanag
 .B restorecon -R -v /srv/my%(domainname)s_content
 
 Note: SELinux often uses regular expressions to specify labels that match multiple files.
-"""  % {'domainname': self.domainname, "type": flist[0] })
+""" % {'domainname': self.domainname, "type": flist[0]})
 
         self.fd.write(r"""
 .I The following file types are defined for %(domainname)s:
@@ -772,7 +767,7 @@ Note: SELinux often uses regular expressions to specify labels that match multip
 .EE
 
 - %s
-""" % ( f, sepolicy.get_description(f)))
+""" % (f, sepolicy.get_description(f)))
 
             if f in self.fcdict:
                 plural = ""
@@ -829,7 +824,7 @@ semanage fcontext -a -t public_content_rw_t "/var/%(domainname)s/incoming(/.*)?"
 .B restorecon -F -R -v /var/%(domainname)s/incoming
 .br
 .B setsebool -P %(domainname)s_anon_write 1
-"""  % {'domainname': self.domainname})
+""" % {'domainname': self.domainname})
             for b in self.anon_list:
                 desc = self.booleans_dict[b][2][0].lower() + self.booleans_dict[b][2][1:]
                 self.fd.write("""
@@ -899,7 +894,7 @@ selinux(8), %s(8), semanage(8), restorecon(8), chcon(1), sepolicy(8)
         except:
             return
 
-        self.fd.write ("""
+        self.fd.write("""
 .SH "ENTRYPOINTS"
 """)
         if len(entrypoints) > 1:
@@ -907,14 +902,14 @@ selinux(8), %s(8), semanage(8), restorecon(8), chcon(1), sepolicy(8)
         else:
             entrypoints_str = "\\fB%s\\fP file type" % entrypoints[0]
 
-        self.fd.write ("""
+        self.fd.write("""
 The %s_t SELinux type can be entered via the %s.
 
 The default entrypoint paths for the %s_t domain are the following:
-"""   % (self.domainname, entrypoints_str, self.domainname))
+""" % (self.domainname, entrypoints_str, self.domainname))
         if "bin_t" in entrypoints:
             entrypoints.remove("bin_t")
-            self.fd.write ("""
+            self.fd.write("""
 All executeables with the default executable label, usually stored in /usr/bin and /usr/sbin.""")
 
         paths = []
@@ -927,7 +922,7 @@ All executeables with the default executable label, usually stored in /usr/bin a
 
     def _writes(self):
         permlist = sepolicy.search([sepolicy.ALLOW], {'source': self.type, 'permlist': ['open', 'write'], 'class': 'file'})
-        if permlist == None or len(permlist) == 0:
+        if permlist is None or len(permlist) == 0:
             return
 
         all_writes = []
@@ -943,12 +938,12 @@ All executeables with the default executable label, usually stored in /usr/bin a
 
         if len(all_writes) == 0:
             return
-        self.fd.write ("""
+        self.fd.write("""
 .SH "MANAGED FILES"
 """)
-        self.fd.write ("""
+        self.fd.write("""
 The SELinux process type %s_t can manage files labeled with the following file types.  The paths listed are the default paths for these file types.  Note the processes UID still need to have DAC permissions.
-"""   % self.domainname)
+""" % self.domainname)
 
         all_writes.sort()
         if "file_type" in all_writes:
@@ -1013,7 +1008,7 @@ If you want to map the one Linux user (joe) to the SELinux user %(user)s, you wo
 
 .B $ semanage login -a -s %(user)s_u joe
 
-"""	% {'user': self.domainname})
+""" % {'user': self.domainname})
 
     def _can_sudo(self):
         sudotype = "%s_sudo_t" % self.domainname
@@ -1029,13 +1024,13 @@ You can set up sudo to allow %(user)s to transition to an administrative domain:
 
 Add one or more of the following record to sudoers using visudo.
 
-""" % { 'user': self.domainname } )
+""" % {'user': self.domainname})
             for adminrole in self.role_allows[role]:
                 self.fd.write("""
 USERNAME ALL=(ALL) ROLE=%(admin)s_r TYPE=%(admin)s_t COMMAND
 .br
 sudo will run COMMAND as %(user)s_u:%(admin)s_r:%(admin)s_t:LEVEL
-""" % {'admin': adminrole[:-2], 'user': self.domainname } )
+""" % {'admin': adminrole[:-2], 'user': self.domainname})
 
                 self.fd.write("""
 You might also need to add one or more of these new roles to your SELinux user record.
@@ -1050,7 +1045,7 @@ Modify the roles list and add %(user)s_r to this list.
 
 For more details you can see semanage man page.
 
-""" % {'user': self.domainname, "roles": " ".join([role] + self.role_allows[role]) } )
+""" % {'user': self.domainname, "roles": " ".join([role] + self.role_allows[role])})
             else:
                 self.fd.write("""
 The SELinux type %s_t is not allowed to execute sudo.
@@ -1136,16 +1131,16 @@ The SELinux user %s_u is able to connect to the following tcp ports.
         permlist = sepolicy.search([sepolicy.ALLOW], {'source': self.type, 'target': 'user_home_type', 'class': 'file', 'permlist': ['ioctl', 'read', 'getattr', 'execute', 'execute_no_trans', 'open']})
         self.fd.write("""
 .SH HOME_EXEC
-""" )
+""")
         if permlist is not None:
             self.fd.write("""
 The SELinux user %s_u is able execute home content files.
-"""  % self.domainname)
+""" % self.domainname)
 
         else:
             self.fd.write("""
 The SELinux user %s_u is not able execute home content files.
-"""  % self.domainname)
+""" % self.domainname)
 
     def _transitions(self):
         self.fd.write(r"""
@@ -1171,7 +1166,7 @@ Execute the following to see the types that the SELinux user %(type)s can execut
 
 .B $ search -A -s %(type)s -c process -p transition
 
-"""	% {'user': self.domainname, 'type': self.type})
+""" % {'user': self.domainname, 'type': self.type})
 
     def _role_header(self):
         self.fd.write('.TH  "%(user)s_selinux"  "8"  "%(user)s" "mgrepl@redhat.com" "%(user)s SELinux Policy documentation"'

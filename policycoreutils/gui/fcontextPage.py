@@ -21,7 +21,11 @@ import gtk.glade
 import os
 import gobject
 import seobject
-import commands
+try:
+    from subprocess import getstatusoutput
+except ImportError:
+    from commands import getstatusoutput
+
 from semanagePage import *
 
 SPEC_COL = 0
@@ -47,18 +51,22 @@ class context:
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 
 class fcontextPage(semanagePage):
@@ -127,9 +135,7 @@ class fcontextPage(semanagePage):
         self.fcontext = seobject.fcontextRecords()
         self.store.clear()
         fcon_dict = self.fcontext.get_all(self.local)
-        keys = fcon_dict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(fcon_dict.keys()):
             if not self.match(fcon_dict, k, filter):
                 continue
             iter = self.store.append()
@@ -177,14 +183,14 @@ class fcontextPage(semanagePage):
             fspec = store.get_value(iter, SPEC_COL)
             ftype = store.get_value(iter, FTYPE_COL)
             self.wait()
-            (rc, out) = commands.getstatusoutput("semanage fcontext -d -f '%s' '%s'" % (ftype, fspec))
+            (rc, out) = getstatusoutput("semanage fcontext -d -f '%s' '%s'" % (ftype, fspec))
             self.ready()
 
             if rc != 0:
                 return self.error(out)
             store.remove(iter)
             self.view.get_selection().select_path((0,))
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def add(self):
@@ -195,7 +201,7 @@ class fcontextPage(semanagePage):
         list_model = self.fcontextFileTypeCombo.get_model()
         active = self.fcontextFileTypeCombo.get_active()
         self.wait()
-        (rc, out) = commands.getstatusoutput("semanage fcontext -a -t %s -r %s -f '%s' '%s'" % (type, mls, ftype[active], fspec))
+        (rc, out) = getstatusoutput("semanage fcontext -a -t %s -r %s -f '%s' '%s'" % (type, mls, ftype[active], fspec))
         self.ready()
         if rc != 0:
             self.error(out)
@@ -214,7 +220,7 @@ class fcontextPage(semanagePage):
         iter = self.fcontextFileTypeCombo.get_active_iter()
         ftype = list_model.get_value(iter, 0)
         self.wait()
-        (rc, out) = commands.getstatusoutput("semanage fcontext -m -t %s -r %s -f '%s' '%s'" % (type, mls, ftype, fspec))
+        (rc, out) = getstatusoutput("semanage fcontext -m -t %s -r %s -f '%s' '%s'" % (type, mls, ftype, fspec))
         self.ready()
         if rc != 0:
             self.error(out)

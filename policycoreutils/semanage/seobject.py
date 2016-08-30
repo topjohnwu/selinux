@@ -23,28 +23,34 @@
 
 import pwd
 import grp
-import string
 import selinux
-import tempfile
 import os
 import re
 import sys
 import stat
-import shutil
+import socket
 from semanage import *
 PROGNAME = "policycoreutils"
 import sepolicy
-from sepolicy import boolean_desc, boolean_category, gen_bool_dict
-gen_bool_dict()
+sepolicy.gen_bool_dict()
 from IPy import IP
 
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
-
-import gettext
-translation = gettext.translation(PROGNAME, localedir="/usr/share/locale", fallback=True)
-_ = translation.ugettext
+try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
+    gettext.install(PROGNAME,
+                    localedir="/usr/share/locale",
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 import syslog
 
@@ -82,6 +88,17 @@ file_type_str_to_option = {"all files": "a",
                            "socket file": "s",
                            "symbolic link": "l",
                            "named pipe": "p"}
+
+ftype_to_audit = {"": "any",
+                  "a" : "any",
+                  "b": "block",
+                  "c": "char",
+                  "d": "dir",
+                  "f": "file",
+                  "l": "symlink",
+                  "p": "pipe",
+                  "s": "socket"}
+
 try:
     import audit
 
@@ -90,6 +107,7 @@ try:
         def __init__(self):
             self.audit_fd = audit.audit_open()
             self.log_list = []
+            self.log_change_list = []
 
         def log(self, msg, name="", sename="", serole="", serange="", oldsename="", oldserole="", oldserange=""):
 
@@ -109,10 +127,17 @@ try:
         def log_remove(self, msg, name="", sename="", serole="", serange="", oldsename="", oldserole="", oldserange=""):
             self.log_list.append([self.audit_fd, audit.AUDIT_ROLE_REMOVE, sys.argv[0], str(msg), name, 0, sename, serole, serange, oldsename, oldserole, oldserange, "", "", ""])
 
+        def log_change(self, msg):
+            self.log_change_list.append([self.audit_fd, audit.AUDIT_USER_MAC_CONFIG_CHANGE, str(msg), "semanage", "", "", ""])
+
         def commit(self, success):
             for l in self.log_list:
                 audit.audit_log_semanage_message(*(l + [success]))
+            for l in self.log_change_list:
+                audit.audit_log_user_comm_message(*(l + [success]))
+
             self.log_list = []
+            self.log_change_list = []
 except:
     class logger:
 
@@ -129,14 +154,17 @@ except:
                 message += " role=" + serole
             if oldserole != "":
                 message += " old_role=" + oldserole
-            if serange != "" and serange != None:
+            if serange != "" and serange is not None:
                 message += " MLSRange=" + serange
-            if oldserange != "" and oldserange != None:
+            if oldserange != "" and oldserange is not None:
                 message += " old_MLSRange=" + oldserange
             self.log_list.append(message)
 
         def log_remove(self, msg, name="", sename="", serole="", serange="", oldsename="", oldserole="", oldserange=""):
             self.log(msg, name, sename, serole, serange, oldsename, oldserole, oldserange)
+
+        def log_change(self, msg):
+            self.log_list.append(" %s" % msg)
 
         def commit(self, success):
             if success == 1:
@@ -153,6 +181,9 @@ class nulllogger:
         pass
 
     def log_remove(self, msg, name="", sename="", serole="", serange="", oldsename="", oldserole="", oldserange=""):
+        pass
+
+    def log_change(self, msg):
         pass
 
     def commit(self, success):
@@ -336,7 +367,7 @@ class moduleRecords(semanageRecords):
         all = self.get_all()
         if len(all) == 0:
             return
-        return map(lambda x: "-d %s" % x[0], filter(lambda t: t[1] == 0, all))
+        return ["-d %s" % x[0] for x in [t for t in all if t[1] == 0]]
 
     def list(self, heading=1, locallist=0):
         all = self.get_all()
@@ -344,7 +375,7 @@ class moduleRecords(semanageRecords):
             return
 
         if heading:
-            print "\n%-25s %-9s %s\n" % (_("Module Name"), _("Priority"), _("Language"))
+            print("\n%-25s %-9s %s\n" % (_("Module Name"), _("Priority"), _("Language")))
         for t in all:
             if t[1] == 0:
                 disabled = _("Disabled")
@@ -352,7 +383,7 @@ class moduleRecords(semanageRecords):
                 if locallist:
                     continue
                 disabled = ""
-            print "%-25s %-9s %-5s %s" % (t[0], t[2], t[3], disabled)
+            print("%-25s %-9s %-5s %s" % (t[0], t[2], t[3], disabled))
 
     def add(self, file, priority):
         if not os.path.exists(file):
@@ -402,7 +433,7 @@ class moduleRecords(semanageRecords):
         self.commit()
 
     def deleteall(self):
-        l = map(lambda x: x[0], filter(lambda t: t[1] == 0, self.get_all()))
+        l = [x[0] for x in [t for t in self.get_all() if t[1] == 0]]
         for m in l:
             self.set_enabled(m, True)
 
@@ -416,7 +447,7 @@ class dontauditClass(semanageRecords):
         if dontaudit not in ["on", "off"]:
             raise ValueError(_("dontaudit requires either 'on' or 'off'"))
         self.begin()
-        rc = semanage_set_disable_dontaudit(self.sh, dontaudit == "off")
+        semanage_set_disable_dontaudit(self.sh, dontaudit == "off")
         self.commit()
 
 
@@ -439,27 +470,26 @@ class permissiveRecords(semanageRecords):
         return l
 
     def list(self, heading=1, locallist=0):
-        all = map(lambda y: y["name"], filter(lambda x: x["permissive"], sepolicy.info(sepolicy.TYPE)))
+        all = [y["name"] for y in [x for x in sepolicy.info(sepolicy.TYPE) if x["permissive"]]]
         if len(all) == 0:
             return
 
         if heading:
-            print "\n%-25s\n" % (_("Builtin Permissive Types"))
+            print("\n%-25s\n" % (_("Builtin Permissive Types")))
         customized = self.get_all()
         for t in all:
             if t not in customized:
-                print t
+                print(t)
 
         if len(customized) == 0:
             return
 
         if heading:
-            print "\n%-25s\n" % (_("Customized Permissive Types"))
+            print("\n%-25s\n" % (_("Customized Permissive Types")))
         for t in customized:
-            print t
+            print(t)
 
     def add(self, type):
-        import glob
         try:
             import sepolgen.module as module
         except ImportError:
@@ -564,7 +594,7 @@ class loginRecords(semanageRecords):
             self.begin()
             self.__add(name, sename, serange)
             self.commit()
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -624,7 +654,7 @@ class loginRecords(semanageRecords):
             self.begin()
             self.__modify(name, sename, serange)
             self.commit()
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -666,7 +696,7 @@ class loginRecords(semanageRecords):
             self.__delete(name)
             self.commit()
 
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -680,7 +710,7 @@ class loginRecords(semanageRecords):
             for u in ulist:
                 self.__delete(semanage_seuser_get_name(u))
             self.commit()
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -716,39 +746,35 @@ class loginRecords(semanageRecords):
     def customized(self):
         l = []
         ddict = self.get_all(True)
-        keys = ddict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(ddict.keys()):
             l.append("-a -s %s -r '%s' %s" % (ddict[k][0], ddict[k][1], k))
         return l
 
     def list(self, heading=1, locallist=0):
         ddict = self.get_all(locallist)
         ldict = self.get_all_logins()
-        lkeys = ldict.keys()
-        keys = ddict.keys()
+        lkeys = sorted(ldict.keys())
+        keys = sorted(ddict.keys())
         if len(keys) == 0 and len(lkeys) == 0:
             return
-        keys.sort()
-        lkeys.sort()
 
         if is_mls_enabled == 1:
             if heading:
-                print "\n%-20s %-20s %-20s %s\n" % (_("Login Name"), _("SELinux User"), _("MLS/MCS Range"), _("Service"))
+                print("\n%-20s %-20s %-20s %s\n" % (_("Login Name"), _("SELinux User"), _("MLS/MCS Range"), _("Service")))
             for k in keys:
                 u = ddict[k]
-                print "%-20s %-20s %-20s %s" % (k, u[0], translate(u[1]), u[2])
+                print("%-20s %-20s %-20s %s" % (k, u[0], translate(u[1]), u[2]))
             if len(lkeys):
-                print "\nLocal customization in %s" % self.logins_path
+                print("\nLocal customization in %s" % self.logins_path)
 
             for k in lkeys:
                 u = ldict[k]
-                print "%-20s %-20s %-20s %s" % (k, u[0], translate(u[1]), u[2])
+                print("%-20s %-20s %-20s %s" % (k, u[0], translate(u[1]), u[2]))
         else:
             if heading:
-                print "\n%-25s %-25s\n" % (_("Login Name"), _("SELinux User"))
+                print("\n%-25s %-25s\n" % (_("Login Name"), _("SELinux User")))
             for k in keys:
-                print "%-25s %-25s" % (k, ddict[k][0])
+                print("%-25s %-25s" % (k, ddict[k][0]))
 
 
 class seluserRecords(semanageRecords):
@@ -834,12 +860,11 @@ class seluserRecords(semanageRecords):
         self.mylog.log("seuser", sename=name, serole=",".join(roles), serange=serange)
 
     def add(self, name, roles, selevel, serange, prefix):
-        serole = " ".join(roles)
         try:
             self.begin()
             self.__add(name, roles, selevel, serange, prefix)
             self.commit()
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -904,7 +929,7 @@ class seluserRecords(semanageRecords):
             self.begin()
             self.__modify(name, roles, selevel, serange, prefix)
             self.commit()
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -947,7 +972,7 @@ class seluserRecords(semanageRecords):
             self.__delete(name)
             self.commit()
 
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -961,7 +986,7 @@ class seluserRecords(semanageRecords):
             for u in ulist:
                 self.__delete(semanage_user_get_name(u))
             self.commit()
-        except ValueError, error:
+        except ValueError as error:
             self.mylog.commit(0)
             raise error
 
@@ -988,30 +1013,27 @@ class seluserRecords(semanageRecords):
     def customized(self):
         l = []
         ddict = self.get_all(True)
-        keys = ddict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(ddict.keys()):
             l.append("-a -L %s -r %s -R '%s' %s" % (ddict[k][1], ddict[k][2], ddict[k][3], k))
         return l
 
     def list(self, heading=1, locallist=0):
         ddict = self.get_all(locallist)
-        keys = ddict.keys()
-        if len(keys) == 0:
+        if len(ddict) == 0:
             return
-        keys.sort()
+        keys = sorted(ddict.keys())
 
         if is_mls_enabled == 1:
             if heading:
-                print "\n%-15s %-10s %-10s %-30s" % ("", _("Labeling"), _("MLS/"), _("MLS/"))
-                print "%-15s %-10s %-10s %-30s %s\n" % (_("SELinux User"), _("Prefix"), _("MCS Level"), _("MCS Range"), _("SELinux Roles"))
+                print("\n%-15s %-10s %-10s %-30s" % ("", _("Labeling"), _("MLS/"), _("MLS/")))
+                print("%-15s %-10s %-10s %-30s %s\n" % (_("SELinux User"), _("Prefix"), _("MCS Level"), _("MCS Range"), _("SELinux Roles")))
             for k in keys:
-                print "%-15s %-10s %-10s %-30s %s" % (k, ddict[k][0], translate(ddict[k][1]), translate(ddict[k][2]), ddict[k][3])
+                print("%-15s %-10s %-10s %-30s %s" % (k, ddict[k][0], translate(ddict[k][1]), translate(ddict[k][2]), ddict[k][3]))
         else:
             if heading:
-                print "%-15s %s\n" % (_("SELinux User"), _("SELinux Roles"))
+                print("%-15s %s\n" % (_("SELinux User"), _("SELinux Roles")))
             for k in keys:
-                print "%-15s %s" % (k, ddict[k][3])
+                print("%-15s %s" % (k, ddict[k][3]))
 
 
 class portRecords(semanageRecords):
@@ -1109,6 +1131,8 @@ class portRecords(semanageRecords):
         semanage_port_key_free(k)
         semanage_port_free(p)
 
+        self.mylog.log_change("resrc=port op=add lport=%s proto=%s tcontext=%s:%s:%s:%s" % (port, socket.getprotobyname(proto), "system_u", "object_r", type, serange))
+
     def add(self, port, proto, serange, type):
         self.begin()
         self.__add(port, proto, serange, type)
@@ -1138,8 +1162,11 @@ class portRecords(semanageRecords):
 
         con = semanage_port_get_con(p)
 
-        if (is_mls_enabled == 1) and (serange != ""):
-            semanage_context_set_mls(self.sh, con, untranslate(serange))
+        if is_mls_enabled == 1:
+            if serange == "":
+                serange = "s0"
+            else:
+                semanage_context_set_mls(self.sh, con, untranslate(serange))
         if setype != "":
             semanage_context_set_type(self.sh, con, setype)
 
@@ -1149,6 +1176,8 @@ class portRecords(semanageRecords):
 
         semanage_port_key_free(k)
         semanage_port_free(p)
+
+        self.mylog.log_change("resrc=port op=modify lport=%s proto=%s tcontext=%s:%s:%s:%s" % (port, socket.getprotobyname(proto), "system_u", "object_r", setype, serange))
 
     def modify(self, port, proto, serange, setype):
         self.begin()
@@ -1168,6 +1197,7 @@ class portRecords(semanageRecords):
             low = semanage_port_get_low(port)
             high = semanage_port_get_high(port)
             port_str = "%s-%s" % (low, high)
+
             (k, proto_d, low, high) = self.__genkey(port_str, proto_str)
             if rc < 0:
                 raise ValueError(_("Could not create a key for %s") % port_str)
@@ -1176,6 +1206,11 @@ class portRecords(semanageRecords):
             if rc < 0:
                 raise ValueError(_("Could not delete the port %s") % port_str)
             semanage_port_key_free(k)
+
+            if low == high:
+                port_str = low
+
+            self.mylog.log_change("resrc=port op=delete lport=%s proto=%s" % (port_str, socket.getprotobyname(proto_str)))
 
         self.commit()
 
@@ -1198,6 +1233,8 @@ class portRecords(semanageRecords):
             raise ValueError(_("Could not delete port %s/%s") % (proto, port))
 
         semanage_port_key_free(k)
+
+        self.mylog.log_change("resrc=port op=delete lport=%s proto=%s" % (port, socket.getprotobyname(proto)))
 
     def delete(self, port, proto):
         self.begin()
@@ -1251,9 +1288,7 @@ class portRecords(semanageRecords):
     def customized(self):
         l = []
         ddict = self.get_all(True)
-        keys = ddict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(ddict.keys()):
             if k[0] == k[1]:
                 l.append("-a -t %s -p %s %s" % (ddict[k][0], k[2], k[0]))
             else:
@@ -1262,19 +1297,18 @@ class portRecords(semanageRecords):
 
     def list(self, heading=1, locallist=0):
         ddict = self.get_all_by_type(locallist)
-        keys = ddict.keys()
-        if len(keys) == 0:
+        if len(ddict) == 0:
             return
-        keys.sort()
+        keys = sorted(ddict.keys())
 
         if heading:
-            print "%-30s %-8s %s\n" % (_("SELinux Port Type"), _("Proto"), _("Port Number"))
+            print("%-30s %-8s %s\n" % (_("SELinux Port Type"), _("Proto"), _("Port Number")))
         for i in keys:
             rec = "%-30s %-8s " % i
             rec += "%s" % ddict[i][0]
             for p in ddict[i][1:]:
                 rec += ", %s" % p
-            print rec
+            print(rec)
 
 
 class nodeRecords(semanageRecords):
@@ -1380,6 +1414,8 @@ class nodeRecords(semanageRecords):
         semanage_node_key_free(k)
         semanage_node_free(node)
 
+        self.mylog.log_change("resrc=node op=add laddr=%s netmask=%s proto=%s tcontext=%s:%s:%s:%s" % (addr, mask, socket.getprotobyname(self.protocol[proto]), "system_u", "object_r", ctype, serange))
+
     def add(self, addr, mask, proto, serange, ctype):
         self.begin()
         self.__add(addr, mask, proto, serange, ctype)
@@ -1421,6 +1457,8 @@ class nodeRecords(semanageRecords):
         semanage_node_key_free(k)
         semanage_node_free(node)
 
+        self.mylog.log_change("resrc=node op=modify laddr=%s netmask=%s proto=%s tcontext=%s:%s:%s:%s" % (addr, mask, socket.getprotobyname(self.protocol[proto]), "system_u", "object_r", setype, serange))
+
     def modify(self, addr, mask, proto, serange, setype):
         self.begin()
         self.__modify(addr, mask, proto, serange, setype)
@@ -1451,6 +1489,8 @@ class nodeRecords(semanageRecords):
             raise ValueError(_("Could not delete addr %s") % addr)
 
         semanage_node_key_free(k)
+
+        self.mylog.log_change("resrc=node op=delete laddr=%s netmask=%s proto=%s" % (addr, mask, socket.getprotobyname(self.protocol[proto])))
 
     def delete(self, addr, mask, proto):
         self.begin()
@@ -1488,30 +1528,27 @@ class nodeRecords(semanageRecords):
     def customized(self):
         l = []
         ddict = self.get_all(True)
-        keys = ddict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(ddict.keys()):
             l.append("-a -M %s -p %s -t %s %s" % (k[1], k[2], ddict[k][2], k[0]))
         return l
 
     def list(self, heading=1, locallist=0):
         ddict = self.get_all(locallist)
-        keys = ddict.keys()
-        if len(keys) == 0:
+        if len(ddict) == 0:
             return
-        keys.sort()
+        keys = sorted(ddict.keys())
 
         if heading:
-            print "%-18s %-18s %-5s %-5s\n" % ("IP Address", "Netmask", "Protocol", "Context")
+            print("%-18s %-18s %-5s %-5s\n" % ("IP Address", "Netmask", "Protocol", "Context"))
         if is_mls_enabled:
             for k in keys:
                 val = ''
                 for fields in k:
                     val = val + '\t' + str(fields)
-                print "%-18s %-18s %-5s %s:%s:%s:%s " % (k[0], k[1], k[2], ddict[k][0], ddict[k][1], ddict[k][2], translate(ddict[k][3], False))
+                print("%-18s %-18s %-5s %s:%s:%s:%s " % (k[0], k[1], k[2], ddict[k][0], ddict[k][1], ddict[k][2], translate(ddict[k][3], False)))
         else:
             for k in keys:
-                print "%-18s %-18s %-5s %s:%s:%s " % (k[0], k[1], k[2], ddict[k][0], ddict[k][1], ddict[k][2])
+                print("%-18s %-18s %-5s %s:%s:%s " % (k[0], k[1], k[2], ddict[k][0], ddict[k][1], ddict[k][2]))
 
 
 class interfaceRecords(semanageRecords):
@@ -1581,6 +1618,8 @@ class interfaceRecords(semanageRecords):
         semanage_iface_key_free(k)
         semanage_iface_free(iface)
 
+        self.mylog.log_change("resrc=interface op=add netif=%s tcontext=%s:%s:%s:%s" % (interface, "system_u", "object_r", ctype, serange))
+
     def add(self, interface, serange, ctype):
         self.begin()
         self.__add(interface, serange, ctype)
@@ -1618,6 +1657,8 @@ class interfaceRecords(semanageRecords):
         semanage_iface_key_free(k)
         semanage_iface_free(iface)
 
+        self.mylog.log_change("resrc=interface op=modify netif=%s tcontext=%s:%s:%s:%s" % (interface, "system_u", "object_r", setype, serange))
+
     def modify(self, interface, serange, setype):
         self.begin()
         self.__modify(interface, serange, setype)
@@ -1645,6 +1686,8 @@ class interfaceRecords(semanageRecords):
             raise ValueError(_("Could not delete interface %s") % interface)
 
         semanage_iface_key_free(k)
+
+        self.mylog.log_change("resrc=interface op=delete netif=%s" % interface)
 
     def delete(self, interface):
         self.begin()
@@ -1679,27 +1722,24 @@ class interfaceRecords(semanageRecords):
     def customized(self):
         l = []
         ddict = self.get_all(True)
-        keys = ddict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(ddict.keys()):
             l.append("-a -t %s %s" % (ddict[k][2], k))
         return l
 
     def list(self, heading=1, locallist=0):
         ddict = self.get_all(locallist)
-        keys = ddict.keys()
-        if len(keys) == 0:
+        if len(ddict) == 0:
             return
-        keys.sort()
+        keys = sorted(ddict.keys())
 
         if heading:
-            print "%-30s %s\n" % (_("SELinux Interface"), _("Context"))
+            print("%-30s %s\n" % (_("SELinux Interface"), _("Context")))
         if is_mls_enabled:
             for k in keys:
-                print "%-30s %s:%s:%s:%s " % (k, ddict[k][0], ddict[k][1], ddict[k][2], translate(ddict[k][3], False))
+                print("%-30s %s:%s:%s:%s " % (k, ddict[k][0], ddict[k][1], ddict[k][2], translate(ddict[k][3], False)))
         else:
             for k in keys:
-                print "%-30s %s:%s:%s " % (k, ddict[k][0], ddict[k][1], ddict[k][2])
+                print("%-30s %s:%s:%s " % (k, ddict[k][0], ddict[k][1], ddict[k][2]))
 
 
 class fcontextRecords(semanageRecords):
@@ -1775,6 +1815,8 @@ class fcontextRecords(semanageRecords):
                 if i.startswith(target + "/"):
                     raise ValueError(_("File spec %s conflicts with equivalency rule '%s %s'") % (target, i, fdict[i]))
 
+        self.mylog.log_change("resrc=fcontext op=add-equal %s %s" % (audit.audit_encode_nv_string("sglob", target, 0), audit.audit_encode_nv_string("tglob", substitute, 0)))
+
         self.equiv[target] = substitute
         self.equal_ind = True
         self.commit()
@@ -1785,6 +1827,9 @@ class fcontextRecords(semanageRecords):
             raise ValueError(_("Equivalence class for %s does not exists") % target)
         self.equiv[target] = substitute
         self.equal_ind = True
+
+        self.mylog.log_change("resrc=fcontext op=modify-equal %s %s" % (audit.audit_encode_nv_string("sglob", target, 0), audit.audit_encode_nv_string("tglob", substitute, 0)))
+
         self.commit()
 
     def createcon(self, target, seuser="system_u"):
@@ -1879,6 +1924,11 @@ class fcontextRecords(semanageRecords):
         semanage_fcontext_key_free(k)
         semanage_fcontext_free(fcontext)
 
+        if not seuser:
+            seuser = "system_u"
+
+        self.mylog.log_change("resrc=fcontext op=add %s ftype=%s tcontext=%s:%s:%s:%s" % (audit.audit_encode_nv_string("tglob", target, 0), ftype_to_audit[ftype], seuser, "object_r", type, serange))
+
     def add(self, target, type, ftype="", serange="", seuser="system_u"):
         self.begin()
         self.__add(target, type, ftype, serange, seuser)
@@ -1888,7 +1938,7 @@ class fcontextRecords(semanageRecords):
         if serange == "" and setype == "" and seuser == "":
             raise ValueError(_("Requires setype, serange or seuser"))
         if setype and setype not in self.valid_types:
-            raise ValueError(_("Type %s is invalid, must be a port type") % setype)
+            raise ValueError(_("Type %s is invalid, must be a file or device type") % setype)
 
         self.validate(target)
 
@@ -1913,7 +1963,7 @@ class fcontextRecords(semanageRecords):
         if setype != "<<none>>":
             con = semanage_fcontext_get_con(fcontext)
 
-            if con == None:
+            if con is None:
                 con = self.createcon(target)
 
             if (is_mls_enabled == 1) and (serange != ""):
@@ -1938,6 +1988,11 @@ class fcontextRecords(semanageRecords):
 
         semanage_fcontext_key_free(k)
         semanage_fcontext_free(fcontext)
+
+        if not seuser:
+            seuser = "system_u"
+
+        self.mylog.log_change("resrc=fcontext op=modify %s ftype=%s tcontext=%s:%s:%s:%s" % (audit.audit_encode_nv_string("tglob", target, 0), ftype_to_audit[ftype], seuser, "object_r", setype, serange))
 
     def modify(self, target, setype, ftype, serange, seuser):
         self.begin()
@@ -1964,6 +2019,8 @@ class fcontextRecords(semanageRecords):
                 raise ValueError(_("Could not delete the file context %s") % target)
             semanage_fcontext_key_free(k)
 
+            self.mylog.log_change("resrc=fcontext op=delete %s ftype=%s" % (audit.audit_encode_nv_string("tglob", target, 0), ftype_to_audit[file_type_str_to_option[ftype_str]]))
+
         self.equiv = {}
         self.equal_ind = True
         self.commit()
@@ -1972,6 +2029,9 @@ class fcontextRecords(semanageRecords):
         if target in self.equiv.keys():
             self.equiv.pop(target)
             self.equal_ind = True
+
+            self.mylog.log_change("resrc=fcontext op=delete-equal %s" % (audit.audit_encode_nv_string("tglob", target, 0)))
+
             return
 
         (rc, k) = semanage_fcontext_key_create(self.sh, target, file_types[ftype])
@@ -1995,6 +2055,8 @@ class fcontextRecords(semanageRecords):
             raise ValueError(_("Could not delete file context for %s") % target)
 
         semanage_fcontext_key_free(k)
+
+        self.mylog.log_change("resrc=fcontext op=delete %s ftype=%s" % (audit.audit_encode_nv_string("tglob", target, 0), ftype_to_audit[ftype]))
 
     def delete(self, target, ftype):
         self.begin()
@@ -2031,9 +2093,7 @@ class fcontextRecords(semanageRecords):
     def customized(self):
         l = []
         fcon_dict = self.get_all(True)
-        keys = fcon_dict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(fcon_dict.keys()):
             if fcon_dict[k]:
                 l.append("-a -f %s -t %s '%s'" % (file_type_str_to_option[k[1]], fcon_dict[k][2], k[0]))
 
@@ -2044,32 +2104,30 @@ class fcontextRecords(semanageRecords):
 
     def list(self, heading=1, locallist=0):
         fcon_dict = self.get_all(locallist)
-        keys = fcon_dict.keys()
-        if len(keys) != 0:
-            keys.sort()
+        if len(fcon_dict) != 0:
             if heading:
-                print "%-50s %-18s %s\n" % (_("SELinux fcontext"), _("type"), _("Context"))
-            for k in keys:
+                print("%-50s %-18s %s\n" % (_("SELinux fcontext"), _("type"), _("Context")))
+            for k in sorted(fcon_dict.keys()):
                 if fcon_dict[k]:
                     if is_mls_enabled:
-                        print "%-50s %-18s %s:%s:%s:%s " % (k[0], k[1], fcon_dict[k][0], fcon_dict[k][1], fcon_dict[k][2], translate(fcon_dict[k][3], False))
+                        print("%-50s %-18s %s:%s:%s:%s " % (k[0], k[1], fcon_dict[k][0], fcon_dict[k][1], fcon_dict[k][2], translate(fcon_dict[k][3], False)))
                     else:
-                        print "%-50s %-18s %s:%s:%s " % (k[0], k[1], fcon_dict[k][0], fcon_dict[k][1], fcon_dict[k][2])
+                        print("%-50s %-18s %s:%s:%s " % (k[0], k[1], fcon_dict[k][0], fcon_dict[k][1], fcon_dict[k][2]))
                 else:
-                    print "%-50s %-18s <<None>>" % (k[0], k[1])
+                    print("%-50s %-18s <<None>>" % (k[0], k[1]))
 
         if len(self.equiv_dist):
             if not locallist:
                 if heading:
-                    print _("\nSELinux Distribution fcontext Equivalence \n")
+                    print(_("\nSELinux Distribution fcontext Equivalence \n"))
                 for target in self.equiv_dist.keys():
-                    print "%s = %s" % (target, self.equiv_dist[target])
+                    print("%s = %s" % (target, self.equiv_dist[target]))
         if len(self.equiv):
             if heading:
-                print _("\nSELinux Local fcontext Equivalence \n")
+                print(_("\nSELinux Local fcontext Equivalence \n"))
 
             for target in self.equiv.keys():
-                print "%s = %s" % (target, self.equiv[target])
+                print("%s = %s" % (target, self.equiv[target]))
 
 
 class booleanRecords(semanageRecords):
@@ -2091,7 +2149,7 @@ class booleanRecords(semanageRecords):
             self.current_booleans = []
             ptype = None
 
-        if self.store == None or self.store == ptype:
+        if self.store is None or self.store == ptype:
             self.modify_local = True
         else:
             self.modify_local = False
@@ -2214,18 +2272,16 @@ class booleanRecords(semanageRecords):
 
     def get_desc(self, name):
         name = selinux.selinux_boolean_sub(name)
-        return boolean_desc(name)
+        return sepolicy.boolean_desc(name)
 
     def get_category(self, name):
         name = selinux.selinux_boolean_sub(name)
-        return boolean_category(name)
+        return sepolicy.boolean_category(name)
 
     def customized(self):
         l = []
         ddict = self.get_all(True)
-        keys = ddict.keys()
-        keys.sort()
-        for k in keys:
+        for k in sorted(ddict.keys()):
             if ddict[k]:
                 l.append("-m -%s %s" % (ddict[k][2], k))
         return l
@@ -2234,18 +2290,16 @@ class booleanRecords(semanageRecords):
         on_off = (_("off"), _("on"))
         if use_file:
             ddict = self.get_all(locallist)
-            keys = ddict.keys()
-            for k in keys:
+            for k in sorted(ddict.keys()):
                 if ddict[k]:
-                    print "%s=%s" % (k, ddict[k][2])
+                    print("%s=%s" % (k, ddict[k][2]))
             return
         ddict = self.get_all(locallist)
-        keys = ddict.keys()
-        if len(keys) == 0:
+        if len(ddict) == 0:
             return
 
         if heading:
-            print "%-30s %s  %s %s\n" % (_("SELinux boolean"), _("State"), _("Default"), _("Description"))
-        for k in keys:
+            print("%-30s %s  %s %s\n" % (_("SELinux boolean"), _("State"), _("Default"), _("Description")))
+        for k in sorted(ddict.keys()):
             if ddict[k]:
-                print "%-30s (%-5s,%5s)  %s" % (k, on_off[selinux.security_get_boolean_active(k)], on_off[ddict[k][2]], self.get_desc(k))
+                print("%-30s (%-5s,%5s)  %s" % (k, on_off[selinux.security_get_boolean_active(k)], on_off[ddict[k][2]], self.get_desc(k)))

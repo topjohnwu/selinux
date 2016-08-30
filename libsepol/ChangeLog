@@ -1,3 +1,16 @@
+	* Change which attributes CIL keeps in the binary policy, from James Carter.
+	* Port str_read() from kernel and remove multiple occurances of similar code, from William Roberts.
+	* Use calloc instead of malloc for all the *_to_val_structs, from William Roberts.
+	* Fix bugs found by AFL, from William Roberts.
+	* Fix memory leak in expand.c, from William Roberts.
+	* Fix invalid read when policy file is corrupt, from William Roberts.
+	* Fix possible use of uninitialized variables, from William Roberts.
+	* Warn instead of fail if permission is not resolved, from James Carter.
+	* Ignore object_r when adding userrole mappings to policydb, from Steve Lawrence.
+	* Add missing return to sepol_node_query(), from Petr Lautrbach.
+	* Add missing <stdarg.h> include, from Thomas Petazzoni.
+	* Correctly detect unknown classes in sepol_string_to_security_class, from Joshua Brindle.
+	* Sort object files for deterministic linking order, from Laurent Bigonville.
 	* Fix neverallowxperm checking on attributes, from Jeff Vander Stoep.
 	* Remove libsepol.map when cleaning, from Nicolas Iooss.
 	* Add high-level language line marking support to CIL, from James Carter.

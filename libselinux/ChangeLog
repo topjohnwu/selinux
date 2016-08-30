@@ -1,3 +1,14 @@
+	* Handle NULL pcre study data, from Stephen Smalley.
+	* Add setfiles support to selinux_restorecon(3), from Richard Haines.
+	* Evaluate inodes in selinux_restorecon(3), from Richard Haines.
+	* Fix in tree compilation of utils that depend on libsepol, from Laurent Bigonville.
+	* Change the location of _selinux.so, from Petr Lautrbach.
+	* Clarify is_selinux_mls_enabled() description, from David King.
+	* Explain how to free policy type from selinux_getpolicytype(), from David King.
+	* Compare absolute pathname in matchpathcon -V, from Petr Lautrbach.
+	* Add selinux_snapperd_contexts_path(), from Petr Lautrbach.
+	* Modify audit2why analyze function to use loaded policy, from Joshua Brindle.
+	* Sort object files for deterministic linking order, from Laurent Bigonville.
 	* Respect CC and PKG_CONFIG environment variable, from Julien Pivotto.
 	* Avoid mounting /proc outside of selinux_init_load_policy(), from Stephen Smalley.
 	* Fix multiple spelling errors, from Laurent Bigonville.

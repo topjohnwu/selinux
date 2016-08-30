@@ -25,9 +25,9 @@ import string
 import sys
 try:
     import gtk
-except RuntimeError, e:
-    print "system-config-selinux:", e
-    print "This is a graphical application and requires DISPLAY to be set."
+except RuntimeError as e:
+    print("system-config-selinux:", e)
+    print("This is a graphical application and requires DISPLAY to be set.")
     sys.exit(1)
 
 import gtk.glade
@@ -47,18 +47,22 @@ import selinux
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 gnome.program_init("SELinux Management Tool", "5")
 
@@ -96,7 +100,7 @@ class childWindow:
                 self.add_page(portsPage.portsPage(xml))
                 self.add_page(modulesPage.modulesPage(xml))  # modules
                 self.add_page(domainsPage.domainsPage(xml))  # domains
-            except ValueError, e:
+            except ValueError as e:
                 self.error(e.message)
 
         xml.signal_connect("on_quit_activate", self.destroy)

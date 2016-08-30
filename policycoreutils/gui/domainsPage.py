@@ -20,29 +20,38 @@ import string
 import gtk
 import gtk.glade
 import os
-import commands
+try:
+    from subprocess import getstatusoutput
+except ImportError:
+    from commands import getstatusoutput
+
 import gobject
 import sys
 import seobject
 import selinux
+import sepolicy
 from semanagePage import *
-from sepolicy import get_all_entrypoint_domains
 
 ##
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 
 class domainsPage(semanagePage):
@@ -70,7 +79,7 @@ class domainsPage(semanagePage):
         self.permissive_button = xml.get_widget("permissiveButton")
         self.enforcing_button = xml.get_widget("enforcingButton")
 
-        self.domains = get_all_entrypoint_domains()
+        self.domains = sepolicy.get_all_entrypoint_domains()
         self.load()
 
     def get_modules(self):
@@ -119,7 +128,7 @@ class domainsPage(semanagePage):
         domain = store.get_value(iter, 0)
         try:
             self.wait()
-            status, output = commands.getstatusoutput("semanage permissive -d %s_t" % domain)
+            status, output = getstatusoutput("semanage permissive -d %s_t" % domain)
             self.ready()
             if status != 0:
                 self.error(output)
@@ -127,7 +136,7 @@ class domainsPage(semanagePage):
                 domain = store.set_value(iter, 1, "")
                 self.itemSelected(selection)
 
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def propertiesDialog(self):
@@ -144,7 +153,7 @@ class domainsPage(semanagePage):
         domain = store.get_value(iter, 0)
         try:
             self.wait()
-            status, output = commands.getstatusoutput("semanage permissive -a %s_t" % domain)
+            status, output = getstatusoutput("semanage permissive -a %s_t" % domain)
             self.ready()
             if status != 0:
                 self.error(output)
@@ -152,5 +161,5 @@ class domainsPage(semanagePage):
                 domain = store.set_value(iter, 1, _("Permissive"))
                 self.itemSelected(selection)
 
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
