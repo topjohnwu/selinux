@@ -1,3 +1,28 @@
+	* audit2allow: tests should use local copy not system, from Jason Zaman.
+	* audit2allow: fix audit2why import from seobject, from Jason Zaman.
+	* audit2allow: remove audit2why so that it gets symlinked, from Jason Zaman.
+	* semanage: fix man page and help message for import option, from AJ.
+	* semanage: fix error message for fcontext -m, from Miroslav Vadkerti.
+	* semanage: Fix semanage fcontext -D, from Stephen Smalley.
+	* semanage: Correct fcontext auditing, from Miroslav Vadkerti.
+	* semanage: Default serange to "s0" for port modify, from Miroslav Vadkerti.
+	* semanage: Use socket.getprotobyname for protocol, from Miroslav Vadkerti.
+	* restorecond: Modify to use selinux_restorecon, from Richard Haines.
+	* setfiles: Modify to use selinux_restorecon, from Richard Haines.
+	* semanage: fix modify action in node and interface, from Miroslav Vadkerti.
+	* fixfiles: Pass -n to restorecon for fixfiles check, from Petr Lautrbach.
+	* sepolicy: Check get_rpm_nvr_list() return value, from Vit Mojzis.
+	* Don't use subprocess.getstatusoutput() in Python 2 code, from Petr Lautrbach.
+	* semanage: Add auditing of changes in records, from Miroslav Vadkerti.
+	* Improve compatibility with Python 3, from Jason Zaman.
+	* Remove unused 'q' from semodule getopt string, from Petr Lautrbach.
+	* Remove unused autoconf files from po/, from Petr Lautrbach.
+	* Remove duplicate, empty translation files, from Piotr Drąg.
+	* open_init_pty: Do not error on EINTR, from Jason Zaman.
+	* Fix [-s STORE] typos in semanage, from Petr Lautrbach.
+	* Update sandbox types in sandbox manual, from Michael De La Rue.
+	* Fix typos in semanage manpages, from Philipp Gesang.
+	* Fix the documentation of -l,--list for semodule, from Petr Lautrbach.
 	* Minor fix in a French translation, from Laurent Bigonville.
 	* Fix the extract example in semodule.8, from Petr Lautrbach.
 	* Update sandbox.8 man page, from Petr Lautrbach.

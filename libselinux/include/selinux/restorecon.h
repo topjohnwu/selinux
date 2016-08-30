@@ -26,30 +26,75 @@ extern int selinux_restorecon(const char *pathname,
 /*
  * restorecon_flags options
  */
-/* Force the checking of labels even if the stored SHA1
- * digest matches the specfiles SHA1 digest. */
-#define SELINUX_RESTORECON_IGNORE_DIGEST		1
-/* Do not change file labels */
-#define SELINUX_RESTORECON_NOCHANGE			2
-/* If set set change file label to that in spec file.
- * If not only change type component to that in spec file. */
-#define SELINUX_RESTORECON_SET_SPECFILE_CTX		4
-/* Recursively descend directories */
-#define SELINUX_RESTORECON_RECURSE			8
-/* Log changes to selinux log. Note that if VERBOSE and
- * PROGRESS are set, then PROGRESS will take precedence. */
-#define SELINUX_RESTORECON_VERBOSE			16
-/* Show progress by printing * to stdout every 1000 files */
-#define SELINUX_RESTORECON_PROGRESS			32
-/* Convert passed-in pathname to canonical pathname */
-#define SELINUX_RESTORECON_REALPATH			64
-/* Prevent descending into directories that have a different
- * device number than the pathname from which the descent began */
-#define SELINUX_RESTORECON_XDEV				128
+/*
+ * Force the checking of labels even if the stored SHA1
+ * digest matches the specfiles SHA1 digest.
+ */
+#define SELINUX_RESTORECON_IGNORE_DIGEST		0x0001
+/*
+ * Do not change file labels.
+ */
+#define SELINUX_RESTORECON_NOCHANGE			0x0002
+/*
+ * If set set change file label to that in spec file.
+ * If not only change type component to that in spec file.
+ */
+#define SELINUX_RESTORECON_SET_SPECFILE_CTX		0x0004
+/*
+ * Recursively descend directories.
+ */
+#define SELINUX_RESTORECON_RECURSE			0x0008
+/*
+ * Log changes to selinux log. Note that if VERBOSE and
+ * PROGRESS are set, then PROGRESS will take precedence.
+ */
+#define SELINUX_RESTORECON_VERBOSE			0x0010
+/*
+ * Show progress by printing * to stdout every 1000 files, unless
+ * relabeling the entire OS, that will then show the approximate
+ * percentage complete.
+ */
+#define SELINUX_RESTORECON_PROGRESS			0x0020
+/*
+ * Convert passed-in pathname to canonical pathname.
+ */
+#define SELINUX_RESTORECON_REALPATH			0x0040
+/*
+ * Prevent descending into directories that have a different
+ * device number than the pathname from which the descent began.
+ */
+#define SELINUX_RESTORECON_XDEV				0x0080
+/*
+ * Attempt to add an association between an inode and a specification.
+ * If there is already an association for the inode and it conflicts
+ * with the specification, then use the last matching specification.
+ */
+#define SELINUX_RESTORECON_ADD_ASSOC			0x0100
+/*
+ * Abort on errors during the file tree walk.
+ */
+#define SELINUX_RESTORECON_ABORT_ON_ERROR		0x0200
+/*
+ * Log any label changes to syslog.
+ */
+#define SELINUX_RESTORECON_SYSLOG_CHANGES		0x0400
+/*
+ * Log what spec matched each file.
+ */
+#define SELINUX_RESTORECON_LOG_MATCHES			0x0800
+/*
+ * Ignore files that do not exist.
+ */
+#define SELINUX_RESTORECON_IGNORE_NOENTRY		0x1000
+/*
+ * Do not read /proc/mounts to obtain a list of non-seclabel
+ * mounts to be excluded from relabeling checks.
+ */
+#define SELINUX_RESTORECON_IGNORE_MOUNTS		0x2000
 
 /**
  * selinux_restorecon_set_sehandle - Set the global fc handle.
- * @handle: specifies handle to set as the global fc handle.
+ * @hndl: specifies handle to set as the global fc handle.
  *
  * Called by a process that has already called selabel_open(3) with it's
  * required parameters, or if selinux_restorecon_default_handle(3) has been
@@ -61,17 +106,27 @@ extern void selinux_restorecon_set_sehandle(struct selabel_handle *hndl);
  * selinux_restorecon_default_handle - Sets default selabel_open(3) parameters
  *				       to use the currently loaded policy and
  *				       file_contexts, also requests the digest.
+ *
+ * Return value is the created handle on success or NULL with @errno set on
+ * failure.
  */
 extern struct selabel_handle *selinux_restorecon_default_handle(void);
 
 /**
- * selinux_restorecon_set_exclude_list - Add a list of files or
- *					 directories that are to be excluded
- *					 from relabeling.
+ * selinux_restorecon_set_exclude_list - Add a list of directories that are
+ *					 to be excluded from relabeling.
  * @exclude_list: containing a NULL terminated list of one or more
- *		  directories or files not to be relabeled.
+ *		  directories not to be relabeled.
  */
 extern void selinux_restorecon_set_exclude_list(const char **exclude_list);
+
+/**
+ * selinux_restorecon_set_alt_rootpath - Use alternate rootpath.
+ * @alt_rootpath: containing the alternate rootpath to be used.
+ *
+ * Return %0 on success, -%1 with @errno set on failure.
+ */
+extern int selinux_restorecon_set_alt_rootpath(const char *alt_rootpath);
 
 #ifdef __cplusplus
 }

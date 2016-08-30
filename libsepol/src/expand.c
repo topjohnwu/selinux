@@ -2497,6 +2497,7 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 	unsigned int i;
 	ebitmap_t types, neg_types;
 	ebitmap_node_t *tnode;
+	int rc =-1;
 
 	ebitmap_init(&types);
 	ebitmap_init(t);
@@ -2505,17 +2506,29 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 		/* First go through the types and OR all the attributes to types */
 		ebitmap_for_each_bit(&set->types, tnode, i) {
 			if (ebitmap_node_get_bit(tnode, i)) {
+
+				/*
+				 * invalid policies might have more types set in the ebitmap than
+				 * what's available in the type_val_to_struct mapping
+				 */
+				if (i > p->p_types.nprim - 1)
+					goto err_types;
+
+				if (!p->type_val_to_struct[i]) {
+					goto err_types;
+				}
+
 				if (p->type_val_to_struct[i]->flavor ==
 				    TYPE_ATTRIB) {
 					if (ebitmap_union
 					    (&types,
 					     &p->type_val_to_struct[i]->
 					     types)) {
-						return -1;
+						goto err_types;
 					}
 				} else {
 					if (ebitmap_set_bit(&types, i, 1)) {
-						return -1;
+						goto err_types;
 					}
 				}
 			}
@@ -2523,7 +2536,7 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 	} else {
 		/* No expansion of attributes, just copy the set as is. */
 		if (ebitmap_cpy(&types, &set->types))
-			return -1;
+			goto err_types;
 	}
 
 	/* Now do the same thing for negset */
@@ -2535,11 +2548,11 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 				if (ebitmap_union
 				    (&neg_types,
 				     &p->type_val_to_struct[i]->types)) {
-					return -1;
+					goto err_neg;
 				}
 			} else {
 				if (ebitmap_set_bit(&neg_types, i, 1)) {
-					return -1;
+					goto err_neg;
 				}
 			}
 		}
@@ -2554,7 +2567,7 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 			    p->type_val_to_struct[i]->flavor == TYPE_ATTRIB)
 				continue;
 			if (ebitmap_set_bit(t, i, 1))
-				return -1;
+				goto err_neg;
 		}
 		goto out;
 	}
@@ -2563,7 +2576,7 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 		if (ebitmap_node_get_bit(tnode, i)
 		    && (!ebitmap_get_bit(&neg_types, i)))
 			if (ebitmap_set_bit(t, i, 1))
-				return -1;
+				goto err_neg;
 	}
 
 	if (set->flags & TYPE_COMP) {
@@ -2575,20 +2588,23 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 			}
 			if (ebitmap_get_bit(t, i)) {
 				if (ebitmap_set_bit(t, i, 0))
-					return -1;
+					goto err_neg;
 			} else {
 				if (ebitmap_set_bit(t, i, 1))
-					return -1;
+					goto err_neg;
 			}
 		}
 	}
 
-      out:
+	  out:
+	rc = 0;
 
-	ebitmap_destroy(&types);
+	  err_neg:
 	ebitmap_destroy(&neg_types);
+	  err_types:
+	ebitmap_destroy(&types);
 
-	return 0;
+	return rc;
 }
 
 static int copy_neverallow(policydb_t * dest_pol, uint32_t * typemap,

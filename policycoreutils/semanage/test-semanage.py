@@ -1,8 +1,5 @@
 import unittest
-import os
-import shutil
 import sys
-from tempfile import mkdtemp
 from subprocess import Popen, PIPE
 
 import argparse
@@ -278,7 +275,7 @@ def gen_semanage_test_args(parser):
 
 if __name__ == "__main__":
     import selinux
-    semanage_test_list = filter(lambda x: x.startswith("test_"), dir(SemanageTests))
+    semanage_test_list = [x for x in dir(SemanageTests) if x.startswith("test_")]
     if selinux.security_getenforce() == 1:
         parser = argparse.ArgumentParser(description='Semanage unit test script')
         gen_semanage_test_args(parser)

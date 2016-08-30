@@ -22,7 +22,11 @@ import gtk.glade
 import os
 import gobject
 import sys
-import commands
+try:
+    from subprocess import getstatusoutput
+except ImportError:
+    from commands import getstatusoutput
+
 import seobject
 from semanagePage import *
 
@@ -30,14 +34,22 @@ from semanagePage import *
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
-    gettext.install(PROGNAME, localedir="/usr/share/locale", unicode=1)
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
+    gettext.install(PROGNAME,
+                    localedir="/usr/share/locale",
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 
 class usersPage(semanagePage):
@@ -71,10 +83,8 @@ class usersPage(semanagePage):
         self.filter = filter
         self.user = seobject.seluserRecords()
         dict = self.user.get_all()
-        keys = dict.keys()
-        keys.sort()
         self.store.clear()
-        for k in keys:
+        for k in sorted(dict.keys()):
             range = seobject.translate(dict[k][2])
             if not (self.match(k, filter) or self.match(dict[k][0], filter) or self.match(range, filter) or self.match(dict[k][3], filter)):
                 continue
@@ -108,7 +118,7 @@ class usersPage(semanagePage):
         roles = self.selinuxRolesEntry.get_text()
 
         self.wait()
-        (rc, out) = commands.getstatusoutput("semanage user -a -R '%s' -r %s %s" % (roles, range, user))
+        (rc, out) = getstatusoutput("semanage user -a -R '%s' -r %s %s" % (roles, range, user))
         self.ready()
         if rc != 0:
             self.error(out)
@@ -124,7 +134,7 @@ class usersPage(semanagePage):
         roles = self.selinuxRolesEntry.get_text()
 
         self.wait()
-        (rc, out) = commands.getstatusoutput("semanage user -m -R '%s' -r %s %s" % (roles, range, user))
+        (rc, out) = getstatusoutput("semanage user -m -R '%s' -r %s %s" % (roles, range, user))
         self.ready()
 
         if rc != 0:
@@ -140,12 +150,12 @@ class usersPage(semanagePage):
                 raise ValueError(_("SELinux user '%s' is required") % user)
 
             self.wait()
-            (rc, out) = commands.getstatusoutput("semanage user -d %s" % user)
+            (rc, out) = getstatusoutput("semanage user -d %s" % user)
             self.ready()
             if rc != 0:
                 self.error(out)
                 return False
             store.remove(iter)
             self.view.get_selection().select_path((0,))
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])

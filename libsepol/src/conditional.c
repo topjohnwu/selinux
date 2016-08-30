@@ -589,14 +589,8 @@ int cond_read_bool(policydb_t * p,
 		goto err;
 
 	len = le32_to_cpu(buf[2]);
-
-	key = malloc(len + 1);
-	if (!key)
+	if (str_read(&key, fp, len))
 		goto err;
-	rc = next_entry(key, fp, len);
-	if (rc < 0)
-		goto err;
-	key[len] = 0;
 
 	if (p->policy_type != POLICY_KERN &&
 	    p->policyvers >= MOD_POLICYDB_VERSION_TUNABLE_SEP) {
