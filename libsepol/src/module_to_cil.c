@@ -47,6 +47,8 @@
 #include <sepol/policydb/services.h>
 #include <sepol/policydb/util.h>
 
+#include "private.h"
+
 #ifdef __GNUC__
 #  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 #else
@@ -58,7 +60,9 @@ FILE *out_file;
 #define STACK_SIZE 16
 #define DEFAULT_LEVEL "systemlow"
 #define DEFAULT_OBJECT "object_r"
-#define GEN_REQUIRE_ATTR "cil_gen_require"
+#define GEN_REQUIRE_ATTR "cil_gen_require" /* Also in libsepol/cil/src/cil_post.c */
+#define TYPEATTR_INFIX "_typeattr_"        /* Also in libsepol/cil/src/cil_post.c */
+#define ROLEATTR_INFIX "_roleattr_"
 
 __attribute__ ((format(printf, 1, 2)))
 static void log_err(const char *fmt, ...)
@@ -124,7 +128,7 @@ static int get_line(char **start, char *end, char **line)
 
 	for (len = 0; p < end && *p != '\n' && *p != '\0'; p++, len++);
 
-	if (len == 0) {
+	if (zero_or_saturated(len)) {
 		rc = 0;
 		goto exit;
 	}
@@ -626,9 +630,9 @@ static int set_to_cil_attr(struct policydb *pdb, int is_type, char ***names, uin
 	num_attrs++;
 
 	if (is_type) {
-		attr_infix = "_typeattr_";
+		attr_infix = TYPEATTR_INFIX;
 	} else {
-		attr_infix = "_roleattr_";
+		attr_infix = ROLEATTR_INFIX;
 	}
 
 	len = strlen(pdb->name) + strlen(attr_infix) + num_digits(num_attrs) + 1;
@@ -1303,7 +1307,7 @@ static int cond_list_to_cil(int indent, struct policydb *pdb, struct cond_node *
 {
 	int rc = -1;
 	struct cond_node *cond;
-	struct list *attr_list;
+	struct list *attr_list = NULL;
 
 	rc = list_init(&attr_list);
 	if (rc != 0) {
@@ -3482,7 +3486,7 @@ static int block_to_cil(struct policydb *pdb, struct avrule_block *block, struct
 {
 	int rc = -1;
 	struct avrule_decl *decl;
-	struct list *attr_list;
+	struct list *attr_list = NULL;
 
 	decl = block->branch_list;
 
@@ -3631,7 +3635,7 @@ static int blocks_to_cil(struct policydb *pdb)
 	int rc = -1;
 	struct avrule_block *block;
 	int indent = 0;
-	struct stack *stack;
+	struct stack *stack = NULL;
 
 	rc = stack_init(&stack);
 	if (rc != 0) {
@@ -3699,7 +3703,7 @@ static int linked_blocks_to_cil(struct policydb *pdb)
 	// Since it is linked, all optional blocks have been resolved
 	int rc = -1;
 	struct avrule_block *block;
-	struct stack *stack;
+	struct stack *stack = NULL;
 
 	rc = stack_init(&stack);
 	if (rc != 0) {

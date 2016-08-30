@@ -23,28 +23,33 @@ import os
 import gobject
 import sys
 import seobject
-import commands
+try:
+    from subprocess import getstatusoutput
+except ImportError:
+    from commands import getstatusoutput
+
 from semanagePage import *
 
 ##
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
-TYPE_COL = 0
-PROTOCOL_COL = 1
-MLS_COL = 2
-PORT_COL = 3
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 
 class portsPage(semanagePage):
@@ -122,10 +127,8 @@ class portsPage(semanagePage):
         self.filter = filter
         self.port = seobject.portRecords()
         dict = self.port.get_all(self.local)
-        keys = dict.keys()
-        keys.sort()
         self.store.clear()
-        for k in keys:
+        for k in sorted(dict.keys()):
             if not (self.match(str(k[0]), filter) or self.match(dict[k][0], filter) or self.match(k[2], filter) or self.match(dict[k][1], filter) or self.match(dict[k][1], filter)):
                 continue
             iter = self.store.append()
@@ -143,10 +146,8 @@ class portsPage(semanagePage):
         self.filter = filter
         self.port = seobject.portRecords()
         dict = self.port.get_all_by_type(self.local)
-        keys = dict.keys()
-        keys.sort()
         self.store.clear()
-        for k in keys:
+        for k in sorted(dict.keys()):
             ports_string = ", ".join(dict[k])
             if not (self.match(ports_string, filter) or self.match(k[0], filter) or self.match(k[1], filter)):
                 continue
@@ -189,13 +190,13 @@ class portsPage(semanagePage):
         protocol = store.get_value(iter, 1)
         try:
             self.wait()
-            (rc, out) = commands.getstatusoutput("semanage port -d -p %s %s" % (protocol, port))
+            (rc, out) = getstatusoutput("semanage port -d -p %s %s" % (protocol, port))
             self.ready()
             if rc != 0:
                 return self.error(out)
             store.remove(iter)
             self.view.get_selection().select_path((0,))
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def add(self):
@@ -212,7 +213,7 @@ class portsPage(semanagePage):
         iter = self.ports_protocol_combo.get_active_iter()
         protocol = list_model.get_value(iter, 0)
         self.wait()
-        (rc, out) = commands.getstatusoutput("semanage port -a -p %s -r %s -t %s %s" % (protocol, mls, target, port_number))
+        (rc, out) = getstatusoutput("semanage port -a -p %s -r %s -t %s %s" % (protocol, mls, target, port_number))
         self.ready()
         if rc != 0:
             self.error(out)
@@ -232,7 +233,7 @@ class portsPage(semanagePage):
         iter = self.ports_protocol_combo.get_active_iter()
         protocol = list_model.get_value(iter, 0)
         self.wait()
-        (rc, out) = commands.getstatusoutput("semanage port -m -p %s -r %s -t %s %s" % (protocol, mls, target, port_number))
+        (rc, out) = getstatusoutput("semanage port -m -p %s -r %s -t %s %s" % (protocol, mls, target, port_number))
         self.ready()
         if rc != 0:
             self.error(out)
