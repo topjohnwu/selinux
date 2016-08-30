@@ -20,7 +20,11 @@ import string
 import gtk
 import gtk.glade
 import os
-import commands
+try:
+    from subprocess import getstatusoutput
+except ImportError:
+    from commands import getstatusoutput
+
 import gobject
 import sys
 import seobject
@@ -32,17 +36,22 @@ from subprocess import Popen, PIPE
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 
 class modulesPage(semanagePage):
@@ -108,7 +117,7 @@ class modulesPage(semanagePage):
     def new_module(self, args):
         try:
             Popen(["/usr/share/system-config-selinux/polgengui.py"])
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def delete(self):
@@ -116,7 +125,7 @@ class modulesPage(semanagePage):
         module = store.get_value(iter, 0)
         try:
             self.wait()
-            status, output = commands.getstatusoutput("semodule -r %s" % module)
+            status, output = getstatusoutput("semodule -r %s" % module)
             self.ready()
             if status != 0:
                 self.error(output)
@@ -124,7 +133,7 @@ class modulesPage(semanagePage):
                 store.remove(iter)
                 self.view.get_selection().select_path((0,))
 
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def enable_audit(self, button):
@@ -132,28 +141,28 @@ class modulesPage(semanagePage):
         try:
             self.wait()
             if self.audit_enabled:
-                status, output = commands.getstatusoutput("semodule -DB")
+                status, output = getstatusoutput("semodule -DB")
                 button.set_label(_("Disable Audit"))
             else:
-                status, output = commands.getstatusoutput("semodule -B")
+                status, output = getstatusoutput("semodule -B")
                 button.set_label(_("Enable Audit"))
             self.ready()
 
             if status != 0:
                 self.error(output)
 
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def disable_audit(self, button):
         try:
             self.wait()
-            status, output = commands.getstatusoutput("semodule -B")
+            status, output = getstatusoutput("semodule -B")
             self.ready()
             if status != 0:
                 self.error(output)
 
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def propertiesDialog(self):
@@ -181,12 +190,12 @@ class modulesPage(semanagePage):
     def add(self, file):
         try:
             self.wait()
-            status, output = commands.getstatusoutput("semodule -i %s" % file)
+            status, output = getstatusoutput("semodule -i %s" % file)
             self.ready()
             if status != 0:
                 self.error(output)
             else:
                 self.load()
 
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])

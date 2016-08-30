@@ -262,6 +262,7 @@ int mls_context_isvalid(const policydb_t * p, const context_struct_t * c)
 	user_datum_t *usrdatum;
 	unsigned int i, l;
 	ebitmap_node_t *cnode;
+	hashtab_key_t key;
 
 	if (!p->mls)
 		return 1;
@@ -279,11 +280,12 @@ int mls_context_isvalid(const policydb_t * p, const context_struct_t * c)
 		if (!c->range.level[l].sens
 		    || c->range.level[l].sens > p->p_levels.nprim)
 			return 0;
-		levdatum = (level_datum_t *) hashtab_search(p->p_levels.table,
-							    p->
-							    p_sens_val_to_name
-							    [c->range.level[l].
-							     sens - 1]);
+
+		key = p->p_sens_val_to_name[c->range.level[l].sens - 1];
+		if (!key)
+			return 0;
+
+		levdatum = (level_datum_t *) hashtab_search(p->p_levels.table, key);
 		if (!levdatum)
 			return 0;
 
@@ -310,7 +312,7 @@ int mls_context_isvalid(const policydb_t * p, const context_struct_t * c)
 	if (!c->user || c->user > p->p_users.nprim)
 		return 0;
 	usrdatum = p->user_val_to_struct[c->user - 1];
-	if (!mls_range_contains(usrdatum->exp_range, c->range))
+	if (!usrdatum || !mls_range_contains(usrdatum->exp_range, c->range))
 		return 0;	/* user may not be associated with range */
 
 	return 1;

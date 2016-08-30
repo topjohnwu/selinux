@@ -1152,20 +1152,16 @@ int hidden sepol_compute_av(sepol_security_id_t ssid,
 int hidden sepol_string_to_security_class(const char *class_name,
 			sepol_security_class_t *tclass)
 {
-	char *class = NULL;
-	sepol_security_class_t id;
+	class_datum_t *tclass_datum;
 
-	for (id = 1;; id++) {
-		class = policydb->p_class_val_to_name[id - 1];
-		if (class == NULL) {
-			ERR(NULL, "could not convert %s to class id", class_name);
-			return STATUS_ERR;
-		}
-		if ((strcmp(class, class_name)) == 0) {
-			*tclass = id;
-			return STATUS_SUCCESS;
-		}
+	tclass_datum = hashtab_search(policydb->p_classes.table,
+				      (hashtab_key_t) class_name);
+	if (!tclass_datum) {
+		ERR(NULL, "unrecognized class %s", class_name);
+		return STATUS_ERR;
 	}
+	*tclass = tclass_datum->s.value;
+	return STATUS_SUCCESS;
 }
 
 /*
@@ -1643,13 +1639,16 @@ int hidden next_entry(void *buf, struct policy_file *fp, size_t bytes)
 			return -1;
 		break;
 	case PF_USE_MEMORY:
-		if (bytes > fp->len)
+		if (bytes > fp->len) {
+			errno = EOVERFLOW;
 			return -1;
+		}
 		memcpy(buf, fp->data, bytes);
 		fp->data += bytes;
 		fp->len -= bytes;
 		break;
 	default:
+		errno = EINVAL;
 		return -1;
 	}
 	return 0;
@@ -1679,6 +1678,40 @@ size_t hidden put_entry(const void *ptr, size_t size, size_t n,
 	default:
 		return 0;
 	}
+	return 0;
+}
+
+/*
+ * Reads a string and null terminates it from the policy file.
+ * This is a port of str_read from the SE Linux kernel code.
+ *
+ * It returns:
+ *   0 - Success
+ *  -1 - Failure with errno set
+ */
+int hidden str_read(char **strp, struct policy_file *fp, size_t len)
+{
+	int rc;
+	char *str;
+
+	if (zero_or_saturated(len)) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	str = malloc(len + 1);
+	if (!str)
+		return -1;
+
+	/* it's expected the caller should free the str */
+	*strp = str;
+
+	/* next_entry sets errno */
+	rc = next_entry(str, fp, len);
+	if (rc)
+		return rc;
+
+	str[len] = '\0';
 	return 0;
 }
 

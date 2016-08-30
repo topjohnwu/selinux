@@ -28,17 +28,22 @@ import seobject
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 
 class loginsPage:
@@ -51,7 +56,5 @@ class loginsPage:
         self.view.set_model(self.store)
         self.login = loginRecords()
         dict = self.login.get_all(0)
-        keys = dict.keys()
-        keys.sort()
-        for k in keys:
-            print "%-25s %-25s %-25s" % (k, dict[k][0], translate(dict[k][1]))
+        for k in sorted(dict.keys()):
+            print("%-25s %-25s %-25s" % (k, dict[k][0], translate(dict[k][1])))
