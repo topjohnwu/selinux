@@ -31,7 +31,11 @@ import semanagePage
 INSTALLPATH = '/usr/share/system-config-selinux'
 sys.path.append(INSTALLPATH)
 
-import commands
+try:
+    from subprocess import getstatusoutput
+except ImportError:
+    from commands import getstatusoutput
+
 ENFORCING = 0
 PERMISSIVE = 1
 DISABLED = 2
@@ -40,18 +44,22 @@ DISABLED = 2
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 from glob import fnmatch
 
@@ -178,13 +186,13 @@ class booleansPage:
             return
         try:
             self.wait()
-            (rc, out) = commands.getstatusoutput("semanage boolean -d %s" % boolean)
+            (rc, out) = getstatusoutput("semanage boolean -d %s" % boolean)
 
             self.ready()
             if rc != 0:
                 return self.error(out)
             self.load(self.filter)
-        except ValueError, e:
+        except ValueError as e:
             self.error(e.args[0])
 
     def filter_changed(self, *arg):
@@ -229,7 +237,7 @@ class booleansPage:
         self.store.set_value(iter, ACTIVE, not val)
         self.wait()
         setsebool = "/usr/sbin/setsebool -P %s %d" % (key, not val)
-        rc, out = commands.getstatusoutput(setsebool)
+        rc, out = getstatusoutput(setsebool)
         if rc != 0:
             self.error(out)
         self.load(self.filter)
@@ -238,7 +246,7 @@ class booleansPage:
     def on_revert_clicked(self, button):
         self.wait()
         setsebool = "semanage boolean --deleteall"
-        commands.getstatusoutput(setsebool)
+        getstatusoutput(setsebool)
         self.load(self.filter)
         self.ready()
 

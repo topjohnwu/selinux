@@ -33,18 +33,22 @@ __all__ = ['get_all_interfaces', 'get_interfaces_from_xml', 'get_admin', 'get_us
 ## I18N
 ##
 PROGNAME = "policycoreutils"
-
-import gettext
-gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
-gettext.textdomain(PROGNAME)
 try:
+    import gettext
+    kwargs = {}
+    if sys.version_info < (3,):
+        kwargs['unicode'] = True
     gettext.install(PROGNAME,
                     localedir="/usr/share/locale",
-                    unicode=False,
-                    codeset='utf-8')
-except IOError:
-    import __builtin__
-    __builtin__.__dict__['_'] = unicode
+                    codeset='utf-8',
+                    **kwargs)
+except:
+    try:
+        import builtins
+        builtins.__dict__['_'] = str
+    except ImportError:
+        import __builtin__
+        __builtin__.__dict__['_'] = unicode
 
 
 def get_interfaces_from_xml(path):
@@ -79,7 +83,7 @@ def get_admin(path=""):
             for k in idict.keys():
                 if k.endswith("_admin"):
                     admin_list.append(k)
-        except IOError, e:
+        except IOError as e:
             sys.stderr.write("%s: %s\n" % (e.__class__.__name__, str(e)))
             sys.exit(1)
     else:
@@ -102,7 +106,7 @@ def get_user(path=""):
                 if k.endswith("_role"):
                     if (("%s_exec_t" % k[:-5]) in sepolicy.get_all_types()):
                         trans_list.append(k)
-        except IOError, e:
+        except IOError as e:
             sys.stderr.write("%s: %s\n" % (e.__class__.__name__, str(e)))
             sys.exit(1)
     else:
@@ -154,7 +158,7 @@ def get_interface_dict(path="/usr/share/selinux/devel/policy.xml"):
                         param_list.append(e.get('name'))
                     interface_dict[(i.get("name"))] = [param_list, (i.find('summary').text), "template"]
                     param_list = []
-    except IOError, e:
+    except IOError:
         pass
     return interface_dict
 
@@ -220,7 +224,7 @@ def interface_compile_test(interface, path="/usr/share/selinux/devel/policy.xml"
                 sys.stderr.write(output)
                 sys.stderr.write(_("\nCompile test for %s failed.\n") % interface)
 
-        except EnvironmentError, e:
+        except EnvironmentError as e:
             sys.stderr.write(_("\nCompile test for %s has not run. %s\n") % (interface, e))
         for v in policy_files.values():
             if os.path.exists(v):
