@@ -75,6 +75,10 @@ common_includes := \
 	$(LOCAL_PATH)/cil/include/ \
 	$(LOCAL_PATH)/cil/src/ \
 
+common_export_includes := \
+	$(LOCAL_PATH)/include \
+	$(LOCAL_PATH)/cil/include
+
 ##
 # "-x c" forces the lex/yacc files to be compiled as c the build system
 # otherwise forces them to be c++. Need to also add an explicit -std because the
@@ -92,7 +96,7 @@ LOCAL_C_INCLUDES := $(common_includes)
 LOCAL_CFLAGS := $(common_cflags)
 LOCAL_CPPFLAGS := $(yacc_flags)
 LOCAL_SRC_FILES := $(common_src_files) $(cil_src_files)
-LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(common_export_includes)
 
 include $(BUILD_HOST_SHARED_LIBRARY)
 
@@ -107,7 +111,7 @@ LOCAL_C_INCLUDES := $(common_includes)
 LOCAL_CFLAGS := $(common_cflags)
 LOCAL_CPPFLAGS := $(yacc_flags)
 LOCAL_SRC_FILES := $(common_src_files) $(cil_src_files)
-LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(common_export_includes)
 
 include $(BUILD_HOST_STATIC_LIBRARY)
 
@@ -131,7 +135,8 @@ LOCAL_MODULE := libsepol
 LOCAL_MODULE_TAGES := optional
 LOCAL_C_INCLUDES := $(common_includes)
 LOCAL_CFLAGS := $(common_cflags)
-LOCAL_SRC_FILES := $(common_src_files)
-LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+LOCAL_CPPFLAGS := $(yacc_flags)
+LOCAL_SRC_FILES := $(common_src_files) $(cil_src_files)
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(common_export_includes)
 
 include $(BUILD_STATIC_LIBRARY)
