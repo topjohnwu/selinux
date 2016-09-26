@@ -12,11 +12,6 @@ common_cflags := \
 	-Wall -Wshadow -O2 \
 	-pipe -fno-strict-aliasing \
 
-common_includes := \
-	$(LOCAL_PATH)/ \
-	$(LOCAL_PATH)/../libsepol/include/ \
-	$(LOCAL_PATH)/../libsepol/src/ \
-
 ##
 # checkpolicy
 #
@@ -24,7 +19,6 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := checkpolicy
 LOCAL_MODULE_TAGS := optional
-LOCAL_C_INCLUDES := $(common_includes) 
 LOCAL_CFLAGS := $(common_cflags)
 LOCAL_SRC_FILES := $(common_src_files) checkpolicy.c
 LOCAL_STATIC_LIBRARIES := libsepol
@@ -41,7 +35,6 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := checkmodule
 LOCAL_MODULE_TAGS := optional
-LOCAL_C_INCLUDES := $(common_includes) 
 LOCAL_CFLAGS := $(common_cflags)
 LOCAL_SRC_FILES := $(common_src_files) checkmodule.c
 LOCAL_STATIC_LIBRARIES := libsepol
@@ -57,7 +50,6 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := dispol
 LOCAL_MODULE_TAGS := optional
-LOCAL_C_INCLUDES := $(common_includes)
 LOCAL_CFLAGS := $(common_cflags)
 LOCAL_SRC_FILES := test/dispol.c
 LOCAL_STATIC_LIBRARIES := libsepol
