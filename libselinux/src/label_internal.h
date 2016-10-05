@@ -16,6 +16,11 @@
 #include "dso.h"
 #include "sha1.h"
 
+#ifdef ANDROID
+// Android does not have fgets_unlocked()
+#define fgets_unlocked(buf, size, fp) fgets(buf, size, fp)
+#endif
+
 /*
  * Installed backends
  */
@@ -32,6 +37,9 @@ int selabel_db_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
 			    unsigned nopts) hidden;
 int selabel_property_init(struct selabel_handle *rec,
+			    const struct selinux_opt *opts,
+			    unsigned nopts) hidden;
+int selabel_service_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
 			    unsigned nopts) hidden;
 
@@ -124,7 +132,7 @@ selabel_validate(struct selabel_handle *rec,
  */
 extern int myprintf_compat;
 extern void __attribute__ ((format(printf, 1, 2)))
-(*myprintf) (const char *fmt, ...);
+(*myprintf) (const char *fmt, ...) hidden;
 
 #define COMPAT_LOG(type, fmt...) if (myprintf_compat)	  \
 		myprintf(fmt);				  \

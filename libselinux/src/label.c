@@ -17,16 +17,41 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
+#ifdef NO_MEDIA_BACKEND
+#define CONFIG_MEDIA_BACKEND(fnptr) NULL
+#else
+#define CONFIG_MEDIA_BACKEND(fnptr) &fnptr
+#endif
+
+#ifdef NO_X_BACKEND
+#define CONFIG_X_BACKEND(fnptr) NULL
+#else
+#define CONFIG_X_BACKEND(fnptr) &fnptr
+#endif
+
+#ifdef NO_DB_BACKEND
+#define CONFIG_DB_BACKEND(fnptr) NULL
+#else
+#define CONFIG_DB_BACKEND(fnptr) &fnptr
+#endif
+
+#ifdef NO_ANDROID_BACKEND
+#define CONFIG_ANDROID_BACKEND(fnptr) NULL
+#else
+#define CONFIG_ANDROID_BACKEND(fnptr) (&(fnptr))
+#endif
+
 typedef int (*selabel_initfunc)(struct selabel_handle *rec,
 				const struct selinux_opt *opts,
 				unsigned nopts);
 
 static selabel_initfunc initfuncs[] = {
 	&selabel_file_init,
-	&selabel_media_init,
-	&selabel_x_init,
-	&selabel_db_init,
-	&selabel_property_init,
+	CONFIG_MEDIA_BACKEND(selabel_media_init),
+	CONFIG_X_BACKEND(selabel_x_init),
+	CONFIG_DB_BACKEND(selabel_db_init),
+	CONFIG_ANDROID_BACKEND(selabel_property_init),
+	CONFIG_ANDROID_BACKEND(selabel_service_init),
 };
 
 static void selabel_subs_fini(struct selabel_sub *ptr)
@@ -322,6 +347,11 @@ struct selabel_handle *selabel_open(unsigned int backend,
 
 	if (backend >= ARRAY_SIZE(initfuncs)) {
 		errno = EINVAL;
+		goto out;
+	}
+
+	if (!initfuncs[backend]) {
+		errno = ENOTSUP;
 		goto out;
 	}
 
