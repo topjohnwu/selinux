@@ -61,7 +61,8 @@ cil_src_files := \
 	cil/src/cil_strpool.c \
 	cil/src/cil_symtab.c \
 	cil/src/cil_tree.c \
-	cil/src/cil_verify.c
+	cil/src/cil_verify.c \
+	cil/src/cil_write_ast.c
 
 common_cflags := \
 	-D_GNU_SOURCE \
