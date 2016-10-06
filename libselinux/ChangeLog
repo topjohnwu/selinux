@@ -1,3 +1,35 @@
+	* selinux_restorecon: fix realpath logic, from Stephen Smalley.
+	* query for python site-packages dir directly, from Jason Zaman.
+	* versioned ruby pkg-config and query vendorarchdir properly, from Jason Zaman.
+
+2.6-rc1 2016-09-30
+	* Revert 'Set DISABLE_RPM default to y', from Stephen Smalley.
+	* Re-introduce DISABLE_BOOL=y, from William Roberts.
+	* make android label backends configurable, from Janis Danisevskis.
+	* android: fix lax service context lookup, from Janis Danisevskis.
+	* Rename android label backend source file, from Janis Danisevskis.
+	* Add ANDROID_HOST=y build option, from William Roberts.
+	* Set DISABLE_RPM default to y, from William Roberts.
+	* Rename EMFLAGS to DISABLE_FLAGS, from William Roberts.
+	* Fix unused variable error, from William Roberts.
+	* Drop build config EMBEDDED=y, DISABLE_AVC=y and DISABLE_BOOL=y, from William Roberts.
+	* sefcontext_compile: invert semantics of "-r" flag, from Janis Danisevskis.
+	* sefcontext_compile: Add "-i" flag, from Janis Danisevskis.
+	* Add architecture string to file_contexts.bin, from Janis Danisevskis.
+	* sefcontext_compile: do not fail silently, from Stephen Smalley.
+	* Add ifdef'ing for ANDROID and BUILD_HOST, from William Roberts.
+	* Introduce configurable backends, from William Roberts.
+	* Add function to find security.restorecon_last entries, from Richard Haines.
+	* Fix -Wsign-compare warnings, from Nicolas Iooss.
+	* Drop unused stdio_ext.h header file, from William Roberts.
+	* Kill logging check for selinux_enabled(), from William Roberts.
+	* Drop usage of _D_ALLOC_NAMLEN, from William Roberts.
+	* Add openrc_contexts functions, from Jason Zaman.
+	* Fix redefinition of XATTR_NAME_SELINUX, from William Roberts.
+	* sefcontext_compile: cleanup confusing usage message, from Janis Danisevskis.
+	* Correct error path to always try text, from William Roberts.
+	* Add support for pcre2, from Janis Danisevskis.
+	* Clean up process_file(), from William Roberts.
 	* Handle NULL pcre study data, from Stephen Smalley.
 	* Add setfiles support to selinux_restorecon(3), from Richard Haines.
 	* Evaluate inodes in selinux_restorecon(3), from Richard Haines.
