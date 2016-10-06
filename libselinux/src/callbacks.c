@@ -16,7 +16,6 @@ default_selinux_log(int type __attribute__((unused)), const char *fmt, ...)
 {
 	int rc;
 	va_list ap;
-	if (is_selinux_enabled() == 0) return 0;
 	va_start(ap, fmt);
 	rc = vfprintf(stderr, fmt, ap);
 	va_end(ap);
@@ -35,7 +34,12 @@ default_selinux_audit(void *ptr __attribute__((unused)),
 static int
 default_selinux_validate(char **ctx)
 {
+#ifndef BUILD_HOST
 	return security_check_context(*ctx);
+#else
+	(void) ctx;
+	return 0;
+#endif
 }
 
 static int

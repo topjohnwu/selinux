@@ -111,16 +111,18 @@ def copyfile(file, srcdir, dest):
 def savefile(new, orig, X_ind):
     copy = False
     if(X_ind):
-        import gtk
-        dlg = gtk.MessageDialog(None, 0, gtk.MESSAGE_INFO,
-                                gtk.BUTTONS_YES_NO,
+        import gi
+        gi.require_version('Gtk', '3.0')
+        from gi.repository import Gtk
+        dlg = Gtk.MessageDialog(None, 0, Gtk.MessageType.INFO,
+                                Gtk.ButtonsType.YES_NO,
                                 _("Do you want to save changes to '%s' (Y/N): ") % orig)
         dlg.set_title(_("Sandbox Message"))
-        dlg.set_position(gtk.WIN_POS_MOUSE)
+        dlg.set_position(Gtk.WindowPosition.MOUSE)
         dlg.show_all()
         rc = dlg.run()
         dlg.destroy()
-        if rc == gtk.RESPONSE_YES:
+        if rc == Gtk.ResponseType.YES:
             copy = True
     else:
         try:
@@ -280,12 +282,16 @@ class Sandbox:
                 command += "'%s' " % p
             fd.write("""#! /bin/sh
 #TITLE: %s
-/usr/bin/test -r ~/.xmodmap && /usr/bin/xmodmap ~/.xmodmap
+# /usr/bin/test -r ~/.xmodmap && /usr/bin/xmodmap ~/.xmodmap
 %s &
 WM_PID=$!
-dbus-launch --exit-with-session %s
+if which dbus-run-session >/dev/null 2>&1; then
+    dbus-run-session -- %s
+else
+    dbus-launch --exit-with-session %s
+fi
 kill -TERM $WM_PID  2> /dev/null
-""" % (command, wm, command))
+""" % (command, wm, command, command))
         fd.close()
         os.chmod(execfile, 0o700)
 
@@ -299,7 +305,7 @@ kill -TERM $WM_PID  2> /dev/null
             types = _("""
 Policy defines the following types for use with the -t:
 \t%s
-""") % "\n\t".join(sepolicy.info(sepolicy.ATTRIBUTE, "sandbox_type")[0]['types'])
+""") % "\n\t".join(list(sepolicy.info(sepolicy.ATTRIBUTE, "sandbox_type"))[0]['types'])
         except RuntimeError:
             pass
 
@@ -425,21 +431,20 @@ sandbox [-h] [-l level ] [-[X|M] [-H homedir] [-T tempdir]] [-I includefile ] [-
         self.__filecon = "%s:object_r:sandbox_file_t:%s" % (con[0], level)
 
     def __setup_dir(self):
+        selinux.setfscreatecon(self.__filecon)
         if self.__options.homedir:
-            selinux.chcon(self.__options.homedir, self.__filecon, recursive=True)
             self.__homedir = self.__options.homedir
         else:
-            selinux.setfscreatecon(self.__filecon)
             self.__homedir = mkdtemp(dir="/tmp", prefix=".sandbox_home_")
 
         if self.__options.tmpdir:
-            selinux.chcon(self.__options.tmpdir, self.__filecon, recursive=True)
             self.__tmpdir = self.__options.tmpdir
         else:
-            selinux.setfscreatecon(self.__filecon)
             self.__tmpdir = mkdtemp(dir="/tmp", prefix=".sandbox_tmp_")
-        selinux.setfscreatecon(None)
         self.__copyfiles()
+        selinux.chcon(self.__homedir, self.__filecon, recursive=True)
+        selinux.chcon(self.__tmpdir, self.__filecon, recursive=True)
+        selinux.setfscreatecon(None)
 
     def __execute(self):
         try:
@@ -453,8 +458,10 @@ sandbox [-h] [-l level ] [-[X|M] [-H homedir] [-T tempdir]] [-I includefile ] [-
                     if self.__options.dpi:
                         dpi = self.__options.dpi
                     else:
-                        import gtk
-                        dpi = str(gtk.settings_get_default().props.gtk_xft_dpi / 1024)
+                        import gi
+                        gi.require_version('Gtk', '3.0')
+                        from gi.repository import Gtk
+                        dpi = str(Gtk.Settings.get_default().props.gtk_xft_dpi / 1024)
 
                     xmodmapfile = self.__homedir + "/.xmodmap"
                     xd = open(xmodmapfile, "w")
@@ -468,10 +475,15 @@ sandbox [-h] [-l level ] [-[X|M] [-H homedir] [-T tempdir]] [-I includefile ] [-
                     cmds += ["--"] + self.__paths
                 return subprocess.Popen(cmds).wait()
 
-            selinux.setexeccon(self.__execcon)
-            rc = subprocess.Popen(self.__cmds).wait()
-            selinux.setexeccon(None)
-            return rc
+            pid = os.fork()
+            if pid == 0:
+                rc = os.setsid()
+                if rc:
+                    return rc
+                selinux.setexeccon(self.__execcon)
+                os.execv(self.__cmds[0], self.__cmds)
+            rc = os.waitpid(pid, 0)
+            return os.WEXITSTATUS(rc[1])
 
         finally:
             for i in self.__paths:
@@ -500,7 +512,8 @@ sandbox [-h] [-l level ] [-[X|M] [-H homedir] [-T tempdir]] [-I includefile ] [-
         try:
             self.__parse_options()
             self.__gen_context()
-            self.__setup_dir()
+            if self.__mount:
+                self.__setup_dir()
             return self.__execute()
         except KeyboardInterrupt:
             sys.exit(0)
