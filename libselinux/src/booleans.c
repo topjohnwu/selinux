@@ -25,6 +25,8 @@
 
 #define SELINUX_BOOL_DIR "/booleans/"
 
+#ifndef DISABLE_BOOL
+
 static int filename_select(const struct dirent *d)
 {
 	if (d->d_name[0] == '.'
@@ -63,12 +65,11 @@ int security_get_boolean_names(char ***names, int *len)
 	}
 
 	for (i = 0; i < *len; i++) {
-		n[i] = (char *)malloc(_D_ALLOC_NAMLEN(namelist[i]));
+		n[i] = strdup(namelist[i]->d_name);
 		if (!n[i]) {
 			rc = -1;
 			goto bad_freen;
 		}
-		strcpy(n[i], namelist[i]->d_name);
 	}
 	rc = 0;
 	*names = n;
@@ -85,8 +86,6 @@ int security_get_boolean_names(char ***names, int *len)
       bad:
 	goto out;
 }
-
-hidden_def(security_get_boolean_names)
 
 char *selinux_boolean_sub(const char *name)
 {
@@ -141,8 +140,6 @@ out:
 		sub = strdup(name);
 	return sub;
 }
-
-hidden_def(selinux_boolean_sub)
 
 static int bool_open(const char *name, int flag) {
 	char *fname = NULL;
@@ -263,8 +260,6 @@ int security_get_boolean_active(const char *name)
 	return val;
 }
 
-hidden_def(security_get_boolean_active)
-
 int security_set_boolean(const char *name, int value)
 {
 	int fd, ret;
@@ -298,8 +293,6 @@ int security_set_boolean(const char *name, int value)
 		return -1;
 }
 
-hidden_def(security_set_boolean)
-
 int security_commit_booleans(void)
 {
 	int fd, ret;
@@ -327,8 +320,6 @@ int security_commit_booleans(void)
 	else
 		return -1;
 }
-
-hidden_def(security_commit_booleans)
 
 static char *strtrim(char *dest, char *source, int size)
 {
@@ -568,3 +559,55 @@ int security_load_booleans(char *path)
 		errno = EINVAL;
 	return errors ? -1 : 0;
 }
+
+#else
+int security_set_boolean_list(size_t boolcnt __attribute__((unused)),
+	SELboolean * boollist __attribute__((unused)),
+	int permanent __attribute__((unused)))
+{
+	return -1;
+}
+
+int security_load_booleans(char *path __attribute__((unused)))
+{
+	return -1;
+}
+
+int security_get_boolean_names(char ***names __attribute__((unused)),
+	int *len __attribute__((unused)))
+{
+	return -1;
+}
+
+int security_get_boolean_pending(const char *name __attribute__((unused)))
+{
+	return -1;
+}
+
+int security_get_boolean_active(const char *name __attribute__((unused)))
+{
+	return -1;
+}
+
+int security_set_boolean(const char *name __attribute__((unused)),
+	int value __attribute__((unused)))
+{
+	return -1;
+}
+
+int security_commit_booleans(void)
+{
+	return -1;
+}
+
+char *selinux_boolean_sub(const char *name __attribute__((unused)))
+{
+	return NULL;
+}
+#endif
+
+hidden_def(security_get_boolean_names)
+hidden_def(selinux_boolean_sub)
+hidden_def(security_get_boolean_active)
+hidden_def(security_set_boolean)
+hidden_def(security_commit_booleans)

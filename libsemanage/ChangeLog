@@ -1,3 +1,14 @@
+	* Fix linker scripts / map files, from Stephen Smalley.
+	* Fix bug preventing the installation of base modules, from James Carter.
+
+2.6-rc1 2016-09-30
+	* make distclean target work, from Nicolas Iooss.
+	* Do not always print a module name warning, from Miroslav Grepl.
+	* Use pp module name instead of filename when installing module, from Petr Lautrbach.
+	* tests: Do not force using gcc, from Nicolas Iooss.
+	* genhomedircon: remove hardcoded refpolicy strings, from Gary Tierney.
+	* genhomedircon: add support for %group syntax, from Gary Tierney.
+	* genhomedircon: generate contexts for logins mapped to the default user, from Gary Tierney.
 	* Validate and compile file contexts before installing, from Stephen Smalley.
 	* Swap tcp and udp protocol numbers, from Miroslav Vadkerti.
 	* Sort object files for deterministic linking order, from Laurent Bigonville.

@@ -377,6 +377,11 @@ int cil_gen_class(struct cil_db *db, struct cil_tree_node *parse_current, struct
 		if (rc != SEPOL_OK) {
 			goto exit;
 		}
+		if (class->num_perms > CIL_PERMS_PER_CLASS) {
+			cil_tree_log(parse_current, CIL_ERR, "Too many permissions in class '%s'", class->datum.name);
+			goto exit;
+		}
+
 	}
 
 	return SEPOL_OK;
@@ -937,6 +942,10 @@ int cil_gen_common(struct cil_db *db, struct cil_tree_node *parse_current, struc
 
 	rc = cil_gen_perm_nodes(db, parse_current->next->next->cl_head, ast_node, CIL_PERM, &common->num_perms);
 	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+	if (common->num_perms > CIL_PERMS_PER_CLASS) {
+		cil_tree_log(parse_current, CIL_ERR, "Too many permissions in common '%s'", common->datum.name);
 		goto exit;
 	}
 
@@ -2553,6 +2562,7 @@ static int __cil_fill_expr(struct cil_tree_node *current, enum cil_flavor flavor
 		cil_list_init(&sub_expr, flavor);
 		rc = __cil_fill_expr_helper(current->cl_head, flavor, sub_expr, depth);
 		if (rc != SEPOL_OK) {
+			cil_list_destroy(&sub_expr, CIL_TRUE);
 			goto exit;
 		}
 		cil_list_append(expr, CIL_LIST, sub_expr);
@@ -5472,6 +5482,7 @@ int cil_fill_cats(struct cil_tree_node *curr, struct cil_cats **cats)
 	rc = cil_gen_expr(curr, CIL_CAT, &(*cats)->str_expr);
 	if (rc != SEPOL_OK) {
 		cil_destroy_cats(*cats);
+		*cats = NULL;
 	}
 
 	return rc;
