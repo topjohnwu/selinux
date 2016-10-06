@@ -24,22 +24,21 @@ CFLAGS ?= -O -Wall -W -Wundef -Wformat-y2k -Wformat-security -Winit-self -Wmissi
           -fasynchronous-unwind-tables -fdiagnostics-show-option -funit-at-a-time \
           -fipa-pure-const -Wno-suggest-attribute=pure -Wno-suggest-attribute=const \
           -Werror -Wno-aggregate-return -Wno-redundant-decls
-override CFLAGS += -I../include -I$(INCLUDEDIR) -D_GNU_SOURCE $(EMFLAGS)
+override CFLAGS += -I../include -I$(INCLUDEDIR) -D_GNU_SOURCE $(DISABLE_FLAGS) $(PCRE_CFLAGS)
 LDLIBS += -L../src -lselinux -L$(LIBDIR)
+PCRE_LDFLAGS ?= -lpcre
 
+ifeq ($(ANDROID_HOST),y)
+TARGETS=sefcontext_compile
+else
 TARGETS=$(patsubst %.c,%,$(wildcard *.c))
+endif
 
-sefcontext_compile: LDLIBS += -lpcre ../src/libselinux.a -lsepol
+sefcontext_compile: LDLIBS += $(PCRE_LDFLAGS) ../src/libselinux.a -lsepol
+
+sefcontext_compile: sefcontext_compile.o ../src/regex.o
 
 selinux_restorecon: LDLIBS += -lsepol
-
-ifeq ($(DISABLE_AVC),y)
-	UNUSED_TARGETS+=compute_av compute_create compute_member compute_relabel
-endif
-ifeq ($(DISABLE_BOOL),y)
-	UNUSED_TARGETS+=getsebool togglesebool
-endif
-TARGETS:= $(filter-out $(UNUSED_TARGETS), $(TARGETS))
 
 all: $(TARGETS)
 

@@ -1,6 +1,5 @@
 #include <ctype.h>
 #include <errno.h>
-#include <pcre.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +12,7 @@
 #include <sepol/sepol.h>
 
 #include "../src/label_file.h"
+#include "../src/regex.h"
 
 const char *policy_file;
 static int ctx_err;
@@ -92,7 +92,8 @@ out:
  *	u32  - data length of the pcre regex study daya
  *	char - a buffer holding the raw pcre regex study data
  */
-static int write_binary_file(struct saved_data *data, int fd)
+static int write_binary_file(struct saved_data *data, int fd,
+			     int do_write_precompregex)
 {
 	struct spec *specs = data->spec_arr;
 	FILE *bin_file;
@@ -101,6 +102,8 @@ static int write_binary_file(struct saved_data *data, int fd)
 	uint32_t section_len;
 	uint32_t i;
 	int rc;
+	const char *reg_version;
+	const char *reg_arch;
 
 	bin_file = fdopen(fd, "w");
 	if (!bin_file) {
@@ -119,12 +122,27 @@ static int write_binary_file(struct saved_data *data, int fd)
 	if (len != 1)
 		goto err;
 
-	/* write the pcre version */
-	section_len = strlen(pcre_version());
+	/* write version of the regex back-end */
+	reg_version = regex_version();
+	if (!reg_version)
+		goto err;
+	section_len = strlen(reg_version);
 	len = fwrite(&section_len, sizeof(uint32_t), 1, bin_file);
 	if (len != 1)
 		goto err;
-	len = fwrite(pcre_version(), sizeof(char), section_len, bin_file);
+	len = fwrite(reg_version, sizeof(char), section_len, bin_file);
+	if (len != section_len)
+		goto err;
+
+	/* write regex arch string */
+	reg_arch = regex_arch_string();
+	if (!reg_arch)
+		goto err;
+	section_len = strlen(reg_arch);
+	len = fwrite(&section_len, sizeof(uint32_t), 1, bin_file);
+	if (len != 1)
+		goto err;
+	len = fwrite(reg_arch, sizeof(char), section_len, bin_file);
 	if (len != section_len)
 		goto err;
 
@@ -162,10 +180,8 @@ static int write_binary_file(struct saved_data *data, int fd)
 		mode_t mode = specs[i].mode;
 		size_t prefix_len = specs[i].prefix_len;
 		int32_t stem_id = specs[i].stem_id;
-		pcre *re = specs[i].regex;
-		pcre_extra *sd = get_pcre_extra(&specs[i]);
+		struct regex_data *re = specs[i].regex;
 		uint32_t to_write;
-		size_t size;
 
 		/* length of the context string (including nul) */
 		to_write = strlen(context) + 1;
@@ -212,42 +228,10 @@ static int write_binary_file(struct saved_data *data, int fd)
 		if (len != 1)
 			goto err;
 
-		/* determine the size of the pcre data in bytes */
-		rc = pcre_fullinfo(re, NULL, PCRE_INFO_SIZE, &size);
+		/* Write regex related data */
+		rc = regex_writef(re, bin_file, do_write_precompregex);
 		if (rc < 0)
 			goto err;
-
-		/* write the number of bytes in the pcre data */
-		to_write = size;
-		len = fwrite(&to_write, sizeof(uint32_t), 1, bin_file);
-		if (len != 1)
-			goto err;
-
-		/* write the actual pcre data as a char array */
-		len = fwrite(re, 1, to_write, bin_file);
-		if (len != to_write)
-			goto err;
-
-		if (sd) {
-			/* determine the size of the pcre study info */
-			rc = pcre_fullinfo(re, sd, PCRE_INFO_STUDYSIZE, &size);
-			if (rc < 0)
-				goto err;
-		} else
-			size = 0;
-
-		/* write the number of bytes in the pcre study data */
-		to_write = size;
-		len = fwrite(&to_write, sizeof(uint32_t), 1, bin_file);
-		if (len != 1)
-			goto err;
-
-		if (sd) {
-			/* write the actual pcre study data as a char array */
-			len = fwrite(sd->study_data, 1, to_write, bin_file);
-			if (len != to_write)
-				goto err;
-		}
 	}
 
 	rc = 0;
@@ -270,8 +254,7 @@ static void free_specs(struct saved_data *data)
 		free(specs[i].lr.ctx_trans);
 		free(specs[i].regex_str);
 		free(specs[i].type_str);
-		pcre_free(specs[i].regex);
-		pcre_free_study(specs[i].sd);
+		regex_data_free(specs[i].regex);
 	}
 	free(specs);
 
@@ -293,6 +276,17 @@ static void usage(const char *progname)
 	    "         will be fc_file with the .bin suffix appended.\n\t"
 	    "-p       Optional binary policy file that will be used to\n\t"
 	    "         validate contexts defined in the fc_file.\n\t"
+	    "-r       Omit precompiled regular expressions from the output.\n\t"
+	    "         (PCRE2 only. Compiled PCRE2 regular expressions are\n\t"
+	    "         not portable across architectures. Use this flag\n\t"
+	    "         if you know that you build for an incompatible\n\t"
+	    "         architecture to save space. When linked against\n\t"
+	    "         PCRE1 this flag is ignored.)\n\t"
+	    "-i       Print regular expression info end exit. That is, back\n\t"
+	    "         end version and architecture identifier.\n\t"
+	    "         Arch identifier format (PCRE2):\n\t"
+	    "         <pointer width>-<size type width>-<endianness>, e.g.,\n\t"
+	    "         \"8-8-el\" for x86_64.\n\t"
 	    "fc_file  The text based file contexts file to be processed.\n",
 	    progname);
 		exit(EXIT_FAILURE);
@@ -302,6 +296,7 @@ int main(int argc, char *argv[])
 {
 	const char *path = NULL;
 	const char *out_file = NULL;
+	int do_write_precompregex = 1;
 	char stack_path[PATH_MAX + 1];
 	char *tmp = NULL;
 	int fd, rc, opt;
@@ -313,7 +308,7 @@ int main(int argc, char *argv[])
 	if (argc < 2)
 		usage(argv[0]);
 
-	while ((opt = getopt(argc, argv, "o:p:")) > 0) {
+	while ((opt = getopt(argc, argv, "io:p:r")) > 0) {
 		switch (opt) {
 		case 'o':
 			out_file = optarg;
@@ -321,6 +316,13 @@ int main(int argc, char *argv[])
 		case 'p':
 			policy_file = optarg;
 			break;
+		case 'r':
+			do_write_precompregex = 0;
+			break;
+		case 'i':
+			printf("%s (%s)\n", regex_version(),
+					regex_arch_string());
+			return 0;
 		default:
 			usage(argv[0]);
 		}
@@ -331,7 +333,7 @@ int main(int argc, char *argv[])
 
 	path = argv[optind];
 	if (stat(path, &buf) < 0) {
-		fprintf(stderr, "Can not stat: %s: %m\n", path);
+		fprintf(stderr, "%s: could not stat: %s: %s\n", argv[0], path, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
@@ -340,14 +342,14 @@ int main(int argc, char *argv[])
 		policy_fp = fopen(policy_file, "r");
 
 		if (!policy_fp) {
-			fprintf(stderr, "Failed to open policy: %s\n",
-							    policy_file);
+			fprintf(stderr, "%s: failed to open %s: %s\n",
+				argv[0], policy_file, strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 
 		if (sepol_set_policydb_from_file(policy_fp) < 0) {
-			fprintf(stderr, "Failed to load policy: %s\n",
-							    policy_file);
+			fprintf(stderr, "%s: failed to load policy from %s\n",
+				argv[0], policy_file);
 			fclose(policy_fp);
 			exit(EXIT_FAILURE);
 		}
@@ -356,7 +358,7 @@ int main(int argc, char *argv[])
 	/* Generate dummy handle for process_line() function */
 	rec = (struct selabel_handle *)calloc(1, sizeof(*rec));
 	if (!rec) {
-		fprintf(stderr, "Failed to calloc handle\n");
+		fprintf(stderr, "%s: calloc failed: %s\n", argv[0], strerror(errno));
 		if (policy_fp)
 			fclose(policy_fp);
 		exit(EXIT_FAILURE);
@@ -375,7 +377,7 @@ int main(int argc, char *argv[])
 
 	data = (struct saved_data *)calloc(1, sizeof(*data));
 	if (!data) {
-		fprintf(stderr, "Failed to calloc saved_data\n");
+		fprintf(stderr, "%s: calloc failed: %s\n", argv[0], strerror(errno));
 		free(rec);
 		if (policy_fp)
 			fclose(policy_fp);
@@ -385,46 +387,62 @@ int main(int argc, char *argv[])
 	rec->data = data;
 
 	rc = process_file(rec, path);
-	if (rc < 0)
+	if (rc < 0) {
+		fprintf(stderr, "%s: process_file failed\n", argv[0]);
 		goto err;
+	}
 
 	rc = sort_specs(data);
-	if (rc)
+	if (rc) {
+		fprintf(stderr, "%s: sort_specs failed\n", argv[0]);
 		goto err;
+	}
 
 	if (out_file)
 		rc = snprintf(stack_path, sizeof(stack_path), "%s", out_file);
 	else
 		rc = snprintf(stack_path, sizeof(stack_path), "%s.bin", path);
 
-	if (rc < 0 || rc >= (int)sizeof(stack_path))
+	if (rc < 0 || rc >= (int)sizeof(stack_path)) {
+		fprintf(stderr, "%s: snprintf failed\n", argv[0]);
 		goto err;
+	}
 
 	tmp = malloc(strlen(stack_path) + 7);
-	if (!tmp)
+	if (!tmp) {
+		fprintf(stderr, "%s: malloc failed: %s\n", argv[0], strerror(errno));
 		goto err;
+	}
 
 	rc = sprintf(tmp, "%sXXXXXX", stack_path);
-	if (rc < 0)
+	if (rc < 0) {
+		fprintf(stderr, "%s: sprintf failed\n", argv[0]);
 		goto err;
+	}
 
 	fd  = mkstemp(tmp);
-	if (fd < 0)
+	if (fd < 0) {
+		fprintf(stderr, "%s: mkstemp %s failed: %s\n", argv[0], tmp, strerror(errno));
 		goto err;
+	}
 
 	rc = fchmod(fd, buf.st_mode);
 	if (rc < 0) {
-		perror("fchmod failed to set permission on compiled regexs");
+		fprintf(stderr, "%s: fchmod %s failed: %s\n", argv[0], tmp, strerror(errno));
 		goto err_unlink;
 	}
 
-	rc = write_binary_file(data, fd);
-	if (rc < 0)
+	rc = write_binary_file(data, fd, do_write_precompregex);
+	if (rc < 0) {
+		fprintf(stderr, "%s: write_binary_file %s failed\n", argv[0], tmp);
 		goto err_unlink;
+	}
 
 	rc = rename(tmp, stack_path);
-	if (rc < 0)
+	if (rc < 0) {
+		fprintf(stderr, "%s: rename %s -> %s failed: %s\n", argv[0], tmp, stack_path, strerror(errno));
 		goto err_unlink;
+	}
 
 	rc = 0;
 out:

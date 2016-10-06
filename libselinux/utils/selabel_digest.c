@@ -59,11 +59,11 @@ static int run_check_digest(char *cmd, char *selabel_digest)
 
 int main(int argc, char **argv)
 {
-	int backend = 0, rc, opt, i, validate = 0;
+	int backend = 0, rc, opt, validate = 0;
 	char *baseonly = NULL, *file = NULL, *digest = (char *)1;
 	char **specfiles = NULL;
 	unsigned char *sha1_digest = NULL;
-	size_t num_specfiles;
+	size_t i, num_specfiles;
 
 	char cmd_buf[4096];
 	char *cmd_ptr;
@@ -92,6 +92,8 @@ int main(int argc, char **argv)
 				backend = SELABEL_CTX_DB;
 			} else if (!strcmp(optarg, "prop")) {
 				backend = SELABEL_CTX_ANDROID_PROP;
+			} else if (!strcmp(optarg, "service")) {
+				backend = SELABEL_CTX_ANDROID_SERVICE;
 			} else {
 				fprintf(stderr, "Unknown backend: %s\n",
 								    optarg);
