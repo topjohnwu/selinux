@@ -100,6 +100,7 @@ typedef struct user_entry {
 	char *home;
 	char *level;
 	char *login;
+	char *homedir_role;
 	struct user_entry *next;
 } genhomedircon_user_entry_t;
 
@@ -175,6 +176,13 @@ static int ignore(const char *homedir) {
 		ptr = ptr->next;
 	}
 	return 0;
+}
+
+static int prefix_is_homedir_role(const semanage_user_t *user,
+				  const char *prefix)
+{
+	return strcmp(OBJECT_R, prefix) == 0 ||
+		semanage_user_has_role(user, prefix);
 }
 
 static semanage_list_t *default_shell_list(void)
@@ -565,11 +573,8 @@ static int check_line(genhomedircon_settings_t * s, Ustr *line)
 	result = sepol_context_from_string(s->h_semanage->sepolh,
 					   ctx_str, &ctx_record);
 	if (result == STATUS_SUCCESS && ctx_record != NULL) {
-		sepol_msg_set_callback(s->h_semanage->sepolh, NULL, NULL);
 		result = sepol_context_check(s->h_semanage->sepolh,
 					     s->policydb, ctx_record);
-		sepol_msg_set_callback(s->h_semanage->sepolh,
-				       semanage_msg_relay_handler, s->h_semanage);
 		sepol_context_free(ctx_record);
 	}
 	return result;
@@ -633,8 +638,17 @@ static int write_contexts(genhomedircon_settings_t *s, FILE *out,
 			goto fail;
 		}
 
-		if (sepol_context_set_user(sepolh, context, user->sename) < 0 ||
+		if (sepol_context_set_user(sepolh, context, user->sename) < 0) {
+			goto fail;
+		}
+
+		if (sepol_policydb_mls_enabled(s->policydb) &&
 		    sepol_context_set_mls(sepolh, context, user->level) < 0) {
+			goto fail;
+		}
+
+		if (user->homedir_role &&
+		    sepol_context_set_role(sepolh, context, user->homedir_role) < 0) {
 			goto fail;
 		}
 
@@ -756,7 +770,7 @@ static int name_user_cmp(char *key, semanage_user_t ** val)
 static int push_user_entry(genhomedircon_user_entry_t ** list, const char *n,
 			   const char *u, const char *g, const char *sen,
 			   const char *pre, const char *h, const char *l,
-			   const char *ln)
+			   const char *ln, const char *hd_role)
 {
 	genhomedircon_user_entry_t *temp = NULL;
 	char *name = NULL;
@@ -767,6 +781,7 @@ static int push_user_entry(genhomedircon_user_entry_t ** list, const char *n,
 	char *home = NULL;
 	char *level = NULL;
 	char *lname = NULL;
+	char *homedir_role = NULL;
 
 	temp = malloc(sizeof(genhomedircon_user_entry_t));
 	if (!temp)
@@ -795,6 +810,11 @@ static int push_user_entry(genhomedircon_user_entry_t ** list, const char *n,
 	lname = strdup(ln);
 	if (!lname)
 		goto cleanup;
+	if (hd_role) {
+		homedir_role = strdup(hd_role);
+		if (!homedir_role)
+			goto cleanup;
+	}
 
 	temp->name = name;
 	temp->uid = uid;
@@ -804,6 +824,7 @@ static int push_user_entry(genhomedircon_user_entry_t ** list, const char *n,
 	temp->home = home;
 	temp->level = level;
 	temp->login = lname;
+	temp->homedir_role = homedir_role;
 	temp->next = (*list);
 	(*list) = temp;
 
@@ -818,6 +839,7 @@ static int push_user_entry(genhomedircon_user_entry_t ** list, const char *n,
 	free(home);
 	free(level);
 	free(lname);
+	free(homedir_role);
 	free(temp);
 	return STATUS_ERR;
 }
@@ -839,6 +861,7 @@ static void pop_user_entry(genhomedircon_user_entry_t ** list)
 	free(temp->home);
 	free(temp->level);
 	free(temp->login);
+	free(temp->homedir_role);
 	free(temp);
 }
 
@@ -852,6 +875,7 @@ static int setup_fallback_user(genhomedircon_settings_t * s)
 	const char *seuname = NULL;
 	const char *prefix = NULL;
 	const char *level = NULL;
+	const char *homedir_role = NULL;
 	unsigned int i;
 	int retval;
 	int errors = 0;
@@ -886,10 +910,14 @@ static int setup_fallback_user(genhomedircon_settings_t * s)
 					level = FALLBACK_LEVEL;
 			}
 
+			if (prefix_is_homedir_role(u, prefix)) {
+				homedir_role = prefix;
+			}
+
 			if (push_user_entry(&(s->fallback), FALLBACK_NAME,
 					    FALLBACK_UIDGID, FALLBACK_UIDGID,
 					    seuname, prefix, "", level,
-					    FALLBACK_NAME) != 0)
+					    FALLBACK_NAME, homedir_role) != 0)
 				errors = STATUS_ERR;
 			semanage_user_key_free(key);
 			if (u)
@@ -946,6 +974,7 @@ static int add_user(genhomedircon_settings_t * s,
 	struct passwd pwstorage, *pwent = NULL;
 	const char *prefix = NULL;
 	const char *level = NULL;
+	const char *homedir_role = NULL;
 	char uid[11];
 	char gid[11];
 
@@ -967,6 +996,10 @@ static int add_user(genhomedircon_settings_t * s,
 	} else {
 		prefix = name;
 		level = FALLBACK_LEVEL;
+	}
+
+	if (prefix_is_homedir_role(user, prefix)) {
+		homedir_role = prefix;
 	}
 
 	retval = getpwnam_r(name, &pwstorage, rbuf, rbuflen, &pwent);
@@ -1010,7 +1043,7 @@ static int add_user(genhomedircon_settings_t * s,
 	}
 
 	retval = push_user_entry(head, name, uid, gid, sename, prefix,
-				pwent->pw_dir, level, selogin);
+				pwent->pw_dir, level, selogin, homedir_role);
 cleanup:
 	free(rbuf);
 	return retval;
