@@ -865,13 +865,7 @@ static int __evaluate_cat_expression(struct cil_cats *cats, struct cil_db *db)
 
 	ebitmap_destroy(&bitmap);
 	cil_list_destroy(&cats->datum_expr, CIL_FALSE);
-	if (new->head != NULL) { 
-		cats->datum_expr = new;
-	} else {
-		/* empty list */
-		cil_list_destroy(&new, CIL_FALSE);
-		cats->datum_expr = NULL;
-	}
+	cats->datum_expr = new;
 
 	cats->evaluated = CIL_TRUE;
 
@@ -950,6 +944,11 @@ static int __cil_cat_expr_range_to_bitmap_helper(struct cil_list_item *i1, struc
 	if (n2->flavor == CIL_CATALIAS) {
 		struct cil_alias *alias = (struct cil_alias *)d2;
 		c2 = alias->actual;
+	}
+
+	if (c1->value > c2->value) {
+		cil_log(CIL_ERR, "Invalid category range\n");
+		goto exit;
 	}
 
 	for (i = c1->value; i <= c2->value; i++) {
