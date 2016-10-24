@@ -1,0 +1,144 @@
+common_LIBRARIES = ["libpcre2"]
+common_CFLAGS = [
+    "-DUSE_PCRE2",
+
+    // Persistently stored patterns (pcre2) are architecture dependent.
+    // In particular paterns built on amd64 can not run on devices with armv7
+    // (32bit). Therefore, this feature stays off for now.
+    "-DNO_PERSISTENTLY_STORED_PATTERNS",
+    "-DDISABLE_SETRANS",
+    "-DDISABLE_BOOL",
+    "-D_GNU_SOURCE",
+    "-DNO_MEDIA_BACKEND",
+    "-DNO_X_BACKEND",
+    "-DNO_DB_BACKEND"
+]
+
+// uncomment to build libselinux and related artifacts against PCRE
+// common_LIBRARIES = ["libpcre"]
+// common_CFLAGS = []
+
+cc_defaults {
+    name: "libselinux_flags",
+
+    cflags: common_CFLAGS,
+
+    target: {
+        host: {
+            cflags: [
+                "-DBUILD_HOST",
+            ],
+        },
+        darwin: {
+            cflags: ["-DDARWIN"],
+        },
+    },
+}
+
+cc_library {
+    name: "libselinux",
+    defaults: ["libselinux_flags"],
+    host_supported: true,
+
+    srcs: [
+        "src/callbacks.c",
+        "src/freecon.c",
+        "src/label.c",
+        "src/label_file.c",
+        "src/label_backends_android.c",
+        "src/regex.c",
+        "src/label_support.c",
+        "src/matchpathcon.c",
+        "src/setrans_client.c",
+        "src/sha1.c",
+        "src/booleans.c",
+    ],
+
+    target: {
+        android: {
+            srcs: [
+                "src/canonicalize_context.c",
+                "src/disable.c",
+                "src/enabled.c",
+                "src/init.c",
+                "src/fgetfilecon.c",
+                "src/fsetfilecon.c",
+                "src/getenforce.c",
+                "src/getfilecon.c",
+                "src/getpeercon.c",
+                "src/lgetfilecon.c",
+                "src/load_policy.c",
+                "src/lsetfilecon.c",
+                "src/policyvers.c",
+                "src/procattr.c",
+                "src/setenforce.c",
+                "src/setfilecon.c",
+                "src/context.c",
+                "src/mapping.c",
+                "src/stringrep.c",
+                "src/compute_create.c",
+                "src/compute_member.c",
+                "src/compute_av.c",
+                "src/avc.c",
+                "src/avc_internal.c",
+                "src/avc_sidtab.c",
+                "src/get_initial_context.c",
+                "src/checkAccess.c",
+                "src/sestatus.c",
+                "src/deny_unknown.c",
+                "src/check_context.c",
+                "src/android/android.c",
+            ],
+
+            shared_libs: [
+                "libcrypto",
+                "liblog",
+            ],
+            static: {
+                whole_static_libs: ["libpackagelistparser"],
+            },
+            shared: {
+                shared_libs: ["libpackagelistparser"],
+            },
+
+            local_include_dirs: [ "src" ],
+
+            // 1003 corresponds to auditd, from system/core/logd/event.logtags
+            cflags: [
+                "-DAUDITD_LOG_TAG=1003",
+            ],
+            // mapping.c has redundant check of array p_in->perms.
+            clang_cflags: ["-Wno-pointer-bool-conversion"],
+        },
+    },
+
+    static: {
+        whole_static_libs: common_LIBRARIES,
+    },
+    shared: {
+        shared_libs: common_LIBRARIES,
+    },
+
+    local_include_dirs: ["include"],
+    export_include_dirs: ["include"],
+}
+
+// If one attempts to comment out the sefcontext_compile target in the
+// Android.mk that exists in the directory of this Android.bp file, understand
+// that I encountered 2 issues. The first issue was that it could not find
+// sepol/sepol.h. This is usually an issue if a dependency between the
+// export_includes of another component is not coupled to this component
+// properly. Looking at the Makefile from upstream, sefcontext_compile seems
+// to have a dependency on libsepol. The second issue occurs when you add the
+// libsepol dependency. The build system claims that their is no libsepol
+// library declared anywhere. Switching sefcontext_compile to an Android.mk for
+// now resolved the issue.
+//################################
+//cc_binary_host {
+//    name: "sefcontext_compile",
+//    defaults: ["libselinux_flags"],
+//    srcs: ["utils/sefcontext_compile.c"],
+//
+//    static_libs: ["libselinux"],
+//    whole_static_libs: common_LIBRARIES,
+//}
