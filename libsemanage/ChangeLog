@@ -1,3 +1,13 @@
+	* swig: use SWIG_fail when an error occurs, from Nicolas Iooss.
+	* Fall back to gcc in exception.sh, from Nicolas Iooss.
+	* Link Python wrapper with Python, from Nicolas Iooss.
+	* Query for python site-packages dir directly, from Nicolas Iooss.
+	* Link Ruby wrapper with -lruby, from Nicolas Iooss.
+	* Use Ruby to define RUBYINC, from Nicolas Iooss.
+	* semanage_seuser_key_create: copy name to avoid use-after-free in swig-generated code, from Nicolas Iooss.
+	* Remove *swig_python_exception.i if its creation failed, from Nicolas Iooss.
+	* Remove ruby_semanage.so with "make clean", from Nicolas Iooss.
+	* Fix kernel pathname in semanage_verify_kernel(), from Stephen Smalley.
 	* genhomedircon: only set MLS level if MLS is enabled, from Stephen Smalley.
 
 2.6 2016-10-14
