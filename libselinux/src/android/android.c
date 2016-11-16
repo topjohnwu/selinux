@@ -1208,6 +1208,7 @@ static int selinux_android_restorecon_common(const char* pathname_orig,
     bool force = (flags & SELINUX_ANDROID_RESTORECON_FORCE) ? true : false;
     bool datadata = (flags & SELINUX_ANDROID_RESTORECON_DATADATA) ? true : false;
     bool skipce = (flags & SELINUX_ANDROID_RESTORECON_SKIPCE) ? true : false;
+    bool cross_filesystems = (flags & SELINUX_ANDROID_RESTORECON_CROSS_FILESYSTEMS) ? true : false;
     bool issys;
     bool setrestoreconlast = true;
     struct stat sb;
@@ -1216,10 +1217,14 @@ static int selinux_android_restorecon_common(const char* pathname_orig,
     FTSENT *ftsent;
     char *pathname = NULL, *pathdnamer = NULL, *pathdname, *pathbname;
     char * paths[2] = { NULL , NULL };
-    int ftsflags = FTS_NOCHDIR | FTS_XDEV | FTS_PHYSICAL;
+    int ftsflags = FTS_NOCHDIR | FTS_PHYSICAL;
     int error, sverrno;
     char xattr_value[FC_DIGEST_SIZE];
     ssize_t size;
+
+    if (!cross_filesystems) {
+        ftsflags |= FTS_XDEV;
+    }
 
     if (is_selinux_enabled() <= 0)
         return 0;

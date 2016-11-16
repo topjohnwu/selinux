@@ -42,6 +42,7 @@ extern int selinux_log_callback(int type, const char *fmt, ...)
 #define SELINUX_ANDROID_RESTORECON_FORCE    8
 #define SELINUX_ANDROID_RESTORECON_DATADATA 16
 #define SELINUX_ANDROID_RESTORECON_SKIPCE   32
+#define SELINUX_ANDROID_RESTORECON_CROSS_FILESYSTEMS   64
 extern int selinux_android_restorecon(const char *file, unsigned int flags);
 
 extern int selinux_android_restorecon_pkgdir(const char *pkgdir,
