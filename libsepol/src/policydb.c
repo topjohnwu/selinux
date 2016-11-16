@@ -3447,7 +3447,7 @@ static int scope_index_read(scope_index_t * scope_index,
 	int rc;
 
 	for (i = 0; i < num_scope_syms; i++) {
-		if (ebitmap_read(scope_index->scope + i, fp) == -1) {
+		if (ebitmap_read(scope_index->scope + i, fp) < 0) {
 			return -1;
 		}
 	}
@@ -3465,7 +3465,7 @@ static int scope_index_read(scope_index_t * scope_index,
 		return -1;
 	}
 	for (i = 0; i < scope_index->class_perms_len; i++) {
-		if (ebitmap_read(scope_index->class_perms_map + i, fp) == -1) {
+		if (ebitmap_read(scope_index->class_perms_map + i, fp) < 0) {
 			return -1;
 		}
 	}
@@ -3510,6 +3510,10 @@ static int avrule_decl_read(policydb_t * p, avrule_decl_t * decl,
 			return -1;
 		nprim = le32_to_cpu(buf[0]);
 		nel = le32_to_cpu(buf[1]);
+		if (nel && !nprim) {
+			ERR(fp->handle, "unexpected items in decl symbol table with no symbol");
+			return -1;
+		}
 		for (j = 0; j < nel; j++) {
 			if (read_f[i] (p, decl->symtab[i].table, fp)) {
 				return -1;
@@ -3635,7 +3639,10 @@ static int scope_read(policydb_t * p, int symnum, struct policy_file *fp)
 		goto cleanup;
 	scope->scope = le32_to_cpu(buf[0]);
 	scope->decl_ids_len = le32_to_cpu(buf[1]);
-	assert(scope->decl_ids_len > 0);
+	if (scope->decl_ids_len == 0) {
+		ERR(fp->handle, "invalid scope with no declaration");
+		goto cleanup;
+	}
 	if ((scope->decl_ids =
 	     malloc(scope->decl_ids_len * sizeof(uint32_t))) == NULL) {
 		goto cleanup;
@@ -3878,6 +3885,10 @@ int policydb_read(policydb_t * p, struct policy_file *fp, unsigned verbose)
 			goto bad;
 		nprim = le32_to_cpu(buf[0]);
 		nel = le32_to_cpu(buf[1]);
+		if (nel && !nprim) {
+			ERR(fp->handle, "unexpected items in symbol table with no symbol");
+			goto bad;
+		}
 		for (j = 0; j < nel; j++) {
 			if (read_f[i] (p, p->symtab[i].table, fp))
 				goto bad;

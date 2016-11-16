@@ -1604,8 +1604,7 @@ static int expand_range_trans(expand_state_t * state,
 static avtab_ptr_t find_avtab_node(sepol_handle_t * handle,
 				   avtab_t * avtab, avtab_key_t * key,
 				   cond_av_list_t ** cond,
-				   av_extended_perms_t *xperms,
-				   char *alloced)
+				   av_extended_perms_t *xperms)
 {
 	avtab_ptr_t node;
 	avtab_datum_t avdatum;
@@ -1641,6 +1640,11 @@ static avtab_ptr_t find_avtab_node(sepol_handle_t * handle,
 
 	if (!node) {
 		memset(&avdatum, 0, sizeof avdatum);
+		/*
+		 * AUDITDENY, aka DONTAUDIT, are &= assigned, versus |= for
+		 * others. Initialize the data accordingly.
+		 */
+		avdatum.data = key->specified == AVTAB_AUDITDENY ? ~0 : 0;
 		/* this is used to get the node - insertion is actually unique */
 		node = avtab_insert_nonunique(avtab, key, &avdatum);
 		if (!node) {
@@ -1659,11 +1663,6 @@ static avtab_ptr_t find_avtab_node(sepol_handle_t * handle,
 			nl->next = *cond;
 			*cond = nl;
 		}
-		if (alloced)
-			*alloced = 1;
-	} else {
-		if (alloced)
-			*alloced = 0;
 	}
 
 	return node;
@@ -1756,7 +1755,7 @@ static int expand_terule_helper(sepol_handle_t * handle,
 			return EXPAND_RULE_CONFLICT;
 		}
 
-		node = find_avtab_node(handle, avtab, &avkey, cond, NULL, NULL);
+		node = find_avtab_node(handle, avtab, &avkey, cond, NULL);
 		if (!node)
 			return -1;
 		if (enabled) {
@@ -1796,7 +1795,6 @@ static int expand_avrule_helper(sepol_handle_t * handle,
 	class_perm_node_t *cur;
 	uint32_t spec = 0;
 	unsigned int i;
-	char alloced;
 
 	if (specified & AVRULE_ALLOWED) {
 		spec = AVTAB_ALLOWED;
@@ -1831,8 +1829,7 @@ static int expand_avrule_helper(sepol_handle_t * handle,
 		avkey.target_class = cur->tclass;
 		avkey.specified = spec;
 
-		node = find_avtab_node(handle, avtab, &avkey, cond,
-				       extended_perms, &alloced);
+		node = find_avtab_node(handle, avtab, &avkey, cond, extended_perms);
 		if (!node)
 			return EXPAND_RULE_ERROR;
 		if (enabled) {
@@ -1858,10 +1855,7 @@ static int expand_avrule_helper(sepol_handle_t * handle,
 			 */
 			avdatump->data &= cur->data;
 		} else if (specified & AVRULE_DONTAUDIT) {
-			if (!alloced)
-				avdatump->data &= ~cur->data;
-			else
-				avdatump->data = ~cur->data;
+			avdatump->data &= ~cur->data;
 		} else if (specified & AVRULE_XPERMS) {
 			xperms = avdatump->xperms;
 			if (!xperms) {
