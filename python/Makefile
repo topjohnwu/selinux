@@ -1,4 +1,4 @@
-SUBDIRS = setfiles load_policy newrole run_init secon sestatus semodule setsebool scripts po man hll
+SUBDIRS = sepolicy audit2allow semanage sepolgen chcat
 
 all install relabel clean indent:
 	@for subdir in $(SUBDIRS); do \
