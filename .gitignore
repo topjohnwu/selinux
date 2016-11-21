@@ -18,6 +18,7 @@
 *.orig
 *.rej
 *.pyc
+*.pyo
 cscope.*
 .#*
 \#*
