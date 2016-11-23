@@ -4,7 +4,7 @@ unamestr=`uname`
 if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
 	export LD_LIBRARY_PATH=$ANDROID_BUILD_TOP/external/selinux/prebuilts/lib
 	export PYTHONPATH=$ANDROID_BUILD_TOP/prebuilts/python/linux-x86/2.7.5/lib/python2.7/site-packages
-	exec python $ANDROID_BUILD_TOP/external/selinux/policycoreutils/audit2allow/audit2why "$@"
+	exec python $ANDROID_BUILD_TOP/external/selinux/python/audit2allow/audit2why "$@"
 else
 	echo "audit2why is only supported on linux"
 fi
