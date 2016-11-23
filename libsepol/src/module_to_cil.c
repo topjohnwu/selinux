@@ -374,7 +374,7 @@ static int typealias_list_create(struct policydb *pdb)
 
 	for (block = pdb->global; block != NULL; block = block->next) {
 		decl = block->branch_list;
-		if (decl->decl_id > max_decl_id) {
+		if (decl != NULL && decl->decl_id > max_decl_id) {
 			max_decl_id = decl->decl_id;
 		}
 	}
@@ -3469,6 +3469,10 @@ static int required_scopes_to_cil(int indent, struct policydb *pdb, struct avrul
 			key = pdb->sym_val_to_name[sym][i];
 
 			scope_datum = hashtab_search(pdb->scope[sym].table, key);
+			if (scope_datum == NULL) {
+				rc = -1;
+				goto exit;
+			}
 			for (j = 0; j < scope_datum->decl_ids_len; j++) {
 				if (scope_datum->decl_ids[j] == decl->decl_id) {
 					break;
@@ -3530,6 +3534,9 @@ static int additive_scopes_to_cil(int indent, struct policydb *pdb, struct avrul
 	struct avrule_decl *decl = stack_peek(decl_stack);
 
 	for (args.sym_index = 0; args.sym_index < SYM_NUM; args.sym_index++) {
+		if (func_to_cil[args.sym_index] == NULL) {
+			continue;
+		}
 		rc = hashtab_map(decl->symtab[args.sym_index].table, additive_scopes_to_cil_map, &args);
 		if (rc != 0) {
 			goto exit;
