@@ -2,7 +2,7 @@
 
 unamestr=`uname`
 if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
-	export LD_LIBRARY_PATH=$ANDROID_BUILD_TOP/external/selinux/prebuilts/lib
+	export LD_PRELOAD=$ANDROID_HOST_OUT/lib64/libselinux.so
 	export PYTHONPATH=$ANDROID_BUILD_TOP/prebuilts/python/linux-x86/2.7.5/lib/python2.7/site-packages
 	python $ANDROID_BUILD_TOP/external/selinux/python/audit2allow/audit2allow "$@"
 else
