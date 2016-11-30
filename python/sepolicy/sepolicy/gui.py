@@ -130,7 +130,7 @@ class SELinuxGui():
         self.application = app
         self.filter_txt = ""
         builder = Gtk.Builder()  # BUILDER OBJ
-        self.code_path = distutils.sysconfig.get_python_lib(plat_specific=True) + "/sepolicy/"
+        self.code_path = distutils.sysconfig.get_python_lib(plat_specific=False) + "/sepolicy/"
         glade_file = self.code_path + "sepolicy.glade"
         builder.add_from_file(glade_file)
         self.outer_notebook = builder.get_object("outer_notebook")
@@ -2609,9 +2609,10 @@ class SELinuxGui():
     def set_enforce_text(self, value):
         if value:
             self.status_bar.push(self.context_id, _("System Status: Enforcing"))
+            self.current_status_enforcing.set_active(True)
         else:
             self.status_bar.push(self.context_id, _("System Status: Permissive"))
-        self.current_status_permissive.set_active(True)
+            self.current_status_permissive.set_active(True)
 
     def set_enforce(self, button):
         self.dbus.setenforce(button.get_active())
