@@ -42,6 +42,7 @@ common_src_files := \
 	src/write.c
 
 cil_src_files := \
+	cil/src/android.c \
 	cil/src/cil_binary.c \
 	cil/src/cil_build_ast.c \
 	cil/src/cil.c \
