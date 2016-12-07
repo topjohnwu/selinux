@@ -1428,6 +1428,10 @@ int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void
 		break;
 	case CIL_SRC_INFO:
 		break;
+	case CIL_NONE:
+		// TODO: add proper removal support
+		*finished = CIL_TREE_SKIP_HEAD;
+		break;
 	default:
 		cil_log(CIL_ERR, "Unknown AST flavor: %d.\n", node->flavor);
 		rc = SEPOL_ERR;
