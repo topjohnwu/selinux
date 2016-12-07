@@ -24,6 +24,12 @@ struct version_args {
 	const char *num;
 };
 
+enum plat_flavor {
+	PLAT_NONE = 0,
+	PLAT_TYPE,
+	PLAT_ATTRIB
+};
+
 static unsigned int ver_map_hash_val(hashtab_t h, const hashtab_key_t key)
 {
 	/* from cil_stpool.c */
@@ -93,10 +99,9 @@ static int __extract_attributees_helper(struct cil_tree_node *node, uint32_t *fi
 			/* checkpolicy creates base attributes which are just typeattributesets,
 			   of the existing types and attributes.  These may be differnt in
 			   every checkpolicy output, ignore them here, they'll be dealt with
-			   as a special case when attributizing. TODO: remove these? */
+			   as a special case when attributizing. */
 		} else {
-			rc = hashtab_insert(args->vers_map, (hashtab_key_t) key,
-					    (hashtab_datum_t) datum);
+			rc = hashtab_insert(args->vers_map, (hashtab_key_t) key, (hashtab_datum_t) datum);
 			if (rc != SEPOL_OK) {
 				goto exit;
 			}
@@ -148,6 +153,29 @@ int cil_extract_attributees(struct cil_db *db, hashtab_t vers_map)
 
 	return SEPOL_OK;
 exit:
+	return rc;
+}
+
+static enum plat_flavor __cil_get_plat_flavor(hashtab_t vers_map, hashtab_key_t key)
+{
+	enum plat_flavor rc;
+	struct version_datum *vers_datum;
+
+	vers_datum = (struct version_datum *)hashtab_search(vers_map, key);
+	if (vers_datum == NULL) {
+		return PLAT_NONE;
+	}
+	switch (vers_datum->ast_node->flavor) {
+	case CIL_TYPE:
+		rc = PLAT_TYPE;
+		break;
+	case CIL_TYPEATTRIBUTE:
+		rc = PLAT_ATTRIB;
+		break;
+	default:
+		rc = PLAT_NONE;
+		break;
+	}
 	return rc;
 }
 
@@ -239,6 +267,7 @@ static int cil_attrib_type_expr(struct cil_list *expr_str, struct version_args *
 	int rc = SEPOL_ERR;
 	struct cil_list_item *curr = NULL;
 	char *new;
+	hashtab_key_t key;
 
 	/* iterate through cil_list, replacing types */
 	cil_list_for_each(curr, expr_str) {
@@ -249,8 +278,9 @@ static int cil_attrib_type_expr(struct cil_list *expr_str, struct version_args *
 				goto exit;
 			break;
 		case CIL_STRING:
-			if (!strncmp(curr->data, "base_typeattr_", 14) ||
-			    hashtab_search(args->vers_map, (hashtab_key_t) curr->data) != NULL) {
+			key = (hashtab_key_t) curr->data;
+			enum plat_flavor pf = __cil_get_plat_flavor(args->vers_map, key);
+			if (!strncmp(curr->data, "base_typeattr_", 14) || pf == PLAT_TYPE) {
 				new = __cil_attrib_get_versname((char *) curr->data, args->num);
 				curr->data = (void *) new;
 			}
@@ -273,12 +303,15 @@ exit:
 static int cil_attrib_check_context(struct cil_context *ctxt, struct version_args *args)
 {
 	int rc = SEPOL_ERR;
+	hashtab_key_t key;
 
 	if (ctxt->type != NULL) {
 		cil_log(CIL_ERR, "AST already resolved. Not yet supported.\n");
 		goto exit;
 	}
-	if (hashtab_search(args->vers_map, (hashtab_key_t) ctxt->type_str) != NULL) {
+
+	key = (hashtab_key_t) ctxt->type_str;
+	if (__cil_get_plat_flavor(args->vers_map, key) != PLAT_NONE) {
         /* TODO: reinstate check, but leave out for now
 		cil_log(CIL_ERR, "AST contains context with platform public type: %s\n",
 			ctxt->type_str);
@@ -328,7 +361,7 @@ static int cil_attrib_roletype(struct cil_tree_node *node,
 		goto exit;
 	}
 	key = roletype->type_str;
-	if (hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		roletype->type_str = __cil_attrib_get_versname(key, args->num);
 	}
 
@@ -347,7 +380,7 @@ static int cil_attrib_type(struct cil_tree_node *node, struct version_args *args
 		cil_log(CIL_ERR, "AST already resolved.  !!! Not yet supported.\n");
 		goto exit;
 	}
-	if (hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		rc = __cil_attrib_convert_type(node, args);
 		if (rc != SEPOL_OK) {
 			goto exit;
@@ -362,13 +395,16 @@ exit:
 static int cil_attrib_typepermissive(struct cil_tree_node *node, struct version_args *args)
 {
 	int rc = SEPOL_ERR;
+	char *key;
 	struct cil_typepermissive *typeperm = (struct cil_typepermissive *)node->data;
 
 	if (typeperm->type != NULL) {
 		cil_log(CIL_ERR, "AST already resolved.  ### Not yet supported.\n");
 		goto exit;
 	}
-	if (hashtab_search(args->vers_map, (hashtab_key_t) typeperm->type_str) != NULL) {
+
+	key = typeperm->type_str;
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) != PLAT_NONE) {
 		cil_log(CIL_ERR, "%s contains platform public type: %s (line %d) .\n",
 			CIL_KEY_TYPEPERMISSIVE, typeperm->type_str, node->line);
 		goto exit;
@@ -390,12 +426,16 @@ static int cil_attrib_typeattribute(struct cil_tree_node *node, struct version_a
 			node->line);
 		goto exit;
 	}
-	if (!strncmp(key, "base_typeattr_", 14) ||
-	    hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (!strncmp(key, "base_typeattr_", 14)) {
 		rc = __cil_attrib_swap_symtab_key(node, key, args->num);
 		if (rc != SEPOL_OK) {
 			goto exit;
 		}
+	} else if (__cil_get_plat_flavor(args->vers_map, key) == PLAT_ATTRIB) {
+		// platform attribute declaration to be provided by platform policy
+		cil_symtab_datum_remove_node(&typeattr->datum, node);
+		cil_destroy_typeattribute(typeattr);
+		node->flavor = CIL_NONE; // traversal relies on this node sticking around, empty it.
 	}
 
 	return SEPOL_OK;
@@ -417,8 +457,7 @@ static int cil_attrib_typeattributeset(struct cil_tree_node *node, struct versio
 
 	key = typeattrset->attr_str;
 	/* first check to see if the attribute to which this set belongs is versioned */
-	if (!strncmp(key, "base_typeattr_", 14)
-	    || hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (!strncmp(key, "base_typeattr_", 14)) {
 		typeattrset->attr_str = __cil_attrib_get_versname(key, args->num);
 	}
 
@@ -439,7 +478,7 @@ static int cil_attrib_typealiasactual(struct cil_tree_node *node, struct version
 	struct cil_aliasactual *aliasact = (struct cil_aliasactual *)node->data;
 
 	key = aliasact->actual_str;
-	if (hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) != PLAT_NONE) {
 		cil_log(CIL_ERR, "%s with platform public type not allowed (line %d)\n",
 		    CIL_KEY_TYPEALIASACTUAL, node->line);
 		// goto exit; TODO: fix device-specific aliasing and then reinstate.
@@ -462,12 +501,12 @@ static int cil_attrib_nametypetransition(struct cil_tree_node *node, struct vers
 		goto exit;
 	}
 	key = namettrans->src_str;
-	if (hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		namettrans->src_str = __cil_attrib_get_versname(key, args->num);
 	}
 
 	key = namettrans->tgt_str;
-	if (hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		namettrans->tgt_str = __cil_attrib_get_versname(key, args->num);
 	}
 
@@ -492,12 +531,12 @@ static int cil_attrib_type_rule(struct cil_tree_node *node, struct version_args 
 		goto exit;
 	}
 	key = type_rule->src_str;
-	if (hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		type_rule->src_str = __cil_attrib_get_versname(key, args->num);
 	}
 
 	key = type_rule->tgt_str;
-	if (hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		type_rule->tgt_str = __cil_attrib_get_versname(key, args->num);
 	}
 
@@ -520,13 +559,13 @@ static int cil_attrib_avrule(struct cil_tree_node *node, struct version_args *ar
 
 	key = avrule->src_str;
 	if (!strncmp(key, "base_typeattr_", 14) ||
-	    hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	    __cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		avrule->src_str = __cil_attrib_get_versname(key, args->num);
 	}
 
 	key = avrule->tgt_str;
 	if (!strncmp(key, "base_typeattr_", 14) ||
-	    hashtab_search(args->vers_map, (hashtab_key_t) key) != NULL) {
+	    __cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) == PLAT_TYPE) {
 		avrule->tgt_str = __cil_attrib_get_versname(key, args->num);
 	}
 
@@ -749,20 +788,23 @@ exit:
  *
  * Add these new typeattributeset nodes to the given cil_db.
  */
-static int cil_build_mappings_tree(hashtab_key_t k,
-				   __attribute__((unused)) hashtab_datum_t d, void *args)
+static int cil_build_mappings_tree(hashtab_key_t k, hashtab_datum_t d, void *args)
 {
 	struct cil_typeattributeset *attrset = NULL;
 	struct cil_tree_node *ast_node = NULL;
 	struct version_args *verargs = (struct version_args *)args;
 	struct cil_tree_node *ast_parent = verargs->db->ast->root;
 	char *orig_type = (char *) k;
-	char *vrsnd_type = __cil_attrib_get_versname(orig_type, verargs->num);
+	struct version_datum *vers_datum = (struct version_datum *) d;
 
+	if (vers_datum->ast_node->flavor == CIL_TYPEATTRIBUTE) {
+		// platform attributes are not versioned
+		return SEPOL_OK;
+	}
 	/* create typeattributeset datum */
 	cil_typeattributeset_init(&attrset);
 	cil_list_init(&attrset->str_expr, CIL_TYPE);
-	attrset->attr_str = vrsnd_type;
+	attrset->attr_str = __cil_attrib_get_versname(orig_type, verargs->num);
 	cil_list_append(attrset->str_expr, CIL_STRING, orig_type);
 
 	/* create containing tree node */
