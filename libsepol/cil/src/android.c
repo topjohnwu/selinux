@@ -481,7 +481,7 @@ static int cil_attrib_typealiasactual(struct cil_tree_node *node, struct version
 	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) != PLAT_NONE) {
 		cil_log(CIL_ERR, "%s with platform public type not allowed (line %d)\n",
 		    CIL_KEY_TYPEALIASACTUAL, node->line);
-		// goto exit; TODO: fix device-specific aliasing and then reinstate.
+		goto exit;
 	}
 
 	return SEPOL_OK;
