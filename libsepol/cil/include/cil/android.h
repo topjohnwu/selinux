@@ -6,6 +6,10 @@
 #define PLAT_ID "p"
 #define NON_PLAT_ID "n"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * cil_android_attrib_mapping - extract attributizable elements of the policy in
  * srcdb and create the mapping file necessary to link the platform and
@@ -29,4 +33,13 @@ int cil_android_attrib_mapping(struct cil_db **mdb, struct cil_db *srcdb, const 
  */
 int cil_android_attributize(struct cil_db *tgtdb, struct cil_db *srcdb, const char *num);
 
+/*
+ * cil_android_compile_policy - compile selinux policy from given source files.
+ */
+int cil_android_compile_policy(void **data, size_t *pol_len,
+                               const char *const pol_files[], size_t num_files);
+
+#ifdef __cplusplus
+}
+#endif
 #endif /* _SEPOL_ANDROID_H_ */
