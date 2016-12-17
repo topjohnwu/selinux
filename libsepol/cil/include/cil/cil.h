@@ -32,10 +32,6 @@
 
 #include <sepol/policydb/policydb.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct cil_db;
 typedef struct cil_db cil_db_t;
 
@@ -73,7 +69,4 @@ extern void cil_log(enum cil_log_level lvl, const char *msg, ...);
 
 extern void cil_set_malloc_error_handler(void (*handler)(void));
 
-#ifdef __cplusplus
-}
-#endif
 #endif
