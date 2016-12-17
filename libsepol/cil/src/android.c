@@ -1,9 +1,7 @@
 #include <cil/android.h>
-#include <errno.h>
 #include <sepol/policydb/hashtab.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #include "cil_build_ast.h"
 #include "cil_internal.h"
@@ -913,103 +911,5 @@ int cil_android_attributize(struct cil_db *tgtdb, struct cil_db *srcdb, const ch
 	}
 exit:
 	ver_map_destroy(ver_map_tab);
-	return rc;
-}
-
-int cil_android_compile_policy(void **data, size_t *pol_len,
-                               const char *const pol_files[], size_t num_files) {
-	int rc = SEPOL_ERR;
-
-	struct cil_db *db = NULL;
-	sepol_policydb_t *pdb = NULL;
-	sepol_policy_file_t *pf = NULL;
-	FILE *infile = NULL;
-	size_t in_size = 0;
-	char *tmp_data = NULL;
-	void *buff = NULL;
-
-	cil_db_init(&db);
-	for (size_t i = 0; i < num_files; i++) {
-		struct stat sb;
-		infile = fopen(pol_files[i], "re");
-		if (!infile) {
-			cil_log(CIL_ERR, "Could not open file %s: %s\n", pol_files[i], strerror(errno));
-			rc = SEPOL_ERR;
-			goto exit;
-		}
-		rc = fstat(fileno(infile), &sb);
-		if (rc == -1) {
-			cil_log(CIL_ERR, "Could not stat file %s: %s\n", pol_files[i], strerror(errno));
-			rc = SEPOL_ERR;
-			goto exit;
-		}
-		in_size = sb.st_size;
-		buff = cil_malloc(in_size);
-		rc = fread(buff, in_size, 1, infile);
-		if (rc != 1) {
-			cil_log(CIL_ERR, "Failure reading file %s: %s\n", pol_files[i], strerror(errno));
-			rc = SEPOL_ERR;
-			goto exit;
-		}
-
-		rc = cil_add_file(db, pol_files[i], buff, in_size);
-		if (rc != SEPOL_OK) {
-			cil_log(CIL_ERR, "Unable to add policy file %s to cil_db\n", pol_files[i]);
-			goto exit;
-		}
-		fclose(infile);
-		infile = NULL;
-		free(buff);
-		buff = NULL;
-	}
-
-	/* all src files have been added, now compile policy */
-	rc = cil_compile(db);
-	if (rc != SEPOL_OK) {
-		cil_log(CIL_ERR, "Failed to compile cildb: %d\n", rc);
-		goto exit;
-	}
-	rc = cil_build_policydb(db, &pdb);
-	if (rc != SEPOL_OK) {
-		cil_log(CIL_ERR, "Failed to build policydb\n");
-		goto exit;
-	}
-	rc = sepol_policy_file_create(&pf);
-	if (rc != 0) {
-		cil_log(CIL_ERR, "Failed to create policy file: %d\n", rc);
-		goto exit;
-	}
-
-	/* set this to be in-memory file compilation and calculate length */
-	sepol_policy_file_set_mem(pf, NULL, 0);
-	rc = sepol_policydb_write(pdb, pf);
-	if (rc != 0) {
-		cil_log(CIL_ERR, "Failed to write binary policy: %d\n", rc);
-		goto exit;
-	}
-
-	/* with calculated length, allocate space for policy, and write for real */
-	rc = sepol_policy_file_get_len(pf, pol_len);
-	tmp_data = cil_malloc(*pol_len);
-	sepol_policy_file_set_mem(pf, tmp_data, *pol_len);
-	rc = sepol_policydb_write(pdb, pf);
-	if (rc != 0) {
-		cil_log(CIL_ERR, "Failed to write binary policy: %d\n", rc);
-		goto exit;
-	}
-	*data = (void *)tmp_data;
-	tmp_data = NULL;
-
-	rc = SEPOL_OK;
-exit:
-	if (infile != NULL) {
-		fclose(infile);
-	}
-	free(tmp_data);
-	free(buff);
-	cil_db_destroy(&db);
-	sepol_policydb_free(pdb);
-	sepol_policy_file_free(pf);
-
 	return rc;
 }

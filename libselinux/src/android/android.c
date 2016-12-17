@@ -48,6 +48,8 @@ static char const * const seapp_contexts_file = "/seapp_contexts";
 static const struct selinux_opt seopts =
     { SELABEL_OPT_PATH, "/file_contexts.bin" };
 
+static const char *const sepolicy_file = "/sepolicy";
+
 static const struct selinux_opt seopts_prop =
     { SELABEL_OPT_PATH, "/property_contexts" };
 
@@ -1473,9 +1475,9 @@ void selinux_android_set_sehandle(const struct selabel_handle *hndl)
     fc_sehandle = (struct selabel_handle *) hndl;
 }
 
-int selinux_android_load_policy(void *data, size_t len)
+int selinux_android_load_policy(void)
 {
-	int rc;
+	int fd = -1, rc;
 	struct stat sb;
 	void *map = NULL;
 	static int load_successful = 0;
@@ -1492,13 +1494,38 @@ int selinux_android_load_policy(void *data, size_t len)
 	}
 
 	set_selinuxmnt(SELINUXMNT);
-	rc = security_load_policy(data, len);
-	if (rc < 0) {
-		selinux_log(SELINUX_ERROR, "SELinux:  Could not load policy:  %s\n",
+	fd = open(sepolicy_file, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+	if (fd < 0) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not open sepolicy:  %s\n",
 				strerror(errno));
 		return -1;
 	}
-	selinux_log(SELINUX_INFO, "SELinux: Loaded policy.\n");
+	if (fstat(fd, &sb) < 0) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
+				sepolicy_file, strerror(errno));
+		close(fd);
+		return -1;
+	}
+	map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (map == MAP_FAILED) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
+				sepolicy_file, strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	rc = security_load_policy(map, sb.st_size);
+	if (rc < 0) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not load policy:  %s\n",
+				strerror(errno));
+		munmap(map, sb.st_size);
+		close(fd);
+		return -1;
+	}
+
+	munmap(map, sb.st_size);
+	close(fd);
+	selinux_log(SELINUX_INFO, "SELinux: Loaded policy from %s\n", sepolicy_file);
 	load_successful = 1;
 	return 0;
 }
