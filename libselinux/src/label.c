@@ -269,11 +269,7 @@ static int selabel_fini(struct selabel_handle *rec,
 			    struct selabel_lookup_rec *lr,
 			    int translating)
 {
-	char *path = NULL;
-
-	if (rec->spec_files)
-		path = rec->spec_files[0];
-	if (compat_validate(rec, lr, path, 0))
+	if (compat_validate(rec, lr, rec->spec_file, 0))
 		return -1;
 
 	if (translating && !lr->ctx_trans &&
@@ -372,9 +368,11 @@ struct selabel_handle *selabel_open(unsigned int backend,
 	rec->digest = selabel_is_digest_set(opts, nopts, rec->digest);
 
 	if ((*initfuncs[backend])(rec, opts, nopts)) {
-		selabel_close(rec);
+		free(rec->spec_file);
+		free(rec);
 		rec = NULL;
 	}
+
 out:
 	return rec;
 }
@@ -492,18 +490,12 @@ int selabel_digest(struct selabel_handle *rec,
 
 void selabel_close(struct selabel_handle *rec)
 {
-	size_t i;
 	selabel_subs_fini(rec->subs);
 	selabel_subs_fini(rec->dist_subs);
-	if (rec->spec_files) {
-		for (i = 0; i < rec->spec_files_len; i++)
-			free(rec->spec_files[i]);
-		free(rec->spec_files);
-	}
 	if (rec->digest)
 		selabel_digest_fini(rec->digest);
-	if (rec->func_close)
-		rec->func_close(rec);
+	rec->func_close(rec);
+	free(rec->spec_file);
 	free(rec);
 }
 
