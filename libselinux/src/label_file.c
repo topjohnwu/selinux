@@ -565,106 +565,66 @@ static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 		unsigned n)
 {
 	struct saved_data *data = (struct saved_data *)rec->data;
-	size_t num_paths = 0;
-	char **path = NULL;
+	const char *path = NULL;
 	const char *prefix = NULL;
-	int status = -1;
-	size_t i;
-	bool baseonly = false;
-	bool path_provided;
+	int status = -1, baseonly = 0;
 
 	/* Process arguments */
-	i = n;
-	while (i--)
-		switch(opts[i].type) {
+	while (n--)
+		switch(opts[n].type) {
 		case SELABEL_OPT_PATH:
-			num_paths++;
+			path = opts[n].value;
 			break;
 		case SELABEL_OPT_SUBSET:
-			prefix = opts[i].value;
+			prefix = opts[n].value;
 			break;
 		case SELABEL_OPT_BASEONLY:
-			baseonly = !!opts[i].value;
+			baseonly = !!opts[n].value;
 			break;
 		}
 
-	if (!num_paths) {
-		num_paths = 1;
-		path_provided = false;
-	} else {
-		path_provided = true;
-	}
-
-	path = calloc(num_paths, sizeof(*path));
-	if (path == NULL) {
-		goto finish;
-	}
-	rec->spec_files = path;
-	rec->spec_files_len = num_paths;
-
-	if (path_provided) {
-		i = n;
-		while (i--)
-			switch(opts[i].type) {
-			case SELABEL_OPT_PATH:
-				*path = strdup(opts[i].value);
-				if (*path == NULL)
-					goto finish;
-				path++;
-				break;
-			default:
-				break;
-			}
-	}
 #if !defined(BUILD_HOST) && !defined(ANDROID)
 	char subs_file[PATH_MAX + 1];
 	/* Process local and distribution substitution files */
-	if (!path_provided) {
+	if (!path) {
 		rec->dist_subs =
 		    selabel_subs_init(selinux_file_context_subs_dist_path(),
 		    rec->dist_subs, rec->digest);
 		rec->subs = selabel_subs_init(selinux_file_context_subs_path(),
 		    rec->subs, rec->digest);
-		rec->spec_files[0] = strdup(selinux_file_context_path());
-		if (rec->spec_files[0] == NULL)
-			goto finish;
+		path = selinux_file_context_path();
 	} else {
-		for (i = 0; i < num_paths; i++) {
-			snprintf(subs_file, sizeof(subs_file), "%s.subs_dist", rec->spec_files[i]);
-			rec->dist_subs = selabel_subs_init(subs_file, rec->dist_subs, rec->digest);
-			snprintf(subs_file, sizeof(subs_file), "%s.subs", rec->spec_files[i]);
-			rec->subs = selabel_subs_init(subs_file, rec->subs, rec->digest);
-		}
+		snprintf(subs_file, sizeof(subs_file), "%s.subs_dist", path);
+		rec->dist_subs = selabel_subs_init(subs_file, rec->dist_subs,
+							    rec->digest);
+		snprintf(subs_file, sizeof(subs_file), "%s.subs", path);
+		rec->subs = selabel_subs_init(subs_file, rec->subs,
+							    rec->digest);
 	}
-#else
-	if (!path_provided) {
-		selinux_log(SELINUX_ERROR, "No path given to file labeling backend\n");
-		goto finish;
-	}
+
 #endif
+	rec->spec_file = strdup(path);
 
 	/*
-	 * Do detailed validation of the input and fill the spec array
+	 * The do detailed validation of the input and fill the spec array
 	 */
-	for (i = 0; i < num_paths; i++) {
-		status = process_file(rec->spec_files[i], NULL, rec, prefix, rec->digest);
+	status = process_file(path, NULL, rec, prefix, rec->digest);
+	if (status)
+		goto finish;
+
+	if (rec->validating) {
+		status = nodups_specs(data, path);
 		if (status)
 			goto finish;
-
-		if (rec->validating) {
-			status = nodups_specs(data, rec->spec_files[i]);
-			if (status)
-				goto finish;
-		}
 	}
 
 	if (!baseonly) {
-		status = process_file(rec->spec_files[0], "homedirs", rec, prefix,
+		status = process_file(path, "homedirs", rec, prefix,
 							    rec->digest);
 		if (status && errno != ENOENT)
 			goto finish;
 
-		status = process_file(rec->spec_files[0], "local", rec, prefix,
+		status = process_file(path, "local", rec, prefix,
 							    rec->digest);
 		if (status && errno != ENOENT)
 			goto finish;
