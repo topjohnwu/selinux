@@ -108,12 +108,10 @@ struct selabel_handle {
 	void *data;
 
 	/*
-	 * The main spec file(s) used. Note for file contexts the local and/or
+	 * The main spec file used. Note for file contexts the local and/or
 	 * homedirs could also have been used to resolve a context.
 	 */
-	size_t spec_files_len;
-	char **spec_files;
-
+	char *spec_file;
 
 	/* substitution support */
 	struct selabel_sub *dist_subs;
