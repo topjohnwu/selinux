@@ -43,7 +43,10 @@
  * setting credentials for app processes and setting permissions
  * on app data directories.
  */
-static char const * const seapp_contexts_file = "/seapp_contexts";
+static char const * const seapp_contexts_files[] = {
+	"/plat_seapp_contexts",
+	"/nonplat_seapp_contexts" // TODO, switch to diff partition when final
+};
 
 static const struct selinux_opt seopts =
     { SELABEL_OPT_PATH, "/file_contexts.bin" };
@@ -253,243 +256,257 @@ int selinux_android_seapp_context_reload(void)
 	unsigned lineno;
 	struct seapp_context *cur;
 	char *p, *name = NULL, *value = NULL, *saveptr;
-	size_t len;
+	size_t i, len, files_len;
 	int n, ret;
-
-	fp = fopen(seapp_contexts_file, "re");
-	if (!fp) {
-		selinux_log(SELINUX_ERROR, "%s:  could not open any seapp_contexts file", __FUNCTION__);
-		return -1;
-	}
 
 	free_seapp_contexts();
 
+	files_len = sizeof(seapp_contexts_files)/sizeof(seapp_contexts_files[0]);
 	nspec = 0;
-	while (fgets(line_buf, sizeof line_buf - 1, fp)) {
-		p = line_buf;
-		while (isspace(*p))
-			p++;
-		if (*p == '#' || *p == 0)
-			continue;
-		nspec++;
+	for (i = 0; i < files_len; i++) {
+		fp = fopen(seapp_contexts_files[i], "re");
+		if (!fp) {
+			selinux_log(SELINUX_ERROR, "%s:  could not open seapp_contexts file: %s",
+				    __FUNCTION__, seapp_contexts_files[i]);
+			return -1;
+		}
+		while (fgets(line_buf, sizeof line_buf - 1, fp)) {
+			p = line_buf;
+			while (isspace(*p))
+				p++;
+			if (*p == '#' || *p == 0)
+				continue;
+			nspec++;
+		}
+		fclose(fp);
 	}
 
 	seapp_contexts = (struct seapp_context **) calloc(nspec, sizeof(struct seapp_context *));
 	if (!seapp_contexts)
 		goto oom;
 
-	rewind(fp);
 	nspec = 0;
-	lineno = 1;
-	while (fgets(line_buf, sizeof line_buf - 1, fp)) {
-		len = strlen(line_buf);
-		if (line_buf[len - 1] == '\n')
-			line_buf[len - 1] = 0;
-		p = line_buf;
-		while (isspace(*p))
-			p++;
-		if (*p == '#' || *p == 0)
-			continue;
-
-		cur = (struct seapp_context *) calloc(1, sizeof(struct seapp_context));
-		if (!cur)
-			goto oom;
-
-		token = strtok_r(p, " \t", &saveptr);
-		if (!token) {
-			free_seapp_context(cur);
-			goto err;
+	for (i = 0; i < files_len; i++) {
+		lineno = 1;
+		fp = fopen(seapp_contexts_files[i], "re");
+		if (!fp) {
+			selinux_log(SELINUX_ERROR, "%s:  could not open seapp_contexts file: %s",
+				    __FUNCTION__, seapp_contexts_files[i]);
+			free_seapp_contexts();
+			return -1;
 		}
+		while (fgets(line_buf, sizeof line_buf - 1, fp)) {
+			len = strlen(line_buf);
+			if (line_buf[len - 1] == '\n')
+				line_buf[len - 1] = 0;
+			p = line_buf;
+			while (isspace(*p))
+				p++;
+			if (*p == '#' || *p == 0)
+				continue;
 
-		while (1) {
-			name = token;
-			value = strchr(name, '=');
-			if (!value) {
-				free_seapp_context(cur);
-				goto err;
-			}
-			*value++ = 0;
+			cur = (struct seapp_context *) calloc(1, sizeof(struct seapp_context));
+			if (!cur)
+				goto oom;
 
-			if (!strcasecmp(name, "isSystemServer")) {
-				if (!strcasecmp(value, "true"))
-					cur->isSystemServer = true;
-				else if (!strcasecmp(value, "false"))
-					cur->isSystemServer = false;
-				else {
-					free_seapp_context(cur);
-					goto err;
-				}
-			} else if (!strcasecmp(name, "isEphemeralApp")) {
-				cur->isEphemeralAppSet = true;
-				if (!strcasecmp(value, "true"))
-					cur->isEphemeralApp = true;
-				else if (!strcasecmp(value, "false"))
-					cur->isEphemeralApp = false;
-				else {
-					free_seapp_context(cur);
-					goto err;
-				}
-			} else if (!strcasecmp(name, "isOwner")) {
-				cur->isOwnerSet = true;
-				if (!strcasecmp(value, "true"))
-					cur->isOwner = true;
-				else if (!strcasecmp(value, "false"))
-					cur->isOwner = false;
-				else {
-					free_seapp_context(cur);
-					goto err;
-				}
-			} else if (!strcasecmp(name, "user")) {
-				if (cur->user.str) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				cur->user.str = strdup(value);
-				if (!cur->user.str) {
-					free_seapp_context(cur);
-					goto oom;
-				}
-				cur->user.len = strlen(cur->user.str);
-				if (cur->user.str[cur->user.len-1] == '*')
-					cur->user.is_prefix = 1;
-			} else if (!strcasecmp(name, "seinfo")) {
-				if (cur->seinfo) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				cur->seinfo = strdup(value);
-				if (!cur->seinfo) {
-					free_seapp_context(cur);
-					goto oom;
-				}
-				if (strstr(value, ":")) {
-					free_seapp_context(cur);
-					goto err;
-				}
-			} else if (!strcasecmp(name, "name")) {
-				if (cur->name.str) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				cur->name.str = strdup(value);
-				if (!cur->name.str) {
-					free_seapp_context(cur);
-					goto oom;
-				}
-				cur->name.len = strlen(cur->name.str);
-				if (cur->name.str[cur->name.len-1] == '*')
-					cur->name.is_prefix = 1;
-			} else if (!strcasecmp(name, "domain")) {
-				if (cur->domain) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				cur->domain = strdup(value);
-				if (!cur->domain) {
-					free_seapp_context(cur);
-					goto oom;
-				}
-			} else if (!strcasecmp(name, "type")) {
-				if (cur->type) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				cur->type = strdup(value);
-				if (!cur->type) {
-					free_seapp_context(cur);
-					goto oom;
-				}
-			} else if (!strcasecmp(name, "levelFromUid")) {
-				if (cur->levelFrom) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				if (!strcasecmp(value, "true"))
-					cur->levelFrom = LEVELFROM_APP;
-				else if (!strcasecmp(value, "false"))
-					cur->levelFrom = LEVELFROM_NONE;
-				else {
-					free_seapp_context(cur);
-					goto err;
-				}
-			} else if (!strcasecmp(name, "levelFrom")) {
-				if (cur->levelFrom) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				if (!strcasecmp(value, "none"))
-					cur->levelFrom = LEVELFROM_NONE;
-				else if (!strcasecmp(value, "app"))
-					cur->levelFrom = LEVELFROM_APP;
-				else if (!strcasecmp(value, "user"))
-					cur->levelFrom = LEVELFROM_USER;
-				else if (!strcasecmp(value, "all"))
-					cur->levelFrom = LEVELFROM_ALL;
-				else {
-					free_seapp_context(cur);
-					goto err;
-				}
-			} else if (!strcasecmp(name, "level")) {
-				if (cur->level) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				cur->level = strdup(value);
-				if (!cur->level) {
-					free_seapp_context(cur);
-					goto oom;
-				}
-			} else if (!strcasecmp(name, "path")) {
-				if (cur->path.str) {
-					free_seapp_context(cur);
-					goto err;
-				}
-				cur->path.str = strdup(value);
-				if (!cur->path.str) {
-					free_seapp_context(cur);
-					goto oom;
-				}
-				cur->path.len = strlen(cur->path.str);
-				if (cur->path.str[cur->path.len-1] == '*')
-					cur->path.is_prefix = 1;
-			} else if (!strcasecmp(name, "isPrivApp")) {
-				cur->isPrivAppSet = true;
-				if (!strcasecmp(value, "true"))
-					cur->isPrivApp = true;
-				else if (!strcasecmp(value, "false"))
-					cur->isPrivApp = false;
-				else {
-					free_seapp_context(cur);
-					goto err;
-				}
-			} else {
+			token = strtok_r(p, " \t", &saveptr);
+			if (!token) {
 				free_seapp_context(cur);
 				goto err;
 			}
 
-			token = strtok_r(NULL, " \t", &saveptr);
-			if (!token)
-				break;
-		}
+			while (1) {
+				name = token;
+				value = strchr(name, '=');
+				if (!value) {
+					free_seapp_context(cur);
+					goto err;
+				}
+				*value++ = 0;
 
-		if (cur->name.str &&
-		    (!cur->seinfo || !strcmp(cur->seinfo, "default"))) {
-			selinux_log(SELINUX_ERROR, "%s:  No specific seinfo value specified with name=\"%s\", on line %u:  insecure configuration!\n",
-				    seapp_contexts_file, cur->name.str, lineno);
-			free_seapp_context(cur);
-			goto err;
-		}
+				if (!strcasecmp(name, "isSystemServer")) {
+					if (!strcasecmp(value, "true"))
+						cur->isSystemServer = true;
+					else if (!strcasecmp(value, "false"))
+						cur->isSystemServer = false;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
+				} else if (!strcasecmp(name, "isEphemeralApp")) {
+					cur->isEphemeralAppSet = true;
+					if (!strcasecmp(value, "true"))
+						cur->isEphemeralApp = true;
+					else if (!strcasecmp(value, "false"))
+						cur->isEphemeralApp = false;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
+				} else if (!strcasecmp(name, "isOwner")) {
+					cur->isOwnerSet = true;
+					if (!strcasecmp(value, "true"))
+						cur->isOwner = true;
+					else if (!strcasecmp(value, "false"))
+						cur->isOwner = false;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
+				} else if (!strcasecmp(name, "user")) {
+					if (cur->user.str) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					cur->user.str = strdup(value);
+					if (!cur->user.str) {
+						free_seapp_context(cur);
+						goto oom;
+					}
+					cur->user.len = strlen(cur->user.str);
+					if (cur->user.str[cur->user.len-1] == '*')
+						cur->user.is_prefix = 1;
+				} else if (!strcasecmp(name, "seinfo")) {
+					if (cur->seinfo) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					cur->seinfo = strdup(value);
+					if (!cur->seinfo) {
+						free_seapp_context(cur);
+						goto oom;
+					}
+					if (strstr(value, ":")) {
+						free_seapp_context(cur);
+						goto err;
+					}
+				} else if (!strcasecmp(name, "name")) {
+					if (cur->name.str) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					cur->name.str = strdup(value);
+					if (!cur->name.str) {
+						free_seapp_context(cur);
+						goto oom;
+					}
+					cur->name.len = strlen(cur->name.str);
+					if (cur->name.str[cur->name.len-1] == '*')
+						cur->name.is_prefix = 1;
+				} else if (!strcasecmp(name, "domain")) {
+					if (cur->domain) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					cur->domain = strdup(value);
+					if (!cur->domain) {
+						free_seapp_context(cur);
+						goto oom;
+					}
+				} else if (!strcasecmp(name, "type")) {
+					if (cur->type) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					cur->type = strdup(value);
+					if (!cur->type) {
+						free_seapp_context(cur);
+						goto oom;
+					}
+				} else if (!strcasecmp(name, "levelFromUid")) {
+					if (cur->levelFrom) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					if (!strcasecmp(value, "true"))
+						cur->levelFrom = LEVELFROM_APP;
+					else if (!strcasecmp(value, "false"))
+						cur->levelFrom = LEVELFROM_NONE;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
+				} else if (!strcasecmp(name, "levelFrom")) {
+					if (cur->levelFrom) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					if (!strcasecmp(value, "none"))
+						cur->levelFrom = LEVELFROM_NONE;
+					else if (!strcasecmp(value, "app"))
+						cur->levelFrom = LEVELFROM_APP;
+					else if (!strcasecmp(value, "user"))
+						cur->levelFrom = LEVELFROM_USER;
+					else if (!strcasecmp(value, "all"))
+						cur->levelFrom = LEVELFROM_ALL;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
+				} else if (!strcasecmp(name, "level")) {
+					if (cur->level) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					cur->level = strdup(value);
+					if (!cur->level) {
+						free_seapp_context(cur);
+						goto oom;
+					}
+				} else if (!strcasecmp(name, "path")) {
+					if (cur->path.str) {
+						free_seapp_context(cur);
+						goto err;
+					}
+					cur->path.str = strdup(value);
+					if (!cur->path.str) {
+						free_seapp_context(cur);
+					goto oom;
+					}
+					cur->path.len = strlen(cur->path.str);
+					if (cur->path.str[cur->path.len-1] == '*')
+						cur->path.is_prefix = 1;
+				} else if (!strcasecmp(name, "isPrivApp")) {
+					cur->isPrivAppSet = true;
+					if (!strcasecmp(value, "true"))
+						cur->isPrivApp = true;
+					else if (!strcasecmp(value, "false"))
+						cur->isPrivApp = false;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
+				} else {
+					free_seapp_context(cur);
+					goto err;
+				}
 
-		seapp_contexts[nspec] = cur;
-		nspec++;
-		lineno++;
+				token = strtok_r(NULL, " \t", &saveptr);
+				if (!token)
+					break;
+			}
+
+			if (cur->name.str &&
+			    (!cur->seinfo || !strcmp(cur->seinfo, "default"))) {
+				selinux_log(SELINUX_ERROR, "%s:  No specific seinfo value specified with name=\"%s\", on line %u:  insecure configuration!\n",
+					    seapp_contexts_files[i], cur->name.str, lineno);
+				free_seapp_context(cur);
+				goto err;
+			}
+
+			seapp_contexts[nspec] = cur;
+			nspec++;
+			lineno++;
+		}
+		fclose(fp);
+		fp = NULL;
 	}
 
 	qsort(seapp_contexts, nspec, sizeof(struct seapp_context *),
 	      seapp_context_cmp);
 
 	if (seapp_contexts_dup)
-		goto err;
+		goto err_no_log;
 
 #if DEBUG
 	{
@@ -514,12 +531,15 @@ int selinux_android_seapp_context_reload(void)
 	ret = 0;
 
 out:
-	fclose(fp);
+	if (fp) {
+		fclose(fp);
+	}
 	return ret;
 
 err:
 	selinux_log(SELINUX_ERROR, "%s:  Invalid entry on line %u\n",
-		    seapp_contexts_file, lineno);
+		    seapp_contexts_files[i], lineno);
+err_no_log:
 	free_seapp_contexts();
 	ret = -1;
 	goto out;
