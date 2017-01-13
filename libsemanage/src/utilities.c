@@ -26,7 +26,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <assert.h>
-#include <ustr.h>
 
 #define TRUE 1
 #define FALSE 0
@@ -74,64 +73,32 @@ char *semanage_split_on_space(const char *str)
 {
 	/* as per the man page, these are the isspace() chars */
 	const char *seps = "\f\n\r\t\v ";
-	size_t slen = strlen(seps);
-	size_t off = 0, rside_len = 0;
-	char *retval = NULL;
-	Ustr *ustr = USTR_NULL, *temp = USTR_NULL;
+	size_t off = 0;
 
 	if (!str)
-		goto done;
-	if (!(ustr = ustr_dup_cstr(str)))
-		goto done;
-	temp =
-	    ustr_split_spn_chrs(ustr, &off, seps, slen, USTR_NULL,
-				USTR_FLAG_SPLIT_DEF);
-	if (!temp)
-		goto done;
-	/* throw away the left hand side */
-	ustr_sc_free(&temp);
+		return NULL;
 
-	rside_len = ustr_len(ustr) - off;
-	temp = ustr_dup_subustr(ustr, off + 1, rside_len);
-	if (!temp)
-		goto done;
-	retval = strdup(ustr_cstr(temp));
-	ustr_sc_free(&temp);
-
-      done:
-	ustr_sc_free(&ustr);
-	return retval;
+	/* skip one token and the spaces before and after it */
+	off = strspn(str, seps);
+	off += strcspn(str + off, seps);
+	off += strspn(str + off, seps);
+	return strdup(str + off);
 }
 
 char *semanage_split(const char *str, const char *delim)
 {
-	Ustr *ustr = USTR_NULL, *temp = USTR_NULL;
-	size_t off = 0, rside_len = 0;
-	char *retval = NULL;
+	char *retval;
 
 	if (!str)
-		goto done;
+		return NULL;
 	if (!delim || !(*delim))
 		return semanage_split_on_space(str);
-	ustr = ustr_dup_cstr(str);
-	temp =
-	    ustr_split_cstr(ustr, &off, delim, USTR_NULL, USTR_FLAG_SPLIT_DEF);
-	if (!temp)
-		goto done;
-	/* throw away the left hand side */
-	ustr_sc_free(&temp);
 
-	rside_len = ustr_len(ustr) - off;
+	retval = strstr(str, delim);
+	if (retval == NULL)
+		return NULL;
 
-	temp = ustr_dup_subustr(ustr, off + 1, rside_len);
-	if (!temp)
-		goto done;
-	retval = strdup(ustr_cstr(temp));
-	ustr_sc_free(&temp);
-
-      done:
-	ustr_sc_free(&ustr);
-	return retval;
+	return strdup(retval + strlen(delim));
 }
 
 int semanage_list_push(semanage_list_t ** list, const char *data)
@@ -261,6 +228,61 @@ void semanage_rtrim(char *str, char trim_to)
 			return;
 		}
 	}
+}
+
+char *semanage_str_replace(const char *search, const char *replace,
+			   const char *src, size_t lim)
+{
+	size_t count = 0, slen, rlen, newsize;
+	char *p, *pres, *result;
+	const char *psrc;
+
+	slen = strlen(search);
+	rlen = strlen(replace);
+
+	/* Do not support empty search strings */
+	if (slen == 0)
+		return NULL;
+
+	/* Count the occurences of search in src and compute the new size */
+	for (p = strstr(src, search); p != NULL; p = strstr(p + slen, search)) {
+		count++;
+		if (lim && count >= lim)
+			break;
+	}
+	if (!count)
+		return strdup(src);
+
+	/* Allocate the result string */
+	newsize = strlen(src) + 1 + count * (rlen - slen);
+	result = malloc(newsize);
+	if (!result)
+		return NULL;
+
+	/* Fill the result */
+	psrc = src;
+	pres = result;
+	for (p = strstr(src, search); p != NULL; p = strstr(psrc, search)) {
+		/* Copy the part which has not been modified */
+		if (p != psrc) {
+			size_t length = (size_t)(p - psrc);
+			memcpy(pres, psrc, length);
+			pres += length;
+		}
+		/* Copy the replacement part */
+		if (rlen != 0) {
+			memcpy(pres, replace, rlen);
+			pres += rlen;
+		}
+		psrc = p + slen;
+		count--;
+		if (!count)
+			break;
+	}
+	/* Copy the last part, after doing a sanity check */
+	assert(pres + strlen(psrc) + 1 == result + newsize);
+	strcpy(pres, psrc);
+	return result;
 }
 
 /* list_addafter_controlmem does *NOT* duplicate the data argument

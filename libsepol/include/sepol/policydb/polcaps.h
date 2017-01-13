@@ -9,7 +9,7 @@ extern "C" {
 enum {
 	POLICYDB_CAPABILITY_NETPEER,
 	POLICYDB_CAPABILITY_OPENPERM,
-	POLICYDB_CAPABILITY_REDHAT1, /* reserved for RH testing of ptrace_child */
+	POLICYDB_CAPABILITY_EXTSOCKCLASS,
 	POLICYDB_CAPABILITY_ALWAYSNETWORK,
 	__POLICYDB_CAPABILITY_MAX
 };
@@ -19,7 +19,7 @@ enum {
 extern int sepol_polcap_getnum(const char *name);
 
 /* Convert a capability number to name. */
-extern const char *sepol_polcap_getname(int capnum);
+extern const char *sepol_polcap_getname(unsigned int capnum);
 
 #ifdef __cplusplus
 }
