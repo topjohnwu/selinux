@@ -1232,6 +1232,7 @@ int define_typealias(void)
 		free(id);
 		return -1;
 	}
+	free(id);
 	return add_aliases_to_type(t);
 }
 
@@ -1263,6 +1264,7 @@ int define_typeattribute(void)
 		free(id);
 		return -1;
 	}
+	free(id);
 
 	while ((id = queue_remove(id_queue))) {
 		if (!is_id_in_scope(SYM_TYPES, id)) {
@@ -1459,25 +1461,25 @@ static int set_types(type_set_t * set, char *id, int *add, char starallowed)
 	type_datum_t *t;
 
 	if (strcmp(id, "*") == 0) {
+		free(id);
 		if (!starallowed) {
 			yyerror("* not allowed in this type of rule");
 			return -1;
 		}
 		/* set TYPE_STAR flag */
 		set->flags = TYPE_STAR;
-		free(id);
 		*add = 1;
 		return 0;
 	}
 
 	if (strcmp(id, "~") == 0) {
+		free(id);
 		if (!starallowed) {
 			yyerror("~ not allowed in this type of rule");
 			return -1;
 		}
 		/* complement the set */
 		set->flags = TYPE_COMP;
-		free(id);
 		*add = 1;
 		return 0;
 	}
@@ -1570,8 +1572,10 @@ int define_compute_type_helper(int which, avrule_t ** rule)
 						(hashtab_key_t) id);
 	if (!datum || datum->flavor == TYPE_ATTRIB) {
 		yyerror2("unknown type %s", id);
+		free(id);
 		goto bad;
 	}
+	free(id);
 
 	ebitmap_for_each_bit(&tclasses, node, i) {
 		if (ebitmap_node_get_bit(node, i)) {
@@ -1704,11 +1708,11 @@ int define_bool_tunable(int is_tunable)
 	bool_value = (char *)queue_remove(id_queue);
 	if (!bool_value) {
 		yyerror("no default value for bool definition?");
-		free(id);
 		return -1;
 	}
 
 	datum->state = (int)(bool_value[0] == 'T') ? 1 : 0;
+	free(bool_value);
 	return 0;
       cleanup:
 	cond_destroy_bool(id, datum, NULL);
@@ -2389,11 +2393,12 @@ int define_te_avtab_extended_perms(int which)
 
 	id = queue_remove(id_queue);
 	if (strcmp(id,"ioctl") == 0) {
+		free(id);
 		if (define_te_avtab_ioctl(avrule_template))
 			return -1;
-		free(id);
 	} else {
 		yyerror("only ioctl extended permissions are supported");
+		free(id);
 		return -1;
 	}
 	return 0;
@@ -3090,13 +3095,16 @@ int define_role_trans(int class_specified)
 	role = hashtab_search(policydbp->p_roles.table, id);
 	if (!role) {
 		yyerror2("unknown role %s used in transition definition", id);
+		free(id);
 		goto bad;
 	}
 
 	if (role->flavor != ROLE_ROLE) {
 		yyerror2("the new role %s must be a regular role", id);
+		free(id);
 		goto bad;
 	}
+	free(id);
 
 	/* This ebitmap business is just to ensure that there are not conflicting role_trans rules */
 	if (role_set_expand(&roles, &e_roles, policydbp, NULL, NULL))
@@ -4899,8 +4907,7 @@ int define_port_context(unsigned int low, unsigned int high)
 		protocol = IPPROTO_DCCP;
 	} else {
 		yyerror2("unrecognized protocol %s", id);
-		free(newc);
-		return -1;
+		goto bad;
 	}
 
 	newc->u.port.protocol = protocol;
@@ -4909,13 +4916,11 @@ int define_port_context(unsigned int low, unsigned int high)
 
 	if (low > high) {
 		yyerror2("low port %d exceeds high port %d", low, high);
-		free(newc);
-		return -1;
+		goto bad;
 	}
 
 	if (parse_security_context(&newc->context[0])) {
-		free(newc);
-		return -1;
+		goto bad;
 	}
 
 	/* Preserve the matching order specified in the configuration. */
@@ -4945,9 +4950,11 @@ int define_port_context(unsigned int low, unsigned int high)
 	else
 		policydbp->ocontexts[OCON_PORT] = newc;
 
+	free(id);
 	return 0;
 
       bad:
+	free(id);
 	free(newc);
 	return -1;
 }
@@ -5283,6 +5290,9 @@ int define_genfs_context_helper(char *fstype, int has_type)
 		else
 			policydbp->genfs = newgenfs;
 		genfs = newgenfs;
+	} else {
+		free(fstype);
+		fstype = NULL;
 	}
 
 	newc = (ocontext_t *) malloc(sizeof(ocontext_t));
@@ -5340,7 +5350,7 @@ int define_genfs_context_helper(char *fstype, int has_type)
 		    (!newc->v.sclass || !c->v.sclass
 		     || newc->v.sclass == c->v.sclass)) {
 			yyerror2("duplicate entry for genfs entry (%s, %s)",
-				 fstype, newc->u.name);
+				 genfs->fstype, newc->u.name);
 			goto fail;
 		}
 		len = strlen(newc->u.name);
@@ -5354,6 +5364,7 @@ int define_genfs_context_helper(char *fstype, int has_type)
 		p->next = newc;
 	else
 		genfs->head = newc;
+	free(type);
 	return 0;
       fail:
 	if (type)
