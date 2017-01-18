@@ -122,6 +122,8 @@ cc_library {
 
             local_include_dirs: [ "src" ],
 
+            version_script: "exported.map",
+
             // 1003 corresponds to auditd, from system/core/logd/event.logtags
             cflags: [
                 "-DAUDITD_LOG_TAG=1003",
