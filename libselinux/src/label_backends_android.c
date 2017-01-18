@@ -47,7 +47,7 @@ static int cmp(const void *A, const void *B)
 /*
  * Warn about duplicate specifications.
  */
-static int nodups_specs(struct saved_data *data, const char *path)
+static int nodups_specs(struct saved_data *data)
 {
 	int rc = 0;
 	unsigned int ii, jj;
@@ -64,15 +64,15 @@ static int nodups_specs(struct saved_data *data, const char *path)
 						    curr_spec->lr.ctx_raw)) {
 					selinux_log
 						(SELINUX_ERROR,
-						 "%s: Multiple different specifications for %s  (%s and %s).\n",
-						 path, curr_spec->property_key,
+						 "Multiple different specifications for %s  (%s and %s).\n",
+						 curr_spec->property_key,
 						 spec_arr[jj].lr.ctx_raw,
 						 curr_spec->lr.ctx_raw);
 				} else {
 					selinux_log
 						(SELINUX_ERROR,
-						 "%s: Multiple same specifications for %s.\n",
-						 path, curr_spec->property_key);
+						 "Multiple same specifications for %s.\n",
+						 curr_spec->property_key);
 				}
 			}
 		}
@@ -130,33 +130,23 @@ static int process_line(struct selabel_handle *rec,
 				return -1;
 			}
 		}
+
+		data->nspec = ++nspec;
 	}
 
-	data->nspec = ++nspec;
 	return 0;
 }
 
-static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
-		unsigned n)
+static int process_file(struct selabel_handle *rec, const char *path)
 {
 	struct saved_data *data = (struct saved_data *)rec->data;
-	const char *path = NULL;
-	FILE *fp;
 	char line_buf[BUFSIZ];
 	unsigned int lineno, maxnspec, pass;
-	int status = -1;
 	struct stat sb;
-
-	/* Process arguments */
-	while (n--)
-		switch (opts[n].type) {
-		case SELABEL_OPT_PATH:
-			path = opts[n].value;
-			break;
-		}
-
-	if (!path)
-		return -1;
+	FILE *fp;
+	int status = -1;
+	unsigned int nspec;
+	spec_t *spec_arr;
 
 	/* Open the specification file. */
 	if ((fp = fopen(path, "r")) == NULL)
@@ -164,60 +154,116 @@ static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 
 	if (fstat(fileno(fp), &sb) < 0)
 		goto finish;
+
 	errno = EINVAL;
+
 	if (!S_ISREG(sb.st_mode))
 		goto finish;
 
 	/*
-	 * Two passes of the specification file. First is to get the size.
-	 * After the first pass, the spec array is malloced to the appropriate
-	 * size. Second pass is to populate the spec array and check for
-	 * dups.
+	 * Two passes per specification file. First is to get the size.
+	 * After the first pass, the spec array is malloced / realloced to
+	 * the appropriate size. Second pass is to populate the spec array.
 	 */
 	maxnspec = UINT_MAX / sizeof(spec_t);
 	for (pass = 0; pass < 2; pass++) {
-		data->nspec = 0;
+		nspec = 0;
 		lineno = 0;
 
-		while (fgets(line_buf, sizeof(line_buf) - 1, fp)
-		       && data->nspec < maxnspec) {
-			if (process_line(rec, path, line_buf, pass, ++lineno)
-									  != 0)
+		while (fgets(line_buf, sizeof(line_buf) - 1, fp) &&
+			nspec < maxnspec) {
+			if (process_line(rec, path, line_buf, pass, ++lineno))
 				goto finish;
-		}
-
-		if (pass == 1) {
-			status = nodups_specs(data, path);
-
-			if (status)
-				goto finish;
+			nspec++;
 		}
 
 		if (pass == 0) {
-			if (data->nspec == 0) {
+			if (nspec == 0) {
 				status = 0;
 				goto finish;
 			}
 
-			if (NULL == (data->spec_arr =
-				     calloc(data->nspec, sizeof(spec_t))))
+			/* grow spec array if required */
+			spec_arr = realloc(data->spec_arr,
+					(data->nspec + nspec) * sizeof(spec_t));
+			if (spec_arr == NULL)
 				goto finish;
 
-			maxnspec = data->nspec;
+			memset(&spec_arr[data->nspec], 0, nspec * sizeof(spec_t));
+			data->spec_arr = spec_arr;
+			maxnspec = nspec;
 			rewind(fp);
 		}
 	}
 
-	qsort(data->spec_arr, data->nspec, sizeof(struct spec), cmp);
-
 	status = digest_add_specfile(rec->digest, fp, NULL, sb.st_size, path);
+
+finish:
+	fclose(fp);
+	return status;
+}
+
+static void closef(struct selabel_handle *rec);
+
+static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
+		unsigned n)
+{
+	struct saved_data *data = (struct saved_data *)rec->data;
+	char **paths = NULL;
+	size_t num_paths = 0;
+	int status = -1;
+	size_t i;
+
+	/* Process arguments */
+	i = n;
+	while (i--) {
+		switch (opts[i].type) {
+		case SELABEL_OPT_PATH:
+			num_paths++;
+			break;
+		}
+	}
+
+	if (!num_paths)
+		return -1;
+
+	paths = calloc(num_paths, sizeof(*paths));
+	if (!paths)
+		return -1;
+
+	rec->spec_files = paths;
+	rec->spec_files_len = num_paths;
+
+	i = n;
+	while (i--) {
+		switch(opts[i].type) {
+		case SELABEL_OPT_PATH:
+			*paths = strdup(opts[i].value);
+			if (*paths == NULL)
+				goto finish;
+			paths++;
+		}
+	}
+
+	for (i = 0; i < num_paths; i++) {
+		status = process_file(rec, rec->spec_files[i]);
+		if (status)
+			goto finish;
+	}
+
+	/* warn about duplicates after all files have been processed. */
+	status = nodups_specs(data);
 	if (status)
 		goto finish;
+
+	qsort(data->spec_arr, data->nspec, sizeof(struct spec), cmp);
 
 	digest_gen_hash(rec->digest);
 
 finish:
-	fclose(fp);
+	if (status)
+		closef(rec);
+
 	return status;
 }
 
@@ -230,15 +276,16 @@ static void closef(struct selabel_handle *rec)
 	struct spec *spec;
 	unsigned int i;
 
-	for (i = 0; i < data->nspec; i++) {
-		spec = &data->spec_arr[i];
-		free(spec->property_key);
-		free(spec->lr.ctx_raw);
-		free(spec->lr.ctx_trans);
-	}
+	if (data->spec_arr) {
+		for (i = 0; i < data->nspec; i++) {
+			spec = &data->spec_arr[i];
+			free(spec->property_key);
+			free(spec->lr.ctx_raw);
+			free(spec->lr.ctx_trans);
+		}
 
-	if (data->spec_arr)
 		free(data->spec_arr);
+	}
 
 	free(data);
 }
