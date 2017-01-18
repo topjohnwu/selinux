@@ -56,8 +56,13 @@ static const char *const sepolicy_file = "/sepolicy";
 static const struct selinux_opt seopts_prop =
     { SELABEL_OPT_PATH, "/property_contexts" };
 
-static const struct selinux_opt seopts_service =
-    { SELABEL_OPT_PATH, "/service_contexts" };
+/* TODO: Change file paths to /system/plat_service_contexts
+ * and /vendor/nonplat_service_contexts after b/27805372
+ */
+static const struct selinux_opt seopts_service[] = {
+    { SELABEL_OPT_PATH, "/plat_service_contexts" },
+    { SELABEL_OPT_PATH, "/nonplat_service_contexts" }
+};
 
 enum levelFrom {
 	LEVELFROM_NONE,
@@ -1477,15 +1482,15 @@ struct selabel_handle* selinux_android_service_context_handle(void)
     struct selabel_handle* sehandle;
 
     sehandle = selabel_open(SELABEL_CTX_ANDROID_SERVICE,
-            &seopts_service, 1);
+            seopts_service, 2);
 
     if (!sehandle) {
         selinux_log(SELINUX_ERROR, "%s: Error getting service context handle (%s)\n",
                 __FUNCTION__, strerror(errno));
         return NULL;
     }
-    selinux_log(SELINUX_INFO, "SELinux: Loaded service_contexts from %s.\n",
-            seopts_service.value);
+    selinux_log(SELINUX_INFO, "SELinux: Loaded service_contexts from %s & %s.\n",
+            seopts_service[0].value, seopts_service[1].value);
 
     return sehandle;
 }
