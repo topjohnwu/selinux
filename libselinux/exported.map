@@ -24,6 +24,7 @@
     security_getenforce;
     security_setenforce;
     security_load_policy;
+    security_policyvers;
     selinux_log_callback;
     selinux_set_callback;
     selinux_status_open;
