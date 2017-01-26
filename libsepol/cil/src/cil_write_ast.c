@@ -632,6 +632,12 @@ int cil_write_type(struct cil_tree_node *node, FILE *cil_out) {
 	return SEPOL_OK;
 }
 
+int cil_write_typepermissive(struct cil_tree_node *node, FILE *cil_out) {
+	struct cil_typepermissive *type = (struct cil_typepermissive *)node->data;
+	fprintf(cil_out, "(%s %s)\n", CIL_KEY_TYPEPERMISSIVE, type->type_str);
+	return SEPOL_OK;
+}
+
 int cil_write_typeattribute(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_typeattribute *typeattr = (struct cil_typeattribute *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_TYPEATTRIBUTE, typeattr->datum.name);
@@ -1255,7 +1261,7 @@ int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void
 		fprintf(cil_out, "CIL_TYPEBOUNDS ");
 		break;
 	case CIL_TYPEPERMISSIVE:
-		fprintf(cil_out, "CIL_TYPEPERMISSIVE ");
+		rc = cil_write_typepermissive(node, cil_out);
 		break;
 	case CIL_TYPEATTRIBUTE:
 		rc = cil_write_typeattribute(node, cil_out);
