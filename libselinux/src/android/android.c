@@ -53,8 +53,13 @@ static const struct selinux_opt seopts =
 
 static const char *const sepolicy_file = "/sepolicy";
 
-static const struct selinux_opt seopts_prop =
-    { SELABEL_OPT_PATH, "/property_contexts" };
+/* TODO: Change file paths to /system/property_contexts
+ * and /vendor/property_contexts after b/27805372
+ */
+static const struct selinux_opt seopts_prop[] = {
+    { SELABEL_OPT_PATH, "/plat_property_contexts" },
+    { SELABEL_OPT_PATH, "/nonplat_property_contexts"}
+};
 
 /* TODO: Change file paths to /system/plat_service_contexts
  * and /vendor/nonplat_service_contexts after b/27805372
@@ -1465,14 +1470,14 @@ struct selabel_handle* selinux_android_prop_context_handle(void)
     struct selabel_handle* sehandle;
 
     sehandle = selabel_open(SELABEL_CTX_ANDROID_PROP,
-            &seopts_prop, 1);
+            seopts_prop, 2);
     if (!sehandle) {
         selinux_log(SELINUX_ERROR, "%s: Error getting property context handle (%s)\n",
                 __FUNCTION__, strerror(errno));
         return NULL;
     }
-    selinux_log(SELINUX_INFO, "SELinux: Loaded property_contexts from %s.\n",
-            seopts_prop.value);
+    selinux_log(SELINUX_INFO, "SELinux: Loaded property_contexts from %s & %s.\n",
+            seopts_prop[0].value, seopts_prop[1].value);
 
     return sehandle;
 }
