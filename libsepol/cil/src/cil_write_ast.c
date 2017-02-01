@@ -10,13 +10,13 @@ struct cil_args_write {
 	struct cil_db *db;
 };
 
-int cil_unfill_expr(struct cil_list *expr_str, char **out_str, int paren);
-int cil_unfill_classperms_list(struct cil_list *classperms, char **out_str, int paren);
-int __cil_write_first_child_helper(struct cil_tree_node *node, void *extra_args);
-int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void *extra_args);
-int __cil_write_last_child_helper(struct cil_tree_node *node, void *extra_args);
+static int cil_unfill_expr(struct cil_list *expr_str, char **out_str, int paren);
+static int cil_unfill_classperms_list(struct cil_list *classperms, char **out_str, int paren);
+static int __cil_write_first_child_helper(struct cil_tree_node *node, void *extra_args);
+static int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void *extra_args);
+static int __cil_write_last_child_helper(struct cil_tree_node *node, void *extra_args);
 
-int __cil_strlist_concat(struct cil_list *str_list, char **out_str, int paren) {
+static int __cil_strlist_concat(struct cil_list *str_list, char **out_str, int paren) {
 	size_t len = paren ? 3 : 1;
 	size_t num_elems = 0;
 	char *p = NULL;
@@ -48,7 +48,7 @@ int __cil_strlist_concat(struct cil_list *str_list, char **out_str, int paren) {
 	return SEPOL_OK;
 }
 
-int __cil_unfill_expr_helper(struct cil_list_item *curr,
+static int __cil_unfill_expr_helper(struct cil_list_item *curr,
 			     struct cil_list_item **next, char **out_str, int paren) {
 	int rc = SEPOL_ERR;
 	char *str = NULL;
@@ -227,7 +227,7 @@ exit:
 	return rc;
 }
 
-int cil_unfill_expr(struct cil_list *expr_str, char **out_str, int paren) {
+static int cil_unfill_expr(struct cil_list *expr_str, char **out_str, int paren) {
 	int rc = SEPOL_ERR;
 
 	/* reuse cil_list to keep track of strings */
@@ -261,11 +261,11 @@ exit:
 	return rc;
 }
 
-int cil_unfill_cats(struct cil_cats *cats, char **out_str) {
+static int cil_unfill_cats(struct cil_cats *cats, char **out_str) {
 	return cil_unfill_expr(cats->str_expr, out_str, 0);
 }
 
-int cil_unfill_level(struct cil_level *lvl, char **out_str) {
+static int cil_unfill_level(struct cil_level *lvl, char **out_str) {
 	int rc = SEPOL_ERR;
 	size_t len = 0;
 	char *sens, *cats = NULL;
@@ -297,7 +297,7 @@ exit:
 	return rc;
 }
 
-int cil_unfill_levelrange(struct cil_levelrange *lvlrnge, char **out_str) {
+static int cil_unfill_levelrange(struct cil_levelrange *lvlrnge, char **out_str) {
 	int rc = SEPOL_ERR;
 	size_t len = 0;
 	char *low = NULL, *high = NULL;
@@ -339,7 +339,7 @@ exit:
 	return rc;
 }
 
-int cil_unfill_context(struct cil_context *context, char **out_str) {
+static int cil_unfill_context(struct cil_context *context, char **out_str) {
 	int rc = SEPOL_ERR;
 	size_t len = 0;
 	char *user_str, *role_str, *type_str;
@@ -374,7 +374,7 @@ exit:
 	return rc;
 }
 
-int cil_unfill_permx(struct cil_permissionx *permx, char **out_str) {
+static int cil_unfill_permx(struct cil_permissionx *permx, char **out_str) {
 	size_t len = 3;
 	int rc = SEPOL_ERR;
 	char *kind, *obj;
@@ -415,13 +415,13 @@ static int _cil_write_unsupported(const char *flavor, int line) {
 	return SEPOL_ENOTSUP;
 }
 
-int cil_write_policycap(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_policycap(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_policycap *polcap = (struct cil_policycap *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_POLICYCAP, polcap->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_perm(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_perm(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_perm *perm = (struct cil_perm *)node->data;
 	fprintf(cil_out, "%s", perm->datum.name);
 	if (node->next != NULL)
@@ -430,7 +430,7 @@ int cil_write_perm(struct cil_tree_node *node, FILE *cil_out) {
 }
 
 
-int cil_write_class(struct cil_tree_node *node, uint32_t *finished,
+static int cil_write_class(struct cil_tree_node *node, uint32_t *finished,
 		     struct cil_args_write *extra_args) {
 	int rc = SEPOL_ERR;
 	FILE *cil_out = extra_args->cil_out;
@@ -462,7 +462,7 @@ exit:
 	return rc;
 }
 
-int cil_write_classorder(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_classorder(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *ord_str = NULL;
 	struct cil_classorder *classord = (struct cil_classorder *)node->data;
@@ -478,20 +478,20 @@ exit:
 	return rc;
 }
 
-int cil_write_classcommon(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_classcommon(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_classcommon *classcommon = (struct cil_classcommon *)node->data;
 	fprintf(cil_out, "(%s %s %s)\n", CIL_KEY_CLASSCOMMON, classcommon->class_str,
 		classcommon->common_str);
 	return SEPOL_OK;
 }
 
-int cil_write_sid(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_sid(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_sid *sid = (struct cil_sid *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_SID, sid->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_sidcontext(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_sidcontext(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *sid;
 	char *ctx_str = NULL;
@@ -517,7 +517,7 @@ exit:
 	return rc;
 }
 
-int cil_write_sidorder(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_sidorder(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *ord_str = NULL;
 	struct cil_sidorder *sidord = (struct cil_sidorder *)node->data;
@@ -533,20 +533,20 @@ exit:
 	return rc;
 }
 
-int cil_write_user(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_user(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_user *user = (struct cil_user *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_USER, user->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_userrole(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_userrole(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_userrole *userrole = (struct cil_userrole *)node->data;
 	fprintf(cil_out, "(%s %s %s)\n", CIL_KEY_USERROLE, userrole->user_str,
 		userrole->role_str);
 	return SEPOL_OK;
 }
 
-int cil_write_userlevel(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_userlevel(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_userlevel *usrlvl = (struct cil_userlevel *)node->data;
 	int rc = SEPOL_ERR;
 	char *usr;
@@ -572,7 +572,7 @@ exit:
 	return rc;
 }
 
-int cil_write_userrange(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_userrange(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_userrange *usrrng = (struct cil_userrange *)node->data;
 	int rc = SEPOL_ERR;
 	char *usr;
@@ -598,43 +598,43 @@ exit:
 	return rc;
 }
 
-int cil_write_role(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_role(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_role *role = (struct cil_role *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_ROLE, role->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_roletype(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_roletype(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_roletype *roletype = (struct cil_roletype *)node->data;
 	fprintf(cil_out, "(%s %s %s)\n", CIL_KEY_ROLETYPE, roletype->role_str, roletype->type_str);
 	return SEPOL_OK;
 }
 
-int cil_write_roleattribute(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_roleattribute(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_roleattribute *roleattr = (struct cil_roleattribute *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_ROLEATTRIBUTE, roleattr->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_type(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_type(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_type *type = (struct cil_type *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_TYPE, type->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_typepermissive(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_typepermissive(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_typepermissive *type = (struct cil_typepermissive *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_TYPEPERMISSIVE, type->type_str);
 	return SEPOL_OK;
 }
 
-int cil_write_typeattribute(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_typeattribute(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_typeattribute *typeattr = (struct cil_typeattribute *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_TYPEATTRIBUTE, typeattr->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_typeattributeset(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_typeattributeset(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *typeattr;
 	char *set_str = NULL;
@@ -652,7 +652,7 @@ exit:
 	return rc;
 }
 
-int cil_write_alias(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_alias(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *type;
 	struct cil_alias *alias = (struct cil_alias *)node->data;
@@ -679,7 +679,7 @@ exit:
 	return rc;
 }
 
-int cil_write_aliasactual(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_aliasactual(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *type, *alias, *actual;
 	struct cil_aliasactual *aliasact = (struct cil_aliasactual *)node->data;
@@ -708,7 +708,7 @@ exit:
 	return rc;
 }
 
-int cil_write_nametypetransition(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_nametypetransition(struct cil_tree_node *node, FILE *cil_out) {
 	char *src, *tgt, *obj, *res, *name;
 	struct cil_nametypetransition *ntrans = (struct cil_nametypetransition *)node->data;
 
@@ -722,7 +722,7 @@ int cil_write_nametypetransition(struct cil_tree_node *node, FILE *cil_out) {
 	return SEPOL_OK;
 }
 
-int cil_write_avrule_x(struct cil_avrule *avrule, FILE *cil_out) {
+static int cil_write_avrule_x(struct cil_avrule *avrule, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *rulekind, *src, *tgt;
 	char *xperms = NULL;
@@ -768,7 +768,7 @@ exit:
 	return rc;
 }
 
-int cil_write_avrule_orig(struct cil_avrule *avrule, FILE *cil_out) {
+static int cil_write_avrule_orig(struct cil_avrule *avrule, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *rulekind, *src, *tgt;
 	char *classperms = NULL;
@@ -805,7 +805,7 @@ exit:
 	return rc;
 }
 
-int cil_write_avrule(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_avrule(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	struct cil_avrule *avrule = (struct cil_avrule *)node->data;
 
@@ -816,7 +816,7 @@ int cil_write_avrule(struct cil_tree_node *node, FILE *cil_out) {
 	return rc;
 }
 
-int cil_write_type_rule(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_type_rule(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *type, *src, *tgt, *obj, *res;
 	struct cil_type_rule *typerule = (struct cil_type_rule *)node->data;
@@ -847,19 +847,19 @@ exit:
 	return rc;
 }
 
-int cil_write_sens(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_sens(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_sens *sens = (struct cil_sens *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_SENSITIVITY, sens->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_cat(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_cat(struct cil_tree_node *node, FILE *cil_out) {
 	struct cil_cat *cat = (struct cil_cat *)node->data;
 	fprintf(cil_out, "(%s %s)\n", CIL_KEY_CATEGORY, cat->datum.name);
 	return SEPOL_OK;
 }
 
-int cil_write_senscat(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_senscat(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *sens;
 	char *cats = NULL;
@@ -877,7 +877,7 @@ exit:
 	return rc;
 }
 
-int cil_write_catorder(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_catorder(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *ord_str = NULL;
 	struct cil_catorder *catord = (struct cil_catorder *)node->data;
@@ -893,7 +893,7 @@ exit:
 	return rc;
 }
 
-int cil_write_sensorder(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_sensorder(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *ord_str = NULL;
 	struct cil_sensorder *sensord = (struct cil_sensorder *)node->data;
@@ -909,7 +909,7 @@ exit:
 	return rc;
 }
 
-int cil_write_genfscon(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_genfscon(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	char *ctx_str = NULL;
 
@@ -934,7 +934,7 @@ exit:
 	return rc;
 }
 
-int cil_unfill_classperms(struct cil_list_item *curr, char **out_str) {
+static int cil_unfill_classperms(struct cil_list_item *curr, char **out_str) {
 	int rc = SEPOL_ERR;
 	size_t len = 3;
 	char *class_str;
@@ -957,7 +957,7 @@ exit:
 	return rc;
 }
 
-int cil_unfill_classperms_list(struct cil_list *classperms, char **out_str, int paren) {
+static int cil_unfill_classperms_list(struct cil_list *classperms, char **out_str, int paren) {
 	int rc = SEPOL_ERR;
 	struct cil_list_item *curr;
 	char *str = NULL;
@@ -999,7 +999,7 @@ exit:
 	return rc;
 }
 
-int cil_write_fsuse(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_fsuse(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	struct cil_fsuse *fsuse = (struct cil_fsuse *)node->data;
 	char *type, *fsname;
@@ -1041,7 +1041,7 @@ exit:
 	return rc;
 }
 
-int cil_write_constrain(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_constrain(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_ERR;
 	struct cil_constrain *cons = (struct cil_constrain *)node->data;
 	char *flav;
@@ -1065,7 +1065,7 @@ exit:
 	return rc;
 }
 
-int cil_write_handleunknown(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_handleunknown(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_OK;
 	struct cil_handleunknown *handunknown = (struct cil_handleunknown *)node->data;
 	char *val = NULL;
@@ -1091,7 +1091,7 @@ exit:
 	return rc;
 }
 
-int cil_write_mls(struct cil_tree_node *node, FILE *cil_out) {
+static int cil_write_mls(struct cil_tree_node *node, FILE *cil_out) {
 	int rc = SEPOL_OK;
 	struct cil_mls *mls = (struct cil_mls *)node->data;
 	char *val = NULL;
@@ -1113,7 +1113,7 @@ exit:
 	return rc;
 }
 
-int __cil_write_first_child_helper(struct cil_tree_node *node, void *extra_args)
+static int __cil_write_first_child_helper(struct cil_tree_node *node, void *extra_args)
 {
 	int rc = SEPOL_ERR;
 	struct cil_args_write *args = (struct cil_args_write *) extra_args;
@@ -1132,7 +1132,7 @@ exit:
 	return rc;
 }
 
-int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void *extra_args)
+static int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void *extra_args)
 {
 	int rc = SEPOL_OK;
 	struct cil_db *db = NULL;
@@ -1157,7 +1157,7 @@ int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void
 	case CIL_BLOCKINHERIT:
 		rc = cil_write_unsupported("CIL_BLOCKINHERIT");
 		break;
-    case CIL_IN:
+	case CIL_IN:
 		rc = cil_write_unsupported("CIL_IN");
 		break;
 	case CIL_POLICYCAP:
@@ -1410,10 +1410,10 @@ int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void
 	case CIL_DEFAULTRANGE:
 		rc = cil_write_unsupported("CIL_DEFAULTRANGE");
 		break;
-    case CIL_SELINUXUSER:
+	case CIL_SELINUXUSER:
 		rc = cil_write_unsupported("CIL_SELINUXUSER");
 		break;
-    case CIL_SELINUXUSERDEFAULT:
+	case CIL_SELINUXUSERDEFAULT:
 		rc = cil_write_unsupported("CIL_SELINUXUSERDEFAULT");
 		break;
 	case CIL_HANDLEUNKNOWN:
@@ -1438,7 +1438,7 @@ exit:
 	return rc;
 }
 
-int __cil_write_last_child_helper(struct cil_tree_node *node, void *extra_args)
+static int __cil_write_last_child_helper(struct cil_tree_node *node, void *extra_args)
 {
 	int rc = SEPOL_ERR;
 	struct cil_db *db = NULL;
@@ -1453,9 +1453,10 @@ int __cil_write_last_child_helper(struct cil_tree_node *node, void *extra_args)
 	db = args->db;
 	cil_out = args->cil_out;
 
-	if (node->parent && node->parent->flavor != CIL_ROOT && node->parent->flavor != CIL_SRC_INFO)
+	if (node->parent && node->parent->flavor != CIL_ROOT && node->parent->flavor != CIL_SRC_INFO) {
 		fprintf(cil_out,")");
-    rc = SEPOL_OK;
+	}
+	rc = SEPOL_OK;
 exit:
 	return rc;
 }
@@ -1466,7 +1467,7 @@ int cil_write_ast(struct cil_db *db, const char* path) {
 	struct cil_args_write extra_args;
 	FILE *cil_out = NULL;
 
-	cil_out = fopen(path, "w");
+	cil_out = fopen(path, "we");
 	if (cil_out == NULL) {
 		cil_log(CIL_ERR, "Failure opening output file for writing AST\n");
 		rc = SEPOL_ERR;
