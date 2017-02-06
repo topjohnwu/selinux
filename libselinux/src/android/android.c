@@ -103,6 +103,8 @@ struct seapp_context {
 	bool isSystemServer;
 	bool isEphemeralAppSet;
 	bool isEphemeralApp;
+	bool isV2AppSet;
+	bool isV2App;
 	bool isOwnerSet;
 	bool isOwner;
 	struct prefix_str user;
@@ -150,6 +152,11 @@ static int seapp_context_cmp(const void *A, const void *B)
 	 * unspecified isEphemeral=. */
 	if (s1->isEphemeralAppSet != s2->isEphemeralAppSet)
 		return (s1->isEphemeralAppSet ? -1 : 1);
+
+	/* Give precedence to a specified isV2= over an
+	 * unspecified isV2=. */
+	if (s1->isV2AppSet != s2->isV2AppSet)
+		return (s1->isV2AppSet ? -1 : 1);
 
 
 	/* Give precedence to a specified isOwner= over an unspecified isOwner=. */
@@ -374,6 +381,16 @@ int selinux_android_seapp_context_reload(void)
 						free_seapp_context(cur);
 						goto err;
 					}
+				} else if (!strcasecmp(name, "isV2App")) {
+					cur->isV2AppSet = true;
+					if (!strcasecmp(value, "true"))
+						cur->isV2App = true;
+					else if (!strcasecmp(value, "false"))
+						cur->isV2App = false;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
 				} else if (!strcasecmp(name, "isOwner")) {
 					cur->isOwnerSet = true;
 					if (!strcasecmp(value, "true"))
@@ -550,11 +567,12 @@ int selinux_android_seapp_context_reload(void)
 		int i;
 		for (i = 0; i < nspec; i++) {
 			cur = seapp_contexts[i];
-			selinux_log(SELINUX_INFO, "%s:  isSystemServer=%s  isEphemeralApp=%s isOwner=%s user=%s seinfo=%s "
+			selinux_log(SELINUX_INFO, "%s:  isSystemServer=%s  isEphemeralApp=%s isV2App=%s isOwner=%s user=%s seinfo=%s "
 					"name=%s path=%s isPrivApp=%s minTargetSdkVersion=%d -> domain=%s type=%s level=%s levelFrom=%s",
 				__FUNCTION__,
 				cur->isSystemServer ? "true" : "false",
 				cur->isEphemeralAppSet ? (cur->isEphemeralApp ? "true" : "false") : "null",
+				cur->isV2AppSet ? (cur->isV2App ? "true" : "false") : "null",
 				cur->isOwnerSet ? (cur->isOwner ? "true" : "false") : "null",
 				cur->user.str,
 				cur->seinfo, cur->name.str, cur->path.str,
@@ -610,6 +628,7 @@ enum seapp_kind {
 
 #define PRIVILEGED_APP_STR ":privapp"
 #define EPHEMERAL_APP_STR ":ephemeralapp"
+#define V2_APP_STR ":v2"
 #define TARGETSDKVERSION_STR ":targetSdkVersion="
 static int32_t get_app_targetSdkVersion(const char *seinfo)
 {
@@ -669,6 +688,7 @@ static int seapp_context_lookup(enum seapp_kind kind,
 	bool isPrivApp = false;
 	bool isEphemeralApp = false;
 	int32_t targetSdkVersion = 0;
+	bool isV2App = false;
 	char parsedseinfo[BUFSIZ];
 
 	__selinux_once(once, seapp_context_init);
@@ -678,6 +698,7 @@ static int seapp_context_lookup(enum seapp_kind kind,
 			goto err;
 		isPrivApp = strstr(seinfo, PRIVILEGED_APP_STR) ? true : false;
 		isEphemeralApp = strstr(seinfo, EPHEMERAL_APP_STR) ? true : false;
+		isV2App = strstr(seinfo, V2_APP_STR) ? true : false;
 		targetSdkVersion = get_app_targetSdkVersion(seinfo);
 		if (targetSdkVersion < 0) {
 			selinux_log(SELINUX_ERROR,
@@ -723,6 +744,9 @@ static int seapp_context_lookup(enum seapp_kind kind,
 			continue;
 
 		if (cur->isEphemeralAppSet && cur->isEphemeralApp != isEphemeralApp)
+			continue;
+
+		if (cur->isV2AppSet && cur->isV2App != isV2App)
 			continue;
 
 		if (cur->isOwnerSet && cur->isOwner != isOwner)
