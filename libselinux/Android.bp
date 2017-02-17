@@ -14,10 +14,6 @@ common_CFLAGS = [
     "-DNO_DB_BACKEND"
 ]
 
-// uncomment to build libselinux and related artifacts against PCRE
-// common_LIBRARIES = ["libpcre"]
-// common_CFLAGS = []
-
 cc_defaults {
     name: "libselinux_flags",
 
