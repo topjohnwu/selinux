@@ -620,7 +620,8 @@ static int32_t get_app_targetSdkVersion(const char *seinfo)
 		substr = substr + strlen(TARGETSDKVERSION_STR);
 		if (substr != NULL) {
 			targetSdkVersion = strtol(substr, &endptr, 10);
-			if (('\0' != *endptr) || (targetSdkVersion < 0) || (targetSdkVersion > INT32_MAX)) {
+			if (('\0' != *endptr && ':' != *endptr)
+					|| (targetSdkVersion < 0) || (targetSdkVersion > INT32_MAX)) {
 				return -1; /* malformed targetSdkVersion value in seinfo */
 			} else {
 				return (int32_t) targetSdkVersion;
