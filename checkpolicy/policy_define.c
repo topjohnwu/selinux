@@ -348,13 +348,14 @@ static int read_classes(ebitmap_t *e_classes)
 		cladatum = hashtab_search(policydbp->p_classes.table, id);
 		if (!cladatum) {
 			yyerror2("unknown class %s", id);
+			free(id);
 			return -1;
 		}
+		free(id);
 		if (ebitmap_set_bit(e_classes, cladatum->s.value - 1, TRUE)) {
 			yyerror("Out of memory");
 			return -1;
 		}
-		free(id);
 	}
 	return 0;
 }
@@ -1426,11 +1427,13 @@ int define_type(int alias)
 		if (!attr) {
 			/* treat it as a fatal error */
 			yyerror2("attribute %s is not declared", id);
+			free(id);
 			return -1;
 		}
 
 		if (attr->flavor != TYPE_ATTRIB) {
 			yyerror2("%s is a type, not an attribute", id);
+			free(id);
 			return -1;
 		}
 
@@ -2550,6 +2553,10 @@ int define_te_avtab_helper(int which, avrule_t ** rule)
 	*rule = avrule;
 
       out:
+	if (ret) {
+		avrule_destroy(avrule);
+		free(avrule);
+	}
 	return ret;
 
 }
@@ -2731,6 +2738,7 @@ int define_roleattribute(void)
 		free(id);
 		return -1;
 	}
+	free(id);
 
 	while ((id = queue_remove(id_queue))) {
 		if (!is_id_in_scope(SYM_ROLES, id)) {
@@ -3254,22 +3262,24 @@ int define_filename_trans(void)
 		return 0;
 	}
 
+	type_set_init(&stypes);
+	type_set_init(&ttypes);
+	ebitmap_init(&e_stypes);
+	ebitmap_init(&e_ttypes);
+	ebitmap_init(&e_tclasses);
 
 	add = 1;
-	type_set_init(&stypes);
 	while ((id = queue_remove(id_queue))) {
 		if (set_types(&stypes, id, &add, 0))
 			goto bad;
 	}
 
 	add =1;
-	type_set_init(&ttypes);
 	while ((id = queue_remove(id_queue))) {
 		if (set_types(&ttypes, id, &add, 0))
 			goto bad;
 	}
 
-	ebitmap_init(&e_tclasses);
 	if (read_classes(&e_tclasses))
 		goto bad;
 
@@ -3286,6 +3296,7 @@ int define_filename_trans(void)
 	typdatum = hashtab_search(policydbp->p_types.table, id);
 	if (!typdatum) {
 		yyerror2("unknown type %s used in transition definition", id);
+		free(id);
 		goto bad;
 	}
 	free(id);
@@ -3300,11 +3311,9 @@ int define_filename_trans(void)
 	/* We expand the class set into seperate rules.  We expand the types
 	 * just to make sure there are not duplicates.  They will get turned
 	 * into seperate rules later */
-	ebitmap_init(&e_stypes);
 	if (type_set_expand(&stypes, &e_stypes, policydbp, 1))
 		goto bad;
 
-	ebitmap_init(&e_ttypes);
 	if (type_set_expand(&ttypes, &e_ttypes, policydbp, 1))
 		goto bad;
 
@@ -3384,11 +3393,18 @@ int define_filename_trans(void)
 	ebitmap_destroy(&e_stypes);
 	ebitmap_destroy(&e_ttypes);
 	ebitmap_destroy(&e_tclasses);
+	type_set_destroy(&stypes);
+	type_set_destroy(&ttypes);
 
 	return 0;
 
 bad:
 	free(name);
+	ebitmap_destroy(&e_stypes);
+	ebitmap_destroy(&e_ttypes);
+	ebitmap_destroy(&e_tclasses);
+	type_set_destroy(&stypes);
+	type_set_destroy(&ttypes);
 	return -1;
 }
 
