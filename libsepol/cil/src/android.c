@@ -30,7 +30,7 @@ enum plat_flavor {
 	PLAT_ATTRIB
 };
 
-static unsigned int ver_map_hash_val(hashtab_t h, const hashtab_key_t key)
+static unsigned int ver_map_hash_val(hashtab_t h, const_hashtab_key_t key)
 {
 	/* from cil_stpool.c */
 	char *p, *keyp;
@@ -48,10 +48,10 @@ static unsigned int ver_map_hash_val(hashtab_t h, const hashtab_key_t key)
 
 
 static int ver_map_key_cmp(hashtab_t h __attribute__ ((unused)),
-			   const hashtab_key_t key1, const hashtab_key_t key2)
+			   const_hashtab_key_t key1, const_hashtab_key_t key2)
 {
-	/* hashtab_key_t is just a char* underneath */
-	return strcmp((char *)key1, (char *)key2);
+	/* hashtab_key_t is just a const char* underneath */
+	return strcmp(key1, key2);
 }
 
 /*

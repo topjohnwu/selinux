@@ -51,6 +51,34 @@ static scope_stack_t *stack_top = NULL;
 static avrule_block_t *last_block;
 static uint32_t next_decl_id = 1;
 
+static const char * const flavor_str[SYM_NUM] = {
+	[SYM_COMMONS] = "common",
+	[SYM_CLASSES] = "class",
+	[SYM_ROLES] = "role",
+	[SYM_TYPES] = "type",
+	[SYM_USERS] = "user",
+	[SYM_BOOLS] = "bool",
+	[SYM_LEVELS] = "level",
+	[SYM_CATS] = "cat"
+};
+
+static void print_error_msg(int ret, uint32_t symbol_type)
+{
+	switch (ret) {
+	case -3:
+		yyerror("Out of memory!");
+		break;
+	case -2:
+		yyerror2("Duplicate declaration of %s", flavor_str[symbol_type]);
+		break;
+	case -1:
+		yyerror2("Could not declare %s here", flavor_str[symbol_type]);
+		break;
+	default:
+		yyerror("Unknown error");
+	}
+}
+
 int define_policy(int pass, int module_header_given)
 {
 	char *id;
@@ -102,17 +130,58 @@ int define_policy(int pass, int module_header_given)
 	return 0;
 }
 
-/* Given the current parse stack, returns 1 if a declaration would be
- * allowed here or 0 if not.  For example, declarations are not
- * allowed in conditionals, so if there are any conditionals in the
+/* Given the current parse stack, returns 1 if a declaration or require would
+ * be allowed here or 0 if not.  For example, declarations and requirements are
+ * not allowed in conditionals, so if there are any conditionals in the
  * current scope stack then this would return a 0.
  */
-static int is_declaration_allowed(void)
+static int is_creation_allowed(void)
 {
 	if (stack_top->type != 1 || stack_top->in_else) {
 		return 0;
 	}
 	return 1;
+}
+
+/* Attempt to declare or require a symbol within the current scope.
+ * Returns:
+ *  0: Success - Symbol had not been previously created.
+ *  1: Success - Symbol had already been created and caller must free datum.
+ * -1: Failure - Symbol cannot be created here
+ * -2: Failure - Duplicate declaration or type/attribute mismatch
+ * -3: Failure - Out of memory or some other error
+ */
+static int create_symbol(uint32_t symbol_type, hashtab_key_t key, hashtab_datum_t datum,
+			 uint32_t * dest_value, uint32_t scope)
+{
+	avrule_decl_t *decl = stack_top->decl;
+	int ret;
+
+	if (!is_creation_allowed()) {
+		return -1;
+	}
+
+	ret = symtab_insert(policydbp, symbol_type, key, datum, scope,
+			    decl->decl_id, dest_value);
+
+	if (ret == 1 && dest_value) {
+		symtab_datum_t *s =
+			hashtab_search(policydbp->symtab[symbol_type].table,
+				       key);
+		assert(s != NULL);
+
+		if (symbol_type == SYM_LEVELS) {
+			*dest_value = ((level_datum_t *)s)->level->sens;
+		} else {
+			*dest_value = s->value;
+		}
+	} else if (ret == -2) {
+		return -2;
+	} else if (ret < 0) {
+		return -3;
+	}
+
+	return ret;
 }
 
 /* Attempt to declare a symbol within the current declaration.  If
@@ -129,39 +198,18 @@ int declare_symbol(uint32_t symbol_type,
 		   uint32_t * dest_value, uint32_t * datum_value)
 {
 	avrule_decl_t *decl = stack_top->decl;
-	int retval;
+	int ret = create_symbol(symbol_type, key, datum, dest_value, SCOPE_DECL);
 
-	/* first check that symbols may be declared here */
-	if (!is_declaration_allowed()) {
-		return -1;
+	if (ret < 0) {
+		return ret;
 	}
-	retval = symtab_insert(policydbp, symbol_type, key, datum,
-			       SCOPE_DECL, decl->decl_id, dest_value);
-	if (retval == 1 && dest_value) {
-		symtab_datum_t *s =
-		    (symtab_datum_t *) hashtab_search(policydbp->
-						      symtab[symbol_type].table,
-						      key);
-		assert(s != NULL);
-		
-		if (symbol_type == SYM_LEVELS) {
-			*dest_value = ((level_datum_t *)s)->level->sens;
-		} else {
-			*dest_value = s->value;
-		}
-	} else if (retval == -2) {
-		return -2;
-	} else if (retval < 0) {
+
+	if (ebitmap_set_bit(decl->declared.scope + symbol_type,
+			    *datum_value - 1, 1)) {
 		return -3;
-	} else {		/* fall through possible if retval is 0 */
 	}
-	if (datum_value != NULL) {
-		if (ebitmap_set_bit(decl->declared.scope + symbol_type,
-				    *datum_value - 1, 1)) {
-			return -3;
-		}
-	}
-	return retval;
+
+	return ret;
 }
 
 static int role_implicit_bounds(hashtab_t roles_tab,
@@ -201,171 +249,212 @@ static int role_implicit_bounds(hashtab_t roles_tab,
 	return 0;
 }
 
-role_datum_t *declare_role(unsigned char isattr)
+static int create_role(uint32_t scope, unsigned char isattr, role_datum_t **role, char **key)
 {
-	char *id = queue_remove(id_queue), *dest_id = NULL;
-	role_datum_t *role = NULL, *dest_role = NULL;
-	int retval;
+	char *id = queue_remove(id_queue);
+	role_datum_t *datum = NULL;
+	int ret;
 	uint32_t value;
+
+	*role = NULL;
+	*key = NULL;
+	isattr = isattr ? ROLE_ATTRIB : ROLE_ROLE;
 
 	if (id == NULL) {
 		yyerror("no role name");
-		return NULL;
+		return -1;
 	}
-	if ((role = (role_datum_t *) malloc(sizeof(*role))) == NULL) {
+
+	datum = malloc(sizeof(*datum));
+	if (datum == NULL) {
 		yyerror("Out of memory!");
 		free(id);
+		return -1;
+	}
+
+	role_datum_init(datum);
+	datum->flavor = isattr;
+
+	if (scope == SCOPE_DECL) {
+		ret = declare_symbol(SYM_ROLES, id, datum, &value, &value);
+	} else {
+		ret = require_symbol(SYM_ROLES, id, datum, &value, &value);
+	}
+
+	datum->s.value = value;
+
+	if (ret == 0) {
+		*role = datum;
+		*key = strdup(id);
+		if (*key == NULL) {
+			yyerror("Out of memory!");
+			return -1;
+		}
+	} else if (ret == 1) {
+		*role = hashtab_search(policydbp->symtab[SYM_ROLES].table, id);
+		if (*role && (isattr != (*role)->flavor)) {
+			yyerror2("Identifier %s used as both an attribute and a role",
+				 id);
+			free(id);
+			role_datum_destroy(datum);
+			free(datum);
+			return -1;
+		}
+		*role = datum;
+		*key = id;
+	} else {
+		print_error_msg(ret, SYM_ROLES);
+		free(id);
+		role_datum_destroy(datum);
+		free(datum);
+	}
+
+	return ret;
+}
+
+role_datum_t *declare_role(unsigned char isattr)
+{
+	char *key = NULL;
+	role_datum_t *role = NULL;
+	role_datum_t *dest_role = NULL;
+	hashtab_t roles_tab;
+	int ret, ret2;
+
+	ret = create_role(SCOPE_DECL, isattr, &role, &key);
+	if (ret < 0) {
 		return NULL;
 	}
-	role_datum_init(role);
-	role->flavor = isattr ? ROLE_ATTRIB : ROLE_ROLE;
-	retval =
-	    declare_symbol(SYM_ROLES, id, (hashtab_datum_t *) role, &value,
-			   &value);
-	if (retval == 0) {
-		role->s.value = value;
-		if ((dest_id = strdup(id)) == NULL) {
-			yyerror("Out of memory!");
-			return NULL;
-		}
+
+	/* create a new role_datum_t for this decl, if necessary */
+	assert(stack_top->type == 1);
+
+	if (stack_top->parent == NULL) {
+		/* in parent, so use global symbol table */
+		roles_tab = policydbp->p_roles.table;
 	} else {
-		/* this role was already declared in this module, or error */
-		dest_id = id;
-		role_datum_destroy(role);
-		free(role);
+		roles_tab = stack_top->decl->p_roles.table;
 	}
-	if (retval == 0 || retval == 1) {
-		/* create a new role_datum_t for this decl, if necessary */
-		hashtab_t roles_tab;
-		assert(stack_top->type == 1);
-		if (stack_top->parent == NULL) {
-			/* in parent, so use global symbol table */
-			roles_tab = policydbp->p_roles.table;
-		} else {
-			roles_tab = stack_top->decl->p_roles.table;
-		}
-		dest_role = (role_datum_t *) hashtab_search(roles_tab, dest_id);
-		if (dest_role == NULL) {
-			if ((dest_role =
-			     (role_datum_t *) malloc(sizeof(*dest_role))) ==
-			    NULL) {
+
+	dest_role = hashtab_search(roles_tab, key);
+	if (dest_role == NULL) {
+		if (ret == 0) {
+			dest_role = malloc(sizeof(*dest_role));
+			if (dest_role == NULL) {
 				yyerror("Out of memory!");
-				free(dest_id);
+				free(key);
 				return NULL;
 			}
 			role_datum_init(dest_role);
-			dest_role->s.value = value;
-			dest_role->flavor = isattr ? ROLE_ATTRIB : ROLE_ROLE;
-			if (role_implicit_bounds(roles_tab, dest_id, dest_role)) {
-				free(dest_id);
-				role_datum_destroy(dest_role);
-				free(dest_role);
-				return NULL;
-			}
-			if (hashtab_insert(roles_tab, dest_id, dest_role)) {
-				yyerror("Out of memory!");
-				free(dest_id);
-				role_datum_destroy(dest_role);
-				free(dest_role);
-				return NULL;
-			}
+			dest_role->s.value = role->s.value;
+			dest_role->flavor = role->flavor;
 		} else {
-			free(dest_id);
+			dest_role = role;
+		}
+		ret2 = role_implicit_bounds(roles_tab, key, dest_role);
+		if (ret2 != 0) {
+			free(key);
+			role_datum_destroy(dest_role);
+			free(dest_role);
+			return NULL;
+		}
+		ret2 = hashtab_insert(roles_tab, key, dest_role);
+		if (ret2 != 0) {
+			yyerror("Out of memory!");
+			free(key);
+			role_datum_destroy(dest_role);
+			free(dest_role);
+			return NULL;
 		}
 	} else {
-		free(dest_id);
-	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
-			return NULL;
-		}
-	case -2:{
-			yyerror("duplicate declaration of role");
-			return NULL;
-		}
-	case -1:{
-			yyerror("could not declare role here");
-			return NULL;
-		}
-	case 0:{
-			if (ebitmap_set_bit
-			    (&dest_role->dominates, role->s.value - 1, 1)) {
-				yyerror("out of memory");
-				return NULL;
-			}
-			return dest_role;
-		}
-	case 1:{
-			return dest_role;	/* role already declared for this block */
-		}
-	default:{
-			abort();	/* should never get here */
+		free(key);
+		if (ret == 1) {
+			role_datum_destroy(role);
+			free(role);
 		}
 	}
+
+	if (ret == 0) {
+		ret2 = ebitmap_set_bit(&dest_role->dominates, dest_role->s.value - 1, 1);
+		if (ret2 != 0) {
+			yyerror("out of memory");
+			return NULL;
+		}
+	}
+
+	return dest_role;
 }
 
-type_datum_t *declare_type(unsigned char primary, unsigned char isattr)
+static int create_type(uint32_t scope, unsigned char isattr, type_datum_t **type)
 {
 	char *id;
-	type_datum_t *typdatum;
-	int retval;
+	type_datum_t *datum;
+	int ret;
 	uint32_t value = 0;
+
+	*type = NULL;
+	isattr = isattr ? TYPE_ATTRIB : TYPE_TYPE;
 
 	id = (char *)queue_remove(id_queue);
 	if (!id) {
 		yyerror("no type/attribute name?");
-		return NULL;
+		return -1;
 	}
 	if (strcmp(id, "self") == 0) {
-		yyerror
-		    ("'self' is a reserved type name and may not be declared.");
+		yyerror("\"self\" is a reserved type name.");
 		free(id);
-		return NULL;
+		return -1;
 	}
 
-	typdatum = (type_datum_t *) malloc(sizeof(type_datum_t));
-	if (!typdatum) {
+	datum = malloc(sizeof(*datum));
+	if (!datum) {
 		yyerror("Out of memory!");
 		free(id);
-		return NULL;
+		return -1;
 	}
-	type_datum_init(typdatum);
-	typdatum->primary = primary;
-	typdatum->flavor = isattr ? TYPE_ATTRIB : TYPE_TYPE;
+	type_datum_init(datum);
+	datum->primary = 1;
+	datum->flavor = isattr;
 
-	retval = declare_symbol(SYM_TYPES, id, typdatum, &value, &value);
-	if (retval == 0 || retval == 1) {
-		if (typdatum->primary) {
-			typdatum->s.value = value;
-		}
+	if (scope == SCOPE_DECL) {
+		ret = declare_symbol(SYM_TYPES, id, datum, &value, &value);
 	} else {
-		/* error occurred (can't have duplicate type declarations) */
+		ret = require_symbol(SYM_TYPES, id, datum, &value, &value);
+	}
+
+	if (ret == 0) {
+		datum->s.value = value;
+		*type = datum;
+	} else if (ret == 1) {
+		type_datum_destroy(datum);
+		free(datum);
+		*type = hashtab_search(policydbp->symtab[SYM_TYPES].table, id);
+		if (*type && (isattr != (*type)->flavor)) {
+			yyerror2("Identifier %s used as both an attribute and a type",
+				 id);
+			free(id);
+			return -1;
+		}
 		free(id);
-		type_datum_destroy(typdatum);
-		free(typdatum);
+	} else {
+		print_error_msg(ret, SYM_TYPES);
+		free(id);
+		type_datum_destroy(datum);
+		free(datum);
 	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
-			return NULL;
-		}
-	case -2:{
-			yyerror2("duplicate declaration of type/attribute");
-			return NULL;
-		}
-	case -1:{
-			yyerror("could not declare type/attribute here");
-			return NULL;
-		}
-	case 0:
-	case 1:{
-			return typdatum;
-		}
-	default:{
-			abort();	/* should never get here */
-		}
+
+	return ret;
+}
+
+type_datum_t *declare_type(unsigned char primary, unsigned char isattr)
+{
+	type_datum_t *type = NULL;
+	int ret = create_type(SCOPE_DECL, isattr, &type);
+
+	if (ret == 0) {
+		type->primary = primary;
 	}
+
+	return type;
 }
 
 static int user_implicit_bounds(hashtab_t users_tab,
@@ -405,103 +494,119 @@ static int user_implicit_bounds(hashtab_t users_tab,
 	return 0;
 }
 
-user_datum_t *declare_user(void)
+static int create_user(uint32_t scope, user_datum_t **user, char **key)
 {
-	char *id = queue_remove(id_queue), *dest_id = NULL;
-	user_datum_t *user = NULL, *dest_user = NULL;
-	int retval;
-	uint32_t value = 0;
+	char *id = queue_remove(id_queue);
+	user_datum_t *datum = NULL;
+	int ret;
+	uint32_t value;
+
+	*user = NULL;
+	*key = NULL;
 
 	if (id == NULL) {
 		yyerror("no user name");
-		return NULL;
+		return -1;
 	}
-	if ((user = (user_datum_t *) malloc(sizeof(*user))) == NULL) {
+
+	datum = malloc(sizeof(*datum));
+	if (datum == NULL) {
 		yyerror("Out of memory!");
 		free(id);
+		return -1;
+	}
+
+	user_datum_init(datum);
+
+	if (scope == SCOPE_DECL) {
+		ret = declare_symbol(SYM_USERS, id, datum, &value, &value);
+	} else {
+		ret = require_symbol(SYM_USERS, id, datum, &value, &value);
+	}
+
+	datum->s.value = value;
+
+	if (ret == 0) {
+		*user = datum;
+		*key = strdup(id);
+		if (*key == NULL) {
+			yyerror("Out of memory!");
+			return -1;
+		}
+	} else if (ret == 1) {
+		*user = datum;
+		*key = id;
+	} else {
+		print_error_msg(ret, SYM_USERS);
+		free(id);
+		user_datum_destroy(datum);
+		free(datum);
+	}
+
+	return ret;
+}
+
+user_datum_t *declare_user(void)
+{
+	char *key = NULL;
+	user_datum_t *user = NULL;
+	user_datum_t *dest_user = NULL;
+	hashtab_t users_tab;
+	int ret, ret2;
+
+	ret = create_user(SCOPE_DECL, &user, &key);
+	if (ret < 0) {
 		return NULL;
 	}
-	user_datum_init(user);
 
-	retval =
-	    declare_symbol(SYM_USERS, id, (hashtab_datum_t *) user, &value,
-			   &value);
+	/* create a new user_datum_t for this decl, if necessary */
+	assert(stack_top->type == 1);
 
-	if (retval == 0) {
-		user->s.value = value;
-		if ((dest_id = strdup(id)) == NULL) {
-			yyerror("Out of memory!");
-			return NULL;
-		}
+	if (stack_top->parent == NULL) {
+		/* in parent, so use global symbol table */
+		users_tab = policydbp->p_users.table;
 	} else {
-		/* this user was already declared in this module, or error */
-		dest_id = id;
-		user_datum_destroy(user);
-		free(user);
+		users_tab = stack_top->decl->p_users.table;
 	}
-	if (retval == 0 || retval == 1) {
-		/* create a new user_datum_t for this decl, if necessary */
-		hashtab_t users_tab;
-		assert(stack_top->type == 1);
-		if (stack_top->parent == NULL) {
-			/* in parent, so use global symbol table */
-			users_tab = policydbp->p_users.table;
-		} else {
-			users_tab = stack_top->decl->p_users.table;
-		}
-		dest_user = (user_datum_t *) hashtab_search(users_tab, dest_id);
-		if (dest_user == NULL) {
-			if ((dest_user =
-			     (user_datum_t *) malloc(sizeof(*dest_user))) ==
-			    NULL) {
+
+	dest_user = hashtab_search(users_tab, key);
+	if (dest_user == NULL) {
+		if (ret == 0) {
+			dest_user = malloc(sizeof(*dest_user));
+			if (dest_user == NULL) {
 				yyerror("Out of memory!");
-				free(dest_id);
+				free(key);
 				return NULL;
 			}
 			user_datum_init(dest_user);
-			dest_user->s.value = value;
-			if (user_implicit_bounds(users_tab, dest_id, dest_user)) {
-				free(dest_id);
-				user_datum_destroy(dest_user);
-				free(dest_user);
-				return NULL;
-			}
-			if (hashtab_insert(users_tab, dest_id, dest_user)) {
-				yyerror("Out of memory!");
-				free(dest_id);
-				user_datum_destroy(dest_user);
-				free(dest_user);
-				return NULL;
-			}
+			dest_user->s.value = user->s.value;
 		} else {
-			free(dest_id);
+			dest_user = user;
+		}
+		ret2 = user_implicit_bounds(users_tab, key, dest_user);
+		if (ret2 != 0) {
+			free(key);
+			user_datum_destroy(dest_user);
+			free(dest_user);
+			return NULL;
+		}
+		ret2 = hashtab_insert(users_tab, key, dest_user);
+		if (ret2 != 0) {
+			yyerror("Out of memory!");
+			free(key);
+			user_datum_destroy(dest_user);
+			free(dest_user);
+			return NULL;
 		}
 	} else {
-		free(dest_id);
-	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
-			return NULL;
-		}
-	case -2:{
-			yyerror("duplicate declaration of user");
-			return NULL;
-		}
-	case -1:{
-			yyerror("could not declare user here");
-			return NULL;
-		}
-	case 0:{
-			return dest_user;
-		}
-	case 1:{
-			return dest_user;	/* user already declared for this block */
-		}
-	default:{
-			abort();	/* should never get here */
+		free(key);
+		if (ret == 1) {
+			user_datum_destroy(user);
+			free(user);
 		}
 	}
+
+	return dest_user;
 }
 
 /* Return a type_datum_t for the local avrule_decl with the given ID.
@@ -599,18 +704,6 @@ role_datum_t *get_local_role(char *id, uint32_t value, unsigned char isattr)
 	return dest_roledatum;
 }
 
-/* Given the current parse stack, returns 1 if a requirement would be
- * allowed here or 0 if not.  For example, the ELSE branch may never
- * have its own requirements.
- */
-static int is_require_allowed(void)
-{
-	if (stack_top->type == 1 && !stack_top->in_else) {
-		return 1;
-	}
-	return 0;
-}
-
 /* Attempt to require a symbol within the current scope.  If currently
  * within an optional (and not its else branch), add the symbol to the
  * required list.  Return 0 on success, 1 if caller needs to free()
@@ -624,72 +717,19 @@ int require_symbol(uint32_t symbol_type,
 		   uint32_t * dest_value, uint32_t * datum_value)
 {
 	avrule_decl_t *decl = stack_top->decl;
-	int retval;
+	int ret = create_symbol(symbol_type, key, datum, dest_value, SCOPE_REQ);
 
-	/* first check that symbols may be required here */
-	if (!is_require_allowed()) {
-		return -1;
+	if (ret < 0) {
+		return ret;
 	}
-	retval = symtab_insert(policydbp, symbol_type, key, datum,
-			       SCOPE_REQ, decl->decl_id, dest_value);
-	if (retval == 1) {
-		symtab_datum_t *s =
-		    (symtab_datum_t *) hashtab_search(policydbp->
-						      symtab[symbol_type].table,
-						      key);
-		assert(s != NULL);
-		
-		if (symbol_type == SYM_LEVELS) {
-			*dest_value = ((level_datum_t *)s)->level->sens;
-		} else {
-			*dest_value = s->value;
-		}
-	} else if (retval == -2) {
-		/* ignore require statements if that symbol was
-		 * previously declared and is in current scope */
-		int prev_declaration_ok = 0;
-		if (is_id_in_scope(symbol_type, key)) {
-			if (symbol_type == SYM_TYPES) {
-				/* check that previous symbol has same
-				 * type/attribute-ness */
-				unsigned char new_isattr =
-				    ((type_datum_t *) datum)->flavor;
-				type_datum_t *old_datum =
-				    (type_datum_t *) hashtab_search(policydbp->
-								    symtab
-								    [SYM_TYPES].
-								    table, key);
-				assert(old_datum != NULL);
-				unsigned char old_isattr = old_datum->flavor;
-				prev_declaration_ok =
-				    (old_isattr == new_isattr ? 1 : 0);
-			} else {
-				prev_declaration_ok = 1;
-			}
-		}
-		if (prev_declaration_ok) {
-			/* ignore this require statement because it
-			 * was already declared within my scope */
-			stack_top->require_given = 1;
-			return 1;
-		} else {
-			/* previous declaration was not in scope or
-			 * had a mismatched type/attribute, so
-			 * generate an error */
-			return -2;
-		}
-	} else if (retval < 0) {
+
+	if (ebitmap_set_bit(decl->required.scope + symbol_type,
+			    *datum_value - 1, 1)) {
 		return -3;
-	} else {		/* fall through possible if retval is 0 or 1 */
 	}
-	if (datum_value != NULL) {
-		if (ebitmap_set_bit(decl->required.scope + symbol_type,
-				    *datum_value - 1, 1)) {
-			return -3;
-		}
-	}
+
 	stack_top->require_given = 1;
-	return retval;
+	return ret;
 }
 
 int add_perm_to_class(uint32_t perm_value, uint32_t class_value)
@@ -762,50 +802,29 @@ int require_class(int pass)
 	if ((datum = calloc(1, sizeof(*datum))) == NULL ||
 	    symtab_init(&datum->permissions, PERM_SYMTAB_SIZE)) {
 		yyerror("Out of memory!");
-		goto cleanup;
+		return -1;
 	}
 	ret =
 	    require_symbol(SYM_CLASSES, class_id, datum, &datum->s.value,
 			   &datum->s.value);
-	switch (ret) {
-	case -3:{
+	if (ret < 0) {
+		print_error_msg(ret, SYM_CLASSES);
+		free(class_id);
+		class_datum_destroy(datum);
+		return -1;
+	}
+
+	if (ret == 0) {
+		/* a new class was added; reindex everything */
+		if (policydb_index_classes(policydbp)) {
 			yyerror("Out of memory!");
-			free(class_id);
-			class_datum_destroy(datum);
-			goto cleanup;
+			return -1;
 		}
-	case -2:{
-			yyerror("duplicate declaration of class");
-			free(class_id);
-			class_datum_destroy(datum);
-			goto cleanup;
-		}
-	case -1:{
-			yyerror("could not require class here");
-			free(class_id);
-			class_datum_destroy(datum);
-			goto cleanup;
-		}
-	case 0:{
-			/* a new class was added; reindex everything */
-			if (policydb_index_classes(policydbp)) {
-				yyerror("Out of memory!");
-				goto cleanup;
-			}
-			break;
-		}
-	case 1:{
-			class_datum_destroy(datum);
-			datum =
-			    hashtab_search(policydbp->p_classes.table,
-					   class_id);
-			assert(datum);	/* the class datum should have existed */
-			free(class_id);
-			break;
-		}
-	default:{
-			abort();	/* should never get here */
-		}
+	} else {
+		class_datum_destroy(datum);
+		datum = hashtab_search(policydbp->p_classes.table, class_id);
+		assert(datum);	/* the class datum should have existed */
+		free(class_id);
 	}
 
 	/* now add each of the permissions to this class's requirements */
@@ -828,13 +847,13 @@ int require_class(int pass)
 				    ("Base policy - require of permission %s without prior declaration.",
 				     perm_id);
 				free(perm_id);
-				goto cleanup;
+				return -1;
 			}
 			allocated = 1;
 			if ((perm = malloc(sizeof(*perm))) == NULL) {
 				yyerror("Out of memory!");
 				free(perm_id);
-				goto cleanup;
+				return -1;
 			}
 			memset(perm, 0, sizeof(*perm));
 			ret =
@@ -844,14 +863,14 @@ int require_class(int pass)
 				yyerror("Out of memory!");
 				free(perm_id);
 				free(perm);
-				goto cleanup;
+				return -1;
 			}
 			perm->s.value = datum->permissions.nprim + 1;
 		}
 
 		if (add_perm_to_class(perm->s.value, datum->s.value) == -1) {
 			yyerror("Out of memory!");
-			goto cleanup;
+			return -1;
 		}
 
 		/* Update number of primitives if we allocated one. */
@@ -859,67 +878,38 @@ int require_class(int pass)
 			datum->permissions.nprim++;
 	}
 	return 0;
-      cleanup:
-	return -1;
 }
 
 static int require_role_or_attribute(int pass, unsigned char isattr)
 {
-	char *id = queue_remove(id_queue);
+	char *key = NULL;
 	role_datum_t *role = NULL;
-	int retval;
+	int ret;
+
 	if (pass == 2) {
-		free(id);
+		free(queue_remove(id_queue));
 		return 0;
 	}
-	if (id == NULL) {
-		yyerror("no role name");
+
+	ret = create_role(SCOPE_REQ, isattr, &role, &key);
+	if (ret < 0) {
 		return -1;
 	}
-	if ((role = malloc(sizeof(*role))) == NULL) {
-		free(id);
-		yyerror("Out of memory!");
-		return -1;
-	}
-	role_datum_init(role);
-	role->flavor = isattr ? ROLE_ATTRIB : ROLE_ROLE;
-	retval =
-	    require_symbol(SYM_ROLES, id, (hashtab_datum_t *) role,
-			   &role->s.value, &role->s.value);
-	if (retval != 0) {
-		free(id);
+
+	free(key);
+
+	if (ret == 0) {
+		ret = ebitmap_set_bit(&role->dominates, role->s.value - 1, 1);
+		if (ret != 0) {
+			yyerror("Out of memory");
+			return -1;
+		}
+	} else {
 		role_datum_destroy(role);
 		free(role);
 	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
-			return -1;
-		}
-	case -2:{
-			yyerror("duplicate declaration of role");
-			return -1;
-		}
-	case -1:{
-			yyerror("could not require role here");
-			return -1;
-		}
-	case 0:{
-			/* all roles dominate themselves */
-			if (ebitmap_set_bit
-			    (&role->dominates, role->s.value - 1, 1)) {
-				yyerror("Out of memory");
-				return -1;
-			}
-			return 0;
-		}
-	case 1:{
-			return 0;	/* role already required */
-		}
-	default:{
-			abort();	/* should never get here */
-		}
-	}
+
+	return 0;
 }
 
 int require_role(int pass)
@@ -934,55 +924,21 @@ int require_attribute_role(int pass)
 
 static int require_type_or_attribute(int pass, unsigned char isattr)
 {
-	char *id = queue_remove(id_queue);
 	type_datum_t *type = NULL;
-	int retval;
+	int ret;
+
 	if (pass == 2) {
-		free(id);
+		free(queue_remove(id_queue));
 		return 0;
 	}
-	if (id == NULL) {
-		yyerror("no type name");
+
+	ret = create_type(SCOPE_REQ, isattr, &type);
+
+	if (ret < 0) {
 		return -1;
 	}
-	if ((type = malloc(sizeof(*type))) == NULL) {
-		free(id);
-		yyerror("Out of memory!");
-		return -1;
-	}
-	type_datum_init(type);
-	type->primary = 1;
-	type->flavor = isattr ? TYPE_ATTRIB : TYPE_TYPE;
-	retval =
-	    require_symbol(SYM_TYPES, id, (hashtab_datum_t *) type,
-			   &type->s.value, &type->s.value);
-	if (retval != 0) {
-		free(id);
-		free(type);
-	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
-			return -1;
-		}
-	case -2:{
-			yyerror("duplicate declaration of type/attribute");
-			return -1;
-		}
-	case -1:{
-			yyerror("could not require type/attribute here");
-			return -1;
-		}
-	case 0:{
-			return 0;
-		}
-	case 1:{
-			return 0;	/* type already required */
-		}
-	default:{
-			abort();	/* should never get here */
-		}
-	}
+
+	return 0;
 }
 
 int require_type(int pass)
@@ -997,53 +953,28 @@ int require_attribute(int pass)
 
 int require_user(int pass)
 {
-	char *id = queue_remove(id_queue);
+	char *key = NULL;
 	user_datum_t *user = NULL;
-	int retval;
+	int ret;
+
 	if (pass == 1) {
-		free(id);
+		free(queue_remove(id_queue));
 		return 0;
 	}
-	if (id == NULL) {
-		yyerror("no user name");
+
+	ret = create_user(SCOPE_REQ, &user, &key);
+	if (ret < 0) {
 		return -1;
 	}
-	if ((user = malloc(sizeof(*user))) == NULL) {
-		free(id);
-		yyerror("Out of memory!");
-		return -1;
-	}
-	user_datum_init(user);
-	retval =
-	    require_symbol(SYM_USERS, id, (hashtab_datum_t *) user,
-			   &user->s.value, &user->s.value);
-	if (retval != 0) {
-		free(id);
+
+	free(key);
+
+	if (ret == 1) {
 		user_datum_destroy(user);
+		free(user);
 	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
-			return -1;
-		}
-	case -2:{
-			yyerror("duplicate declaration of user");
-			return -1;
-		}
-	case -1:{
-			yyerror("could not require user here");
-			return -1;
-		}
-	case 0:{
-			return 0;
-		}
-	case 1:{
-			return 0;	/* user already required */
-		}
-	default:{
-			abort();	/* should never get here */
-		}
-	}
+
+	return 0;
 }
 
 static int require_bool_tunable(int pass, int is_tunable)
@@ -1071,30 +1002,13 @@ static int require_bool_tunable(int pass, int is_tunable)
 			   &booldatum->s.value, &booldatum->s.value);
 	if (retval != 0) {
 		cond_destroy_bool(id, booldatum, NULL);
-	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
+		if (retval < 0) {
+			print_error_msg(retval, SYM_BOOLS);
 			return -1;
-		}
-	case -2:{
-			yyerror("duplicate declaration of boolean");
-			return -1;
-		}
-	case -1:{
-			yyerror("could not require boolean here");
-			return -1;
-		}
-	case 0:{
-			return 0;
-		}
-	case 1:{
-			return 0;	/* boolean already required */
-		}
-	default:{
-			abort();	/* should never get here */
 		}
 	}
+
+	return 0;
 }
 
 int require_bool(int pass)
@@ -1144,30 +1058,13 @@ int require_sens(int pass)
 		free(level->level);
 		level_datum_destroy(level);
 		free(level);
-	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
+		if (retval < 0) {
+			print_error_msg(retval, SYM_LEVELS);
 			return -1;
-		}
-	case -2:{
-			yyerror("duplicate declaration of sensitivity");
-			return -1;
-		}
-	case -1:{
-			yyerror("could not require sensitivity here");
-			return -1;
-		}
-	case 0:{
-			return 0;
-		}
-	case 1:{
-			return 0;	/* sensitivity already required */
-		}
-	default:{
-			abort();	/* should never get here */
 		}
 	}
+
+	return 0;
 }
 
 int require_cat(int pass)
@@ -1197,30 +1094,13 @@ int require_cat(int pass)
 		free(id);
 		cat_datum_destroy(cat);
 		free(cat);
-	}
-	switch (retval) {
-	case -3:{
-			yyerror("Out of memory!");
+		if (retval < 0) {
+			print_error_msg(retval, SYM_CATS);
 			return -1;
-		}
-	case -2:{
-			yyerror("duplicate declaration of category");
-			return -1;
-		}
-	case -1:{
-			yyerror("could not require category here");
-			return -1;
-		}
-	case 0:{
-			return 0;
-		}
-	case 1:{
-			return 0;	/* category already required */
-		}
-	default:{
-			abort();	/* should never get here */
 		}
 	}
+
+	return 0;
 }
 
 static int is_scope_in_stack(scope_datum_t * scope, scope_stack_t * stack)
