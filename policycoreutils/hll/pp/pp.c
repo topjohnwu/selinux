@@ -69,8 +69,8 @@ int main(int argc, char **argv)
 		{ NULL, 0, NULL, 0 }
 	};
 	struct sepol_module_package *mod_pkg = NULL;
-	char *ifile = NULL;
-	char *ofile = NULL;
+	const char *ifile = NULL;
+	const char *ofile = NULL;
 	FILE *in = NULL;
 	FILE *out = NULL;
 	int outfd = -1;
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
 		if (separator) {
 			*separator = '\0';
 		}
-		if (strcmp(mod_name, cil_name) != 0) {
+		if (mod_name && strcmp(mod_name, cil_name) != 0) {
 			fprintf(stderr,	"Warning: SELinux userspace will refer to the module from %s as %s rather than %s\n", ifile, mod_name, cil_name);
 		}
 		free(cil_path);

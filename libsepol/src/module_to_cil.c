@@ -775,7 +775,7 @@ static int cil_print_attr_strs(int indent, struct policydb *pdb, int is_type, st
 	int rc = 0;
 	struct ebitmap_node *node;
 	unsigned int i;
-	char *statement;
+	const char *statement;
 	int has_positive = pos && (ebitmap_cardinality(pos) > 0);
 	int has_negative = neg && (ebitmap_cardinality(neg) > 0);
 	char **val_to_name;
@@ -2721,7 +2721,7 @@ static int ocontext_selinux_node_to_cil(struct policydb *pdb, struct ocontext *n
 			goto exit;
 		}
 
-		cil_printf("(nodecon %s %s ", addr, mask);
+		cil_printf("(nodecon (%s) (%s) ", addr, mask);
 
 		context_to_cil(pdb, &node->context[0]);
 
@@ -2753,7 +2753,7 @@ static int ocontext_selinux_node6_to_cil(struct policydb *pdb, struct ocontext *
 			goto exit;
 		}
 
-		cil_printf("(nodecon %s %s ", addr, mask);
+		cil_printf("(nodecon (%s) (%s) ", addr, mask);
 
 		context_to_cil(pdb, &node->context[0]);
 
