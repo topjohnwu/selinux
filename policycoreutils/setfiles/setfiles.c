@@ -138,6 +138,19 @@ static void maybe_audit_mass_relabel(int mass_relabel, int mass_relabel_errs)
 #endif
 }
 
+static int __attribute__ ((format(printf, 2, 3)))
+log_callback(int type, const char *fmt, ...)
+{
+	int rc;
+	FILE *out = (type == SELINUX_INFO) ? stdout : stderr;
+	va_list ap;
+	fprintf(out, "%s: ", r_opts.progname);
+	va_start(ap, fmt);
+	rc = vfprintf(out, fmt, ap);
+	va_end(ap);
+	return rc;
+}
+
 int main(int argc, char **argv)
 {
 	struct stat sb;
@@ -147,10 +160,11 @@ int main(int argc, char **argv)
 	char *buf = NULL;
 	size_t buf_len;
 	const char *base;
-	int mass_relabel = 0, errors = 0;
+	int errors = 0;
 	const char *ropts = "e:f:hiIDlmno:pqrsvFRW0";
 	const char *sopts = "c:de:f:hiIDlmno:pqr:svFR:W0";
 	const char *opts;
+	union selinux_callback cb;
 
 	/* Initialize variables */
 	memset(&r_opts, 0, sizeof(r_opts));
@@ -304,19 +318,8 @@ int main(int argc, char **argv)
 			r_opts.nochange = SELINUX_RESTORECON_NOCHANGE;
 			break;
 		case 'o': /* Deprecated */
-			if (strcmp(optarg, "-") == 0) {
-				r_opts.outfile = stdout;
-				break;
-			}
-
-			r_opts.outfile = fopen(optarg, "w");
-			if (!r_opts.outfile) {
-				fprintf(stderr, "Error opening %s: %s\n",
-					optarg, strerror(errno));
-
-				usage(argv[0]);
-			}
-			__fsetlocking(r_opts.outfile, FSETLOCKING_BYCALLER);
+			fprintf(stderr, "%s: -o option no longer supported\n",
+				r_opts.progname);
 			break;
 		case 'q':
 			/* Deprecated - Was only used to say whether print
@@ -380,8 +383,11 @@ int main(int argc, char **argv)
 
 	for (i = optind; i < argc; i++) {
 		if (!strcmp(argv[i], "/"))
-			mass_relabel = 1;
+			r_opts.mass_relabel = SELINUX_RESTORECON_MASS_RELABEL;
 	}
+
+	cb.func_log = log_callback;
+	selinux_set_callback(SELINUX_CB_LOG, cb);
 
 	if (!iamrestorecon) {
 		if (policyfile) {
@@ -401,8 +407,8 @@ int main(int argc, char **argv)
 		 * we can support either checking against the active policy or
 		 * checking against a binary policy file.
 		 */
-		selinux_set_callback(SELINUX_CB_VALIDATE,
-				     (union selinux_callback)&canoncon);
+		cb.func_validate = canoncon;
+		selinux_set_callback(SELINUX_CB_VALIDATE, cb);
 
 		if (stat(argv[optind], &sb) < 0) {
 			perror(argv[optind]);
@@ -449,7 +455,7 @@ int main(int argc, char **argv)
 		while ((len = getdelim(&buf, &buf_len, delim, f)) > 0) {
 			buf[len - 1] = 0;
 			if (!strcmp(buf, "/"))
-				mass_relabel = 1;
+				r_opts.mass_relabel = SELINUX_RESTORECON_MASS_RELABEL;
 			errors |= process_glob(buf, &r_opts) < 0;
 		}
 		if (strcmp(input_filename, "-") != 0)
@@ -459,7 +465,7 @@ int main(int argc, char **argv)
 			errors |= process_glob(argv[i], &r_opts) < 0;
 	}
 
-	maybe_audit_mass_relabel(mass_relabel, errors);
+	maybe_audit_mass_relabel(r_opts.mass_relabel, errors);
 
 	if (warn_no_match)
 		selabel_stats(r_opts.hnd);
@@ -467,8 +473,8 @@ int main(int argc, char **argv)
 	selabel_close(r_opts.hnd);
 	restore_finish();
 
-	if (r_opts.outfile)
-		fclose(r_opts.outfile);
+	if (r_opts.progress)
+		fprintf(stdout, "\n");
 
 	exit(errors ? -1 : 0);
 }
