@@ -238,7 +238,13 @@ static int seapp_context_cmp(const void *A, const void *B)
 	dup = (!s1->user.str || !strcmp(s1->user.str, s2->user.str)) &&
 		(!s1->seinfo || !strcmp(s1->seinfo, s2->seinfo)) &&
 		(!s1->name.str || !strcmp(s1->name.str, s2->name.str)) &&
-		(!s1->path.str || !strcmp(s1->path.str, s2->path.str));
+		(!s1->path.str || !strcmp(s1->path.str, s2->path.str)) &&
+		(s1->isPrivAppSet && s1->isPrivApp == s2->isPrivApp) &&
+		(s1->isOwnerSet && s1->isOwner == s2->isOwner) &&
+		(s1->isSystemServer && s1->isSystemServer == s2->isSystemServer) &&
+		(s1->isV2AppSet && s1->isV2App == s2->isV2App) &&
+		(s1->isEphemeralAppSet && s1->isEphemeralApp == s2->isEphemeralApp);
+
 	if (dup) {
 		seapp_contexts_dup = true;
 		selinux_log(SELINUX_ERROR, "seapp_contexts:  Duplicated entry\n");
