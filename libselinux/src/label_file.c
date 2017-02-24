@@ -603,8 +603,7 @@ static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 	rec->spec_files_len = num_paths;
 
 	if (path_provided) {
-		i = n;
-		while (i--)
+		for (i = 0; i < n; i++) {
 			switch(opts[i].type) {
 			case SELABEL_OPT_PATH:
 				*path = strdup(opts[i].value);
@@ -615,6 +614,7 @@ static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 			default:
 				break;
 			}
+		}
 	}
 #if !defined(BUILD_HOST) && !defined(ANDROID)
 	char subs_file[PATH_MAX + 1];
