@@ -37,6 +37,8 @@
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
 #include <sys/_system_properties.h>
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
 /*
  * XXX Where should this configuration file be located?
  * Needs to be accessible by zygote and installd when
@@ -48,8 +50,10 @@ static char const * const seapp_contexts_files[] = {
 	"/nonplat_seapp_contexts" // TODO, switch to diff partition when final
 };
 
-static const struct selinux_opt seopts =
-    { SELABEL_OPT_PATH, "/file_contexts.bin" };
+static const struct selinux_opt seopts_file[] = {
+    { SELABEL_OPT_PATH, "/plat_file_contexts" },
+    { SELABEL_OPT_PATH, "/nonplat_file_contexts" }
+};
 
 static const char *const sepolicy_file = "/sepolicy";
 
@@ -1013,34 +1017,63 @@ static uint8_t fc_digest[FC_DIGEST_SIZE];
 
 static bool compute_file_contexts_hash(uint8_t c_digest[])
 {
-    int fd;
+    int fd = -1;
+    void *map = MAP_FAILED;
+    bool ret = false;
+    uint8_t *fc_data = NULL;
+    size_t total_size = 0;
     struct stat sb;
-    void *map;
+    size_t i;
 
-    fd = open(seopts.value, O_CLOEXEC | O_RDONLY | O_NOFOLLOW);
-    if (fd < 0) {
-        selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
-                    seopts.value, strerror(errno));
-        return false;
-    }
-    if (fstat(fd, &sb) < 0) {
-        selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
-                    seopts.value, strerror(errno));
-        close(fd);
-        return false;
-    }
-    map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (map == MAP_FAILED) {
-        selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
-                    seopts.value, strerror(errno));
-        close(fd);
-        return false;
-    }
-    SHA1(map, sb.st_size, c_digest);
-    munmap(map, sb.st_size);
-    close(fd);
+    for (i = 0; i < ARRAY_SIZE(seopts_file); i++) {
+        fd = open(seopts_file[i].value, O_CLOEXEC | O_RDONLY | O_NOFOLLOW);
+        if (fd < 0) {
+            selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
+                    seopts_file[i].value, strerror(errno));
+            goto cleanup;
+        }
 
-    return true;
+        if (fstat(fd, &sb) < 0) {
+            selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
+                    seopts_file[i].value, strerror(errno));
+            goto cleanup;
+        }
+
+        map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+        if (map == MAP_FAILED) {
+            selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
+                    seopts_file[i].value, strerror(errno));
+            goto cleanup;
+        }
+
+        fc_data = realloc(fc_data, total_size + sb.st_size);
+        if (!fc_data) {
+            selinux_log(SELINUX_ERROR, "SELinux: Count not re-alloc for %s:  %s\n",
+                     seopts_file[i].value, strerror(errno));
+            goto cleanup;
+        }
+
+        memcpy(fc_data + total_size, map, sb.st_size);
+        total_size += sb.st_size;
+
+        /* reset everything for next file */
+        munmap(map, sb.st_size);
+        close(fd);
+        map = MAP_FAILED;
+        fd = -1;
+    }
+
+    SHA1(fc_data, total_size, c_digest);
+    ret = true;
+
+cleanup:
+    if (map != MAP_FAILED)
+        munmap(map, sb.st_size);
+    if (fd >= 0)
+        close(fd);
+    free(fc_data);
+
+    return ret;
 }
 
 static void file_context_init(void)
@@ -1528,17 +1561,14 @@ int selinux_android_restorecon_pkgdir(const char *pkgdir,
 
 struct selabel_handle* selinux_android_file_context_handle(void)
 {
-    char *path = NULL;
     struct selabel_handle *sehandle;
-    struct selinux_opt fc_opts[] = {
-        { SELABEL_OPT_PATH, path },
-        { SELABEL_OPT_BASEONLY, (char *)1 }
-    };
+    struct selinux_opt fc_opts[ARRAY_SIZE(seopts_file) + 1];
 
-    fc_opts[0].value = seopts.value;
+    memcpy(fc_opts, seopts_file, sizeof(seopts_file));
+    fc_opts[ARRAY_SIZE(seopts_file)].type = SELABEL_OPT_BASEONLY;
+    fc_opts[ARRAY_SIZE(seopts_file)].value = (char *)1;
 
-    sehandle = selabel_open(SELABEL_CTX_FILE, fc_opts, 2);
-
+    sehandle = selabel_open(SELABEL_CTX_FILE, fc_opts, ARRAY_SIZE(fc_opts));
     if (!sehandle) {
         selinux_log(SELINUX_ERROR, "%s: Error getting file context handle (%s)\n",
                 __FUNCTION__, strerror(errno));
@@ -1548,8 +1578,8 @@ struct selabel_handle* selinux_android_file_context_handle(void)
         selabel_close(sehandle);
         return NULL;
     }
-    selinux_log(SELINUX_INFO, "SELinux: Loaded file_contexts contexts from %s.\n",
-            fc_opts[0].value);
+
+    selinux_log(SELINUX_INFO, "SELinux: Loaded file_contexts\n");
 
     return sehandle;
 }
