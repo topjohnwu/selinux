@@ -1624,9 +1624,24 @@ void selinux_android_set_sehandle(const struct selabel_handle *hndl)
     fc_sehandle = (struct selabel_handle *) hndl;
 }
 
-int selinux_android_load_policy(void)
+int selinux_android_load_policy()
 {
-	int fd = -1, rc;
+	int fd = -1;
+
+	fd = open(sepolicy_file, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+	if (fd < 0) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
+				sepolicy_file, strerror(errno));
+		return -1;
+	}
+	int ret = selinux_android_load_policy_from_fd(fd, sepolicy_file);
+	close(fd);
+	return ret;
+}
+
+int selinux_android_load_policy_from_fd(int fd, const char *description)
+{
+	int rc;
 	struct stat sb;
 	void *map = NULL;
 	static int load_successful = 0;
@@ -1643,23 +1658,15 @@ int selinux_android_load_policy(void)
 	}
 
 	set_selinuxmnt(SELINUXMNT);
-	fd = open(sepolicy_file, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-	if (fd < 0) {
-		selinux_log(SELINUX_ERROR, "SELinux:  Could not open sepolicy:  %s\n",
-				strerror(errno));
-		return -1;
-	}
 	if (fstat(fd, &sb) < 0) {
 		selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
-				sepolicy_file, strerror(errno));
-		close(fd);
+				description, strerror(errno));
 		return -1;
 	}
 	map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (map == MAP_FAILED) {
 		selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
-				sepolicy_file, strerror(errno));
-		close(fd);
+				description, strerror(errno));
 		return -1;
 	}
 
@@ -1668,13 +1675,11 @@ int selinux_android_load_policy(void)
 		selinux_log(SELINUX_ERROR, "SELinux:  Could not load policy:  %s\n",
 				strerror(errno));
 		munmap(map, sb.st_size);
-		close(fd);
 		return -1;
 	}
 
 	munmap(map, sb.st_size);
-	close(fd);
-	selinux_log(SELINUX_INFO, "SELinux: Loaded policy from %s\n", sepolicy_file);
+	selinux_log(SELINUX_INFO, "SELinux: Loaded policy from %s\n", description);
 	load_successful = 1;
 	return 0;
 }
