@@ -57,10 +57,12 @@ static const struct selinux_opt seopts_file[] = {
 
 static const char *const sepolicy_file = "/sepolicy";
 
-/* TODO: Change file paths to /system/property_contexts
- * and /vendor/property_contexts after b/27805372
- */
-static const struct selinux_opt seopts_prop[] = {
+static const struct selinux_opt seopts_prop_split[] = {
+    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts"}
+};
+
+static const struct selinux_opt seopts_prop_rootfs[] = {
     { SELABEL_OPT_PATH, "/plat_property_contexts" },
     { SELABEL_OPT_PATH, "/nonplat_property_contexts"}
 };
@@ -1587,6 +1589,14 @@ struct selabel_handle* selinux_android_file_context_handle(void)
 struct selabel_handle* selinux_android_prop_context_handle(void)
 {
     struct selabel_handle* sehandle;
+    const struct selinux_opt* seopts_prop;
+
+    // Prefer files from /system & /vendor, fall back to files from /
+    if (access(seopts_prop_split[0].value, R_OK) != -1) {
+        seopts_prop = seopts_prop_split;
+    } else {
+        seopts_prop = seopts_prop_rootfs;
+    }
 
     sehandle = selabel_open(SELABEL_CTX_ANDROID_PROP,
             seopts_prop, 2);
