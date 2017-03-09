@@ -45,9 +45,14 @@
  * setting credentials for app processes and setting permissions
  * on app data directories.
  */
-static char const * const seapp_contexts_files[] = {
+static char const * const seapp_contexts_split[] = {
+	"/system/etc/selinux/plat_seapp_contexts",
+	"/vendor/etc/selinux/nonplat_seapp_contexts"
+};
+
+static char const * const seapp_contexts_rootfs[] = {
 	"/plat_seapp_contexts",
-	"/nonplat_seapp_contexts" // TODO, switch to diff partition when final
+	"/nonplat_seapp_contexts"
 };
 
 static const struct selinux_opt seopts_file[] = {
@@ -67,10 +72,12 @@ static const struct selinux_opt seopts_prop_rootfs[] = {
     { SELABEL_OPT_PATH, "/nonplat_property_contexts"}
 };
 
-/* TODO: Change file paths to /system/plat_service_contexts
- * and /vendor/nonplat_service_contexts after b/27805372
- */
-static const struct selinux_opt seopts_service[] = {
+static const struct selinux_opt seopts_service_split[] = {
+    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_service_contexts" },
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_service_contexts" }
+};
+
+static const struct selinux_opt seopts_service_rootfs[] = {
     { SELABEL_OPT_PATH, "/plat_service_contexts" },
     { SELABEL_OPT_PATH, "/nonplat_service_contexts" }
 };
@@ -308,10 +315,19 @@ int selinux_android_seapp_context_reload(void)
 	char *p, *name = NULL, *value = NULL, *saveptr;
 	size_t i, len, files_len;
 	int n, ret;
+	const char *const *seapp_contexts_files;
+
+	// Prefer files from /system & /vendor, fall back to files from /
+	if (access(seapp_contexts_split[0], R_OK) != -1) {
+		seapp_contexts_files = seapp_contexts_split;
+		files_len = sizeof(seapp_contexts_split)/sizeof(seapp_contexts_split[0]);
+	} else {
+		seapp_contexts_files = seapp_contexts_rootfs;
+		files_len = sizeof(seapp_contexts_rootfs)/sizeof(seapp_contexts_rootfs[0]);
+	}
 
 	free_seapp_contexts();
 
-	files_len = sizeof(seapp_contexts_files)/sizeof(seapp_contexts_files[0]);
 	nspec = 0;
 	for (i = 0; i < files_len; i++) {
 		fp = fopen(seapp_contexts_files[i], "re");
@@ -1614,6 +1630,14 @@ struct selabel_handle* selinux_android_prop_context_handle(void)
 struct selabel_handle* selinux_android_service_context_handle(void)
 {
     struct selabel_handle* sehandle;
+    const struct selinux_opt* seopts_service;
+
+    // Prefer files from /system & /vendor, fall back to files from /
+    if (access(seopts_service_split[0].value, R_OK) != -1) {
+        seopts_service = seopts_service_split;
+    } else {
+        seopts_service = seopts_service_rootfs;
+    }
 
     sehandle = selabel_open(SELABEL_CTX_ANDROID_SERVICE,
             seopts_service, 2);
