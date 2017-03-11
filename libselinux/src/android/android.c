@@ -55,9 +55,13 @@ static char const * const seapp_contexts_rootfs[] = {
 	"/nonplat_seapp_contexts"
 };
 
-static const struct selinux_opt seopts_file[] = {
-    { SELABEL_OPT_PATH, "/plat_file_contexts" },
-    { SELABEL_OPT_PATH, "/nonplat_file_contexts" }
+static const struct selinux_opt seopts_file_split[] = {
+    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_file_contexts" }
+};
+
+static const struct selinux_opt seopts_file_rootfs[] = {
+    { SELABEL_OPT_PATH, "/file_contexts.bin" }
 };
 
 static const char *const sepolicy_file = "/sepolicy";
@@ -1033,7 +1037,7 @@ static struct selabel_handle *fc_sehandle = NULL;
 #define FC_DIGEST_SIZE SHA_DIGEST_LENGTH
 static uint8_t fc_digest[FC_DIGEST_SIZE];
 
-static bool compute_file_contexts_hash(uint8_t c_digest[])
+static bool compute_file_contexts_hash(uint8_t c_digest[], const struct selinux_opt *opts, unsigned nopts)
 {
     int fd = -1;
     void *map = MAP_FAILED;
@@ -1043,31 +1047,31 @@ static bool compute_file_contexts_hash(uint8_t c_digest[])
     struct stat sb;
     size_t i;
 
-    for (i = 0; i < ARRAY_SIZE(seopts_file); i++) {
-        fd = open(seopts_file[i].value, O_CLOEXEC | O_RDONLY | O_NOFOLLOW);
+    for (i = 0; i < nopts; i++) {
+        fd = open(opts[i].value, O_CLOEXEC | O_RDONLY);
         if (fd < 0) {
             selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
-                    seopts_file[i].value, strerror(errno));
+                    opts[i].value, strerror(errno));
             goto cleanup;
         }
 
         if (fstat(fd, &sb) < 0) {
             selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
-                    seopts_file[i].value, strerror(errno));
+                    opts[i].value, strerror(errno));
             goto cleanup;
         }
 
         map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
         if (map == MAP_FAILED) {
             selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
-                    seopts_file[i].value, strerror(errno));
+                    opts[i].value, strerror(errno));
             goto cleanup;
         }
 
         fc_data = realloc(fc_data, total_size + sb.st_size);
         if (!fc_data) {
             selinux_log(SELINUX_ERROR, "SELinux: Count not re-alloc for %s:  %s\n",
-                     seopts_file[i].value, strerror(errno));
+                     opts[i].value, strerror(errno));
             goto cleanup;
         }
 
@@ -1577,14 +1581,15 @@ int selinux_android_restorecon_pkgdir(const char *pkgdir,
     return selinux_android_restorecon_common(pkgdir, seinfo, uid, flags | SELINUX_ANDROID_RESTORECON_DATADATA);
 }
 
-struct selabel_handle* selinux_android_file_context_handle(void)
+static struct selabel_handle* selinux_android_file_context(const struct selinux_opt *opts,
+                                                    unsigned nopts)
 {
     struct selabel_handle *sehandle;
-    struct selinux_opt fc_opts[ARRAY_SIZE(seopts_file) + 1];
+    struct selinux_opt fc_opts[nopts + 1];
 
-    memcpy(fc_opts, seopts_file, sizeof(seopts_file));
-    fc_opts[ARRAY_SIZE(seopts_file)].type = SELABEL_OPT_BASEONLY;
-    fc_opts[ARRAY_SIZE(seopts_file)].value = (char *)1;
+    memcpy(fc_opts, opts, nopts*sizeof(struct selinux_opt));
+    fc_opts[nopts].type = SELABEL_OPT_BASEONLY;
+    fc_opts[nopts].value = (char *)1;
 
     sehandle = selabel_open(SELABEL_CTX_FILE, fc_opts, ARRAY_SIZE(fc_opts));
     if (!sehandle) {
@@ -1592,7 +1597,7 @@ struct selabel_handle* selinux_android_file_context_handle(void)
                 __FUNCTION__, strerror(errno));
         return NULL;
     }
-    if (!compute_file_contexts_hash(fc_digest)) {
+    if (!compute_file_contexts_hash(fc_digest, opts, nopts)) {
         selabel_close(sehandle);
         return NULL;
     }
@@ -1602,6 +1607,21 @@ struct selabel_handle* selinux_android_file_context_handle(void)
     return sehandle;
 }
 
+static bool selinux_android_opts_file_exists(const struct selinux_opt *opt)
+{
+    return (access(opt[0].value, R_OK) != -1);
+}
+
+struct selabel_handle* selinux_android_file_context_handle(void)
+{
+    if (selinux_android_opts_file_exists(seopts_file_split)) {
+        return selinux_android_file_context(seopts_file_split,
+                                            ARRAY_SIZE(seopts_file_split));
+    } else {
+        return selinux_android_file_context(seopts_file_rootfs,
+                                            ARRAY_SIZE(seopts_file_rootfs));
+    }
+}
 struct selabel_handle* selinux_android_prop_context_handle(void)
 {
     struct selabel_handle* sehandle;
