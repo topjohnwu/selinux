@@ -70,6 +70,9 @@ cc_library {
                 "src/stringrep.c",
             ],
         },
+        linux_bionic: {
+            enabled: true,
+        },
         android: {
             srcs: [
                 "src/android/android.c",
