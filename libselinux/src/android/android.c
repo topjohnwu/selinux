@@ -1,5 +1,11 @@
 #include "android_common.h"
 
+#ifdef __ANDROID_VNDK__
+#ifndef LOG_EVENT_STRING
+#define LOG_EVENT_STRING(...)
+#endif  // LOG_EVENT_STRING
+#endif  // __ANDROID_VNDK__
+
 static const struct selinux_opt seopts_prop_split[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts"}
@@ -61,6 +67,7 @@ struct selabel_handle* selinux_android_prop_context_handle(void)
     return sehandle;
 }
 
+
 struct selabel_handle* selinux_android_service_open_context_handle(const struct selinux_opt* seopts_service,
                                                                    unsigned nopts)
 {
@@ -83,7 +90,6 @@ struct selabel_handle* selinux_android_service_open_context_handle(const struct 
 
 struct selabel_handle* selinux_android_service_context_handle(void)
 {
-    struct selabel_handle* sehandle;
     const struct selinux_opt* seopts_service;
 
     // Prefer files from /system & /vendor, fall back to files from /
@@ -93,18 +99,20 @@ struct selabel_handle* selinux_android_service_context_handle(void)
         seopts_service = seopts_service_rootfs;
     }
 
-    sehandle = selabel_open(SELABEL_CTX_ANDROID_SERVICE,
-            seopts_service, 2);
+    // TODO(b/36866029) full treble devices can't load non-plat
+    return selinux_android_service_open_context_handle(seopts_service, 2);
+}
 
-    if (!sehandle) {
-        selinux_log(SELINUX_ERROR, "%s: Error getting service context handle (%s)\n",
-                __FUNCTION__, strerror(errno));
-        return NULL;
+struct selabel_handle* selinux_android_vendor_service_context_handle(void)
+{
+    const struct selinux_opt* seopts_service;
+    if (access(seopts_vndservice.value, R_OK) != -1) {
+        seopts_service = &seopts_vndservice;
+    } else {
+        seopts_service = &seopts_vndservice_rootfs;
     }
-    selinux_log(SELINUX_INFO, "SELinux: Loaded service_contexts from %s & %s.\n",
-            seopts_service[0].value, seopts_service[1].value);
 
-    return sehandle;
+    return selinux_android_service_open_context_handle(seopts_service, 1);
 }
 
 int selinux_log_callback(int type, const char *fmt, ...)
