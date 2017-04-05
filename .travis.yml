@@ -76,7 +76,8 @@ before_script:
   # Configure the variables for Python parts
   - export VIRTUAL_ENV="$HOME/virtualenv/$PYVER"
   - export PYTHON="$VIRTUAL_ENV/bin/python"
-  - export PYPREFIX="$($PYTHON -c 'import sys;print("python%d" % sys.version_info[0])')"
+  # Use the header files in /opt/python/... for Python because the virtualenvs do not provide Python.h
+  - export PKG_CONFIG_PATH="/opt/python/$($PYTHON -c 'import sys;print("%d.%d.%d" % sys.version_info[:3])')/lib/pkgconfig"
   # PyPy does not provide a config file for pkg-config nor a pypy-c.so
   - if echo "$PYVER" | grep -q pypy ; then export PYINC=-I$($PYTHON -c 'import sys;print(sys.prefix)')/include PYLIBS= ; fi
   # Python virtualenvs do not support "import site; print(site.getsitepackages()[0]"
@@ -104,14 +105,12 @@ script:
   - make all -k
 
   # Set up environment variables for the tests
-  - export CFLAGS="-I$DESTDIR/usr/include"
   - export LD_LIBRARY_PATH="$DESTDIR/usr/lib:$DESTDIR/lib"
   - export PATH="$DESTDIR/usr/sbin:$DESTDIR/usr/bin:$DESTDIR/sbin:$DESTDIR/bin:$PATH"
   - export PYTHONPATH="$PYSITEDIR"
   - export RUBYLIB="$DESTDIR/$($RUBY -e 'puts RbConfig::CONFIG["vendorlibdir"]'):$DESTDIR/$($RUBY -e 'puts RbConfig::CONFIG["vendorarchdir"]')"
 
   # Show variables (to help debugging issues)
-  - echo "$CFLAGS"
   - echo "$LD_LIBRARY_PATH"
   - echo "$PATH"
   - echo "$PYTHONPATH"
