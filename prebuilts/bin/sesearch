@@ -2,7 +2,7 @@
 
 unamestr=`uname`
 if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
-	export PYTHONPATH=$ANDROID_BUILD_TOP/prebuilts/python/linux-x86/2.7.5/lib/python2.7/site-packages
+	export PYTHONPATH=$ANDROID_BUILD_TOP/prebuilts/python/linux-x86/2.7.5/lib/python2.7/site-packages:$PYTHONPATH
 	python $ANDROID_BUILD_TOP/external/selinux/prebuilts/bin/sesearch.py "$@"
 else
 	echo "sesearch is only supported on linux"
