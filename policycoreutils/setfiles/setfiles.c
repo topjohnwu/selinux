@@ -39,7 +39,7 @@ static int iamrestorecon;
 static int ctx_validate; /* Validate contexts */
 static const char *altpath; /* Alternate path to file_contexts */
 
-void usage(const char *const name)
+static __attribute__((__noreturn__)) void usage(const char *const name)
 {
 	if (iamrestorecon) {
 		fprintf(stderr,
@@ -142,9 +142,16 @@ static int __attribute__ ((format(printf, 2, 3)))
 log_callback(int type, const char *fmt, ...)
 {
 	int rc;
-	FILE *out = (type == SELINUX_INFO) ? stdout : stderr;
+	FILE *out;
 	va_list ap;
-	fprintf(out, "%s: ", r_opts.progname);
+
+	if (type == SELINUX_INFO) {
+		out = stdout;
+	} else {
+		out = stderr;
+		fflush(stdout);
+		fprintf(out, "%s: ", r_opts.progname);
+	}
 	va_start(ap, fmt);
 	rc = vfprintf(out, fmt, ap);
 	va_end(ap);

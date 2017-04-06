@@ -22,7 +22,7 @@
 char *progname = NULL;
 extern char *optarg;
 
-static void usage(const char *prog)
+static __attribute__((__noreturn__)) void usage(const char *prog)
 {
 	printf("usage: %s -o <output file> -m <module> [-f <file contexts>]\n",
 	       prog);
@@ -257,5 +257,7 @@ int main(int argc, char **argv)
 	free(file_contexts);
 	free(outfile);
 	free(module);
+	free(seusers);
+	free(user_extra);
 	exit(0);
 }
