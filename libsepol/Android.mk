@@ -20,6 +20,9 @@ common_src_files := \
 	src/hierarchy.c \
 	src/iface_record.c \
 	src/interfaces.c \
+	src/kernel_to_cil.c \
+	src/kernel_to_common.c \
+	src/kernel_to_conf.c \
 	src/link.c \
 	src/mls.c \
 	src/module.c \
