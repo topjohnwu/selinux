@@ -2753,6 +2753,7 @@ static int __cil_fill_constraint_expr(struct cil_tree_node *current, enum cil_fl
 		}
 		rc = __cil_fill_constraint_expr(current->next->next->cl_head, flavor, &rexpr, depth);
 		if (rc != SEPOL_OK) {
+			cil_list_destroy(&lexpr, CIL_TRUE);
 			goto exit;
 		}
 		cil_list_init(expr, flavor);
@@ -4227,12 +4228,12 @@ int cil_gen_portcon(struct cil_db *db, struct cil_tree_node *parse_current, stru
 	if (parse_current->next->next->cl_head != NULL) {
 		if (parse_current->next->next->cl_head->next != NULL
 		&& parse_current->next->next->cl_head->next->next == NULL) {
-			rc = cil_fill_integer(parse_current->next->next->cl_head, &portcon->port_low);
+			rc = cil_fill_integer(parse_current->next->next->cl_head, &portcon->port_low, 10);
 			if (rc != SEPOL_OK) {
 				cil_log(CIL_ERR, "Improper port specified\n");
 				goto exit;
 			}
-			rc = cil_fill_integer(parse_current->next->next->cl_head->next, &portcon->port_high);
+			rc = cil_fill_integer(parse_current->next->next->cl_head->next, &portcon->port_high, 10);
 			if (rc != SEPOL_OK) {
 				cil_log(CIL_ERR, "Improper port specified\n");
 				goto exit;
@@ -4243,7 +4244,7 @@ int cil_gen_portcon(struct cil_db *db, struct cil_tree_node *parse_current, stru
 			goto exit;
 		}
 	} else {
-		rc = cil_fill_integer(parse_current->next->next, &portcon->port_low);
+		rc = cil_fill_integer(parse_current->next->next, &portcon->port_low, 10);
 		if (rc != SEPOL_OK) {
 			cil_log(CIL_ERR, "Improper port specified\n");
 			goto exit;
@@ -4537,7 +4538,7 @@ int cil_gen_pirqcon(struct cil_db *db, struct cil_tree_node *parse_current, stru
 
 	cil_pirqcon_init(&pirqcon);
 
-	rc = cil_fill_integer(parse_current->next, &pirqcon->pirq);
+	rc = cil_fill_integer(parse_current->next, &pirqcon->pirq, 10);
 	if (rc != SEPOL_OK) {
 		goto exit;
 	}
@@ -4603,12 +4604,12 @@ int cil_gen_iomemcon(struct cil_db *db, struct cil_tree_node *parse_current, str
 	if (parse_current->next->cl_head != NULL) {
 		if (parse_current->next->cl_head->next != NULL &&
 		    parse_current->next->cl_head->next->next == NULL) {
-			rc = cil_fill_integer64(parse_current->next->cl_head, &iomemcon->iomem_low);
+			rc = cil_fill_integer64(parse_current->next->cl_head, &iomemcon->iomem_low, 0);
 			if (rc != SEPOL_OK) {
 				cil_log(CIL_ERR, "Improper iomem specified\n");
 				goto exit;
 			}
-			rc = cil_fill_integer64(parse_current->next->cl_head->next, &iomemcon->iomem_high);
+			rc = cil_fill_integer64(parse_current->next->cl_head->next, &iomemcon->iomem_high, 0);
 			if (rc != SEPOL_OK) {
 				cil_log(CIL_ERR, "Improper iomem specified\n");
 				goto exit;
@@ -4619,7 +4620,7 @@ int cil_gen_iomemcon(struct cil_db *db, struct cil_tree_node *parse_current, str
 			goto exit;
 		}
 	} else {
-		rc = cil_fill_integer64(parse_current->next, &iomemcon->iomem_low);;
+		rc = cil_fill_integer64(parse_current->next, &iomemcon->iomem_low, 0);
 		if (rc != SEPOL_OK) {
 			cil_log(CIL_ERR, "Improper iomem specified\n");
 			goto exit;
@@ -4688,12 +4689,12 @@ int cil_gen_ioportcon(struct cil_db *db, struct cil_tree_node *parse_current, st
 	if (parse_current->next->cl_head != NULL) {
 		if (parse_current->next->cl_head->next != NULL &&
 		    parse_current->next->cl_head->next->next == NULL) {
-			rc = cil_fill_integer(parse_current->next->cl_head, &ioportcon->ioport_low);
+			rc = cil_fill_integer(parse_current->next->cl_head, &ioportcon->ioport_low, 0);
 			if (rc != SEPOL_OK) {
 				cil_log(CIL_ERR, "Improper ioport specified\n");
 				goto exit;
 			}
-			rc = cil_fill_integer(parse_current->next->cl_head->next, &ioportcon->ioport_high);
+			rc = cil_fill_integer(parse_current->next->cl_head->next, &ioportcon->ioport_high, 0);
 			if (rc != SEPOL_OK) {
 				cil_log(CIL_ERR, "Improper ioport specified\n");
 				goto exit;
@@ -4704,7 +4705,7 @@ int cil_gen_ioportcon(struct cil_db *db, struct cil_tree_node *parse_current, st
 			goto exit;
 		}
 	} else {
-		rc = cil_fill_integer(parse_current->next, &ioportcon->ioport_low);
+		rc = cil_fill_integer(parse_current->next, &ioportcon->ioport_low, 0);
 		if (rc != SEPOL_OK) {
 			cil_log(CIL_ERR, "Improper ioport specified\n");
 			goto exit;
@@ -4770,7 +4771,7 @@ int cil_gen_pcidevicecon(struct cil_db *db, struct cil_tree_node *parse_current,
 
 	cil_pcidevicecon_init(&pcidevicecon);
 
-	rc = cil_fill_integer(parse_current->next, &pcidevicecon->dev);
+	rc = cil_fill_integer(parse_current->next, &pcidevicecon->dev, 0);
 	if (rc != SEPOL_OK) {
 		goto exit;
 	}
@@ -5363,7 +5364,7 @@ void cil_destroy_ipaddr(struct cil_ipaddr *ipaddr)
 	free(ipaddr);
 }
 
-int cil_fill_integer(struct cil_tree_node *int_node, uint32_t *integer)
+int cil_fill_integer(struct cil_tree_node *int_node, uint32_t *integer, int base)
 {
 	int rc = SEPOL_ERR;
 	char *endptr = NULL;
@@ -5374,7 +5375,7 @@ int cil_fill_integer(struct cil_tree_node *int_node, uint32_t *integer)
 	}
 
 	errno = 0;
-	val = strtol(int_node->data, &endptr, 10);
+	val = strtol(int_node->data, &endptr, base);
 	if (errno != 0 || endptr == int_node->data || *endptr != '\0') {
 		rc = SEPOL_ERR;
 		goto exit;
@@ -5389,7 +5390,7 @@ exit:
 	return rc;
 }
 
-int cil_fill_integer64(struct cil_tree_node *int_node, uint64_t *integer)
+int cil_fill_integer64(struct cil_tree_node *int_node, uint64_t *integer, int base)
 {
 	int rc = SEPOL_ERR;
 	char *endptr = NULL;
@@ -5400,7 +5401,7 @@ int cil_fill_integer64(struct cil_tree_node *int_node, uint64_t *integer)
 	}
 
 	errno = 0;
-	val = strtoull(int_node->data, &endptr, 10);
+	val = strtoull(int_node->data, &endptr, base);
 	if (errno != 0 || endptr == int_node->data || *endptr != '\0') {
 		rc = SEPOL_ERR;
 		goto exit;

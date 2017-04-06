@@ -3313,11 +3313,12 @@ int __cil_resolve_ast_node(struct cil_tree_node *node, void *extra_args)
 	int rc = SEPOL_OK;
 	struct cil_args_resolve *args = extra_args;
 	enum cil_pass pass = 0;
-	struct cil_list *ins = args->in_list;
+	struct cil_list *ins;
 
 	if (node == NULL || args == NULL) {
 		goto exit;
 	}
+	ins = args->in_list;
 
 	pass = args->pass;
 	switch (pass) {
@@ -3796,7 +3797,7 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 	uint32_t changed = 0;
 
 	if (db == NULL || current == NULL) {
-		goto exit;
+		return rc;
 	}
 
 	extra_args.db = db;
@@ -3936,8 +3937,8 @@ exit:
 	__cil_ordered_lists_destroy(&extra_args.classorder_lists);
 	__cil_ordered_lists_destroy(&extra_args.catorder_lists);
 	__cil_ordered_lists_destroy(&extra_args.sensitivityorder_lists);
+	__cil_ordered_lists_destroy(&extra_args.unordered_classorder_lists);
 	cil_list_destroy(&extra_args.in_list, CIL_FALSE);
-	cil_list_destroy(&extra_args.unordered_classorder_lists, CIL_FALSE);
 
 	return rc;
 }
