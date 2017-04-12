@@ -791,8 +791,8 @@ static int cil_print_attr_strs(int indent, struct policydb *pdb, int is_type, vo
 	// CIL doesn't support anonymous positive/negative/complemented sets.  So
 	// instead we create a CIL type/roleattributeset that matches the set. If
 	// the set has a negative set, then convert it to is (P & !N), where P is
-	// the list of members in the positive set , and N is the list of members
-	// in the negative set. Additonally, if the set is complemented, then wrap
+	// the list of members in the positive set and N is the list of members
+	// in the negative set. Additionally, if the set is complemented, then wrap
 	// the whole thing with a negation.
 
 	struct ebitmap_node *node;
@@ -962,7 +962,6 @@ static int set_to_names(struct policydb *pdb, int is_type, void *set, struct lis
 	*names = malloc(sizeof(char *));
 	if (!*names) {
 		log_err("Out of memory");
-		free(attr_name);
 		rc = -1;
 		goto exit;
 	}
@@ -1154,6 +1153,7 @@ static int name_list_to_string(char **names, int num_names, char **string)
 
 	return 0;
 exit:
+	free(str);
 	return rc;
 }
 
@@ -1698,7 +1698,7 @@ static int constraint_expr_to_string(struct policydb *pdb, struct constraint_exp
 	const char *fmt_str;
 	const char *attr1;
 	const char *attr2;
-	char *names;
+	char *names = NULL;
 	char **name_list = NULL;
 	int num_names = 0;
 	struct type_set *ts;
@@ -1799,6 +1799,7 @@ static int constraint_expr_to_string(struct policydb *pdb, struct constraint_exp
 
 				names_destroy(&name_list, &num_names);
 				free(names);
+				names = NULL;
 			}
 
 			num_params = 0;
@@ -1888,6 +1889,7 @@ static int constraint_expr_to_string(struct policydb *pdb, struct constraint_exp
 
 exit:
 	names_destroy(&name_list, &num_names);
+	free(names);
 
 	free(new_val);
 	free(val1);
@@ -2101,13 +2103,13 @@ static int role_to_cil(int indent, struct policydb *pdb, struct avrule_block *UN
 			// the policy type, it would result in duplicate declarations,
 			// which isn't allowed in CIL. Patches have been made to refpolicy
 			// to remove these duplicate role declarations, but we need to be
-			// backwards compatable and support older policies. Since we know
+			// backwards compatible and support older policies. Since we know
 			// these roles are always declared in base, only print them when we
 			// see them in the base module. If the declarations appear in a
 			// non-base module, ignore their declarations.
 			//
 			// Note that this is a hack, and if a policy author does not define
-			// one of these roles in base, the declaration will not appeaer in
+			// one of these roles in base, the declaration will not appear in
 			// the resulting policy, likely resulting in a compilation error in
 			// CIL.
 			//
@@ -2287,7 +2289,7 @@ static int user_to_cil(int indent, struct policydb *pdb, struct avrule_block *bl
 
 	if (block->flags & AVRULE_OPTIONAL) {
 		// sensitivites in user statements in optionals do not have the
-		// standard -1 offest
+		// standard -1 offset
 		sens_offset = 0;
 	}
 
