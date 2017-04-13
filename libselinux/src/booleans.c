@@ -97,7 +97,7 @@ char *selinux_boolean_sub(const char *name)
 	if (!name)
 		return NULL;
 
-	cfg = fopen(selinux_booleans_subs_path(), "r");
+	cfg = fopen(selinux_booleans_subs_path(), "re");
 	if (!cfg)
 		goto out;
 
@@ -210,7 +210,7 @@ static int get_bool_value(const char *name, char **buf)
 
 	(*buf)[STRBUF_SIZE] = 0;
 
-	fd = bool_open(name, O_RDONLY);
+	fd = bool_open(name, O_RDONLY | O_CLOEXEC);
 	if (fd < 0)
 		goto out_err;
 
@@ -274,7 +274,7 @@ int security_set_boolean(const char *name, int value)
 		return -1;
 	}
 
-	fd = bool_open(name, O_WRONLY);
+	fd = bool_open(name, O_WRONLY | O_CLOEXEC);
 	if (fd < 0)
 		return -1;
 
@@ -305,7 +305,7 @@ int security_commit_booleans(void)
 	}
 
 	snprintf(path, sizeof path, "%s/commit_pending_bools", selinux_mnt);
-	fd = open(path, O_WRONLY);
+	fd = open(path, O_WRONLY | O_CLOEXEC);
 	if (fd < 0)
 		return -1;
 
@@ -342,30 +342,42 @@ static int process_boolean(char *buffer, char *name, int namesize, int *val)
 {
 	char name1[BUFSIZ];
 	char *ptr = NULL;
-	char *tok = strtok_r(buffer, "=", &ptr);
-	if (tok) {
-		strncpy(name1, tok, BUFSIZ - 1);
-		strtrim(name, name1, namesize - 1);
-		if (name[0] == '#')
-			return 0;
-		tok = strtok_r(NULL, "\0", &ptr);
-		if (tok) {
-			while (isspace(*tok))
-				tok++;
-			*val = -1;
-			if (isdigit(tok[0]))
-				*val = atoi(tok);
-			else if (!strncasecmp(tok, "true", sizeof("true") - 1))
-				*val = 1;
-			else if (!strncasecmp
-				 (tok, "false", sizeof("false") - 1))
-				*val = 0;
-			if (*val != 0 && *val != 1) {
-				errno = EINVAL;
-				return -1;
-			}
+	char *tok;
 
-		}
+	/* Skip spaces */
+	while (isspace(buffer[0]))
+		buffer++;
+	/* Ignore comments */
+	if (buffer[0] == '#')
+		return 0;
+
+	tok = strtok_r(buffer, "=", &ptr);
+	if (!tok) {
+		errno = EINVAL;
+		return -1;
+	}
+	strncpy(name1, tok, BUFSIZ - 1);
+	strtrim(name, name1, namesize - 1);
+
+	tok = strtok_r(NULL, "\0", &ptr);
+	if (!tok) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	while (isspace(*tok))
+		tok++;
+
+	*val = -1;
+	if (isdigit(tok[0]))
+		*val = atoi(tok);
+	else if (!strncasecmp(tok, "true", sizeof("true") - 1))
+		*val = 1;
+	else if (!strncasecmp(tok, "false", sizeof("false") - 1))
+		*val = 0;
+	if (*val != 0 && *val != 1) {
+		errno = EINVAL;
+		return -1;
 	}
 	return 1;
 }
@@ -399,7 +411,7 @@ static int save_booleans(size_t boolcnt, SELboolean * boollist)
 
 	snprintf(local_bool_file, sizeof(local_bool_file), "%s.local",
 		 bool_file);
-	boolf = fopen(local_bool_file, "r");
+	boolf = fopen(local_bool_file, "re");
 	if (boolf != NULL) {
 		ssize_t ret;
 		size_t size = 0;
@@ -518,7 +530,7 @@ int security_load_booleans(char *path)
 	int val;
 	char name[BUFSIZ];
 
-	boolf = fopen(path ? path : selinux_booleans_path(), "r");
+	boolf = fopen(path ? path : selinux_booleans_path(), "re");
 	if (boolf == NULL)
 		goto localbool;
 
@@ -536,7 +548,7 @@ int security_load_booleans(char *path)
       localbool:
 	snprintf(localbools, sizeof(localbools), "%s.local",
 		 (path ? path : selinux_booleans_path()));
-	boolf = fopen(localbools, "r");
+	boolf = fopen(localbools, "re");
 
 	if (boolf != NULL) {
 		int ret;

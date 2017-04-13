@@ -242,7 +242,7 @@ static int exclude_non_seclabel_mounts(void)
 	if (uname(&uts) == 0 && strverscmp(uts.release, "2.6.30") < 0)
 		return 0;
 
-	fp = fopen("/proc/mounts", "r");
+	fp = fopen("/proc/mounts", "re");
 	if (!fp)
 		return 0;
 
@@ -252,12 +252,12 @@ static int exclude_non_seclabel_mounts(void)
 		item = strtok(buf, " ");
 		while (item != NULL) {
 			mount_info[index] = item;
-			if (index == 3)
-				break;
 			index++;
+			if (index == 4)
+				break;
 			item = strtok(NULL, " ");
 		}
-		if (index < 3) {
+		if (index < 4) {
 			selinux_log(SELINUX_ERROR,
 				    "/proc/mounts record \"%s\" has incorrect format.\n",
 				    buf);
@@ -664,7 +664,7 @@ static int restorecon_sb(const char *pathname, const struct stat *sb,
 		curcon = NULL;
 	}
 
-	if (strcmp(curcon, newcon) != 0) {
+	if (curcon == NULL || strcmp(curcon, newcon) != 0) {
 		if (!flags->set_specctx && curcon &&
 				    (is_context_customizable(curcon) > 0)) {
 			if (flags->verbose) {
