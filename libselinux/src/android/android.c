@@ -86,6 +86,17 @@ static const struct selinux_opt seopts_service_rootfs[] = {
     { SELABEL_OPT_PATH, "/nonplat_service_contexts" }
 };
 
+static const struct selinux_opt seopts_hwservice_split[] = {
+    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_hwservice_contexts" },
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_hwservice_contexts" }
+};
+
+static const struct selinux_opt seopts_hwservice_rootfs[] = {
+    { SELABEL_OPT_PATH, "/plat_hwservice_contexts" },
+    { SELABEL_OPT_PATH, "/nonplat_hwservice_contexts" }
+};
+
+
 static const struct selinux_opt seopts_vndservice =
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/vndservice_contexts" };
 
@@ -1686,6 +1697,18 @@ struct selabel_handle* selinux_android_service_context_handle(void)
     }
 
     // TODO(b/36866029) full treble devices can't load non-plat
+    return selinux_android_service_open_context_handle(seopts_service, 2);
+}
+
+struct selabel_handle* selinux_android_hw_service_context_handle(void)
+{
+    const struct selinux_opt* seopts_service;
+    if (access(seopts_hwservice_split[0].value, R_OK) != -1) {
+        seopts_service = seopts_hwservice_split;
+    } else {
+        seopts_service = seopts_hwservice_rootfs;
+    }
+
     return selinux_android_service_open_context_handle(seopts_service, 2);
 }
 
