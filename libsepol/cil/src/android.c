@@ -394,25 +394,14 @@ exit:
 
 static int cil_attrib_typepermissive(struct cil_tree_node *node, struct version_args *args)
 {
-	int rc = SEPOL_ERR;
-	char *key;
 	struct cil_typepermissive *typeperm = (struct cil_typepermissive *)node->data;
 
 	if (typeperm->type != NULL) {
 		cil_log(CIL_ERR, "AST already resolved.  ### Not yet supported.\n");
-		goto exit;
-	}
-
-	key = typeperm->type_str;
-	if (__cil_get_plat_flavor(args->vers_map, (hashtab_key_t) key) != PLAT_NONE) {
-		cil_log(CIL_ERR, "%s contains platform public type: %s (line %d) .\n",
-			CIL_KEY_TYPEPERMISSIVE, typeperm->type_str, node->line);
-		goto exit;
+		return SEPOL_ERR;
 	}
 
 	return SEPOL_OK;
-exit:
-	return rc;
 }
 
 static int cil_attrib_typeattribute(struct cil_tree_node *node, struct version_args *args)
@@ -654,8 +643,6 @@ static int __attributize_helper(struct cil_tree_node *node, uint32_t *finished, 
 		}
 		break;
 	case CIL_TYPEPERMISSIVE:
-		/* not sure how to handle this - throw error if targeting platform type.
-		   Could maybe add support for permissive attributes. */
 		rc = cil_attrib_typepermissive(node, args);
 		if (rc != SEPOL_OK) {
 			goto exit;
