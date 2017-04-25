@@ -29,6 +29,88 @@ cc_defaults {
 }
 
 cc_library {
+    name: "libselinux_vendor",
+    defaults: ["libselinux_flags"],
+    vendor: true,
+
+    srcs: [
+        "src/booleans.c",
+        "src/callbacks.c",
+        "src/freecon.c",
+        "src/label_backends_android.c",
+        "src/label.c",
+        "src/label_file.c",
+        "src/label_support.c",
+        "src/matchpathcon.c",
+        "src/regex.c",
+        "src/setrans_client.c",
+        "src/sha1.c",
+    ],
+
+    target: {
+        android: {
+            srcs: [
+                "src/android/android.c",
+                "src/avc.c",
+                "src/avc_internal.c",
+                "src/avc_sidtab.c",
+                "src/canonicalize_context.c",
+                "src/checkAccess.c",
+                "src/check_context.c",
+                "src/compute_av.c",
+                "src/compute_create.c",
+                "src/compute_member.c",
+                "src/context.c",
+                "src/deny_unknown.c",
+                "src/disable.c",
+                "src/enabled.c",
+                "src/fgetfilecon.c",
+                "src/fsetfilecon.c",
+                "src/getenforce.c",
+                "src/getfilecon.c",
+                "src/get_initial_context.c",
+                "src/getpeercon.c",
+                "src/init.c",
+                "src/lgetfilecon.c",
+                "src/load_policy.c",
+                "src/lsetfilecon.c",
+                "src/mapping.c",
+                "src/policyvers.c",
+                "src/procattr.c",
+                "src/sestatus.c",
+                "src/setenforce.c",
+                "src/setfilecon.c",
+                "src/stringrep.c",
+            ],
+
+            shared_libs: [
+                "libcrypto",
+                "liblog",
+            ],
+
+            local_include_dirs: [ "src" ],
+
+            version_script: "exported_vendor.map",
+
+            // 1003 corresponds to auditd, from system/core/logd/event.logtags
+            cflags: [
+                "-DAUDITD_LOG_TAG=1003",
+            ],
+        },
+    },
+
+    static: {
+        whole_static_libs: common_LIBRARIES,
+    },
+    shared: {
+        shared_libs: common_LIBRARIES,
+    },
+
+    local_include_dirs: ["include"],
+    export_include_dirs: ["include"],
+}
+
+cc_library {
     name: "libselinux",
     defaults: ["libselinux_flags"],
     host_supported: true,
@@ -97,6 +179,7 @@ cc_library {
         android: {
             srcs: [
                 "src/android/android.c",
+                "src/android/android_seapp.c",
                 "src/avc.c",
                 "src/avc_internal.c",
                 "src/avc_sidtab.c",
