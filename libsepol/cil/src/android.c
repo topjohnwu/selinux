@@ -100,6 +100,7 @@ static int __extract_attributees_helper(struct cil_tree_node *node, uint32_t *fi
 			   of the existing types and attributes.  These may be differnt in
 			   every checkpolicy output, ignore them here, they'll be dealt with
 			   as a special case when attributizing. */
+			free(datum);
 		} else {
 			rc = hashtab_insert(args->vers_map, (hashtab_key_t) key, (hashtab_datum_t) datum);
 			if (rc != SEPOL_OK) {
