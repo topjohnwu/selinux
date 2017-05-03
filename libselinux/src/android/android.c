@@ -1,17 +1,5 @@
 #include "android_common.h"
 
-static const struct selinux_opt seopts_file_split[] = {
-    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_file_contexts" }
-};
-
-static const struct selinux_opt seopts_file_rootfs[] = {
-    { SELABEL_OPT_PATH, "/plat_file_contexts" },
-    { SELABEL_OPT_PATH, "/nonplat_file_contexts" }
-};
-
-static const char *const sepolicy_file = "/sepolicy";
-
 static const struct selinux_opt seopts_prop_split[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts"}
@@ -234,66 +222,6 @@ struct selabel_handle* selinux_android_vendor_service_context_handle(void)
     }
 
     return selinux_android_service_open_context_handle(seopts_service, 1);
-}
-
-int selinux_android_load_policy()
-{
-	int fd = -1;
-
-	fd = open(sepolicy_file, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-	if (fd < 0) {
-		selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
-				sepolicy_file, strerror(errno));
-		return -1;
-	}
-	int ret = selinux_android_load_policy_from_fd(fd, sepolicy_file);
-	close(fd);
-	return ret;
-}
-
-int selinux_android_load_policy_from_fd(int fd, const char *description)
-{
-	int rc;
-	struct stat sb;
-	void *map = NULL;
-	static int load_successful = 0;
-
-	/*
-	 * Since updating policy at runtime has been abolished
-	 * we just check whether a policy has been loaded before
-	 * and return if this is the case.
-	 * There is no point in reloading policy.
-	 */
-	if (load_successful){
-	  selinux_log(SELINUX_WARNING, "SELinux: Attempted reload of SELinux policy!/n");
-	  return 0;
-	}
-
-	set_selinuxmnt(SELINUXMNT);
-	if (fstat(fd, &sb) < 0) {
-		selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
-				description, strerror(errno));
-		return -1;
-	}
-	map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (map == MAP_FAILED) {
-		selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
-				description, strerror(errno));
-		return -1;
-	}
-
-	rc = security_load_policy(map, sb.st_size);
-	if (rc < 0) {
-		selinux_log(SELINUX_ERROR, "SELinux:  Could not load policy:  %s\n",
-				strerror(errno));
-		munmap(map, sb.st_size);
-		return -1;
-	}
-
-	munmap(map, sb.st_size);
-	selinux_log(SELINUX_INFO, "SELinux: Loaded policy from %s\n", description);
-	load_successful = 1;
-	return 0;
 }
 
 int selinux_log_callback(int type, const char *fmt, ...)
