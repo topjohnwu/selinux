@@ -1,6 +1,4 @@
 common_CFLAGS = [
-    "-DUSE_PCRE2",
-
     // Persistently stored patterns (pcre2) are architecture dependent.
     // In particular paterns built on amd64 can not run on devices with armv7
     // (32bit). Therefore, this feature stays off for now.
@@ -26,7 +24,6 @@ cc_defaults {
         "src/label.c",
         "src/label_support.c",
         "src/matchpathcon.c",
-        "src/regex.c",
         "src/setrans_client.c",
         "src/sha1.c",
     ],
@@ -92,16 +89,9 @@ cc_defaults {
 
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
-
-    static: {
-        whole_static_libs: ["libpcre2"],
-    },
-    shared: {
-        shared_libs: ["libpcre2"],
-    },
 }
 
-cc_library {
+cc_library_shared {
     name: "libselinux_vendor",
     defaults: ["libselinux_defaults"],
     vendor: true,
@@ -118,9 +108,11 @@ cc_library {
     name: "libselinux",
     defaults: ["libselinux_defaults"],
     host_supported: true,
+    cflags: ["-DUSE_PCRE2"],
 
     srcs: [
         "src/label_file.c",
+        "src/regex.c",
     ],
 
     target: {
@@ -185,6 +177,13 @@ cc_library {
 
             version_script: "exported.map",
         },
+    },
+
+    static: {
+        whole_static_libs: ["libpcre2"],
+    },
+    shared: {
+        shared_libs: ["libpcre2"],
     },
 }
 
