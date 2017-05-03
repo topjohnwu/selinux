@@ -17,6 +17,12 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
+#ifdef NO_FILE_BACKEND
+#define CONFIG_FILE_BACKEND(fnptr) NULL
+#else
+#define CONFIG_FILE_BACKEND(fnptr) &fnptr
+#endif
+
 #ifdef NO_MEDIA_BACKEND
 #define CONFIG_MEDIA_BACKEND(fnptr) NULL
 #else
@@ -46,7 +52,7 @@ typedef int (*selabel_initfunc)(struct selabel_handle *rec,
 				unsigned nopts);
 
 static selabel_initfunc initfuncs[] = {
-	&selabel_file_init,
+	CONFIG_FILE_BACKEND(selabel_file_init),
 	CONFIG_MEDIA_BACKEND(selabel_media_init),
 	CONFIG_X_BACKEND(selabel_x_init),
 	CONFIG_DB_BACKEND(selabel_db_init),
