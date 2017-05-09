@@ -1,1 +1,1 @@
-include $(call all-named-subdir-makefiles, libsepol checkpolicy secilc libselinux)
+include $(call all-named-subdir-makefiles, checkpolicy secilc libselinux)
