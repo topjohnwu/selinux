@@ -393,7 +393,8 @@ exit:
 	return rc;
 }
 
-static int cil_attrib_typepermissive(struct cil_tree_node *node, struct version_args *args)
+static int cil_attrib_typepermissive(struct cil_tree_node *node,
+				     struct version_args *args __attribute__ ((unused)))
 {
 	struct cil_typepermissive *typeperm = (struct cil_typepermissive *)node->data;
 

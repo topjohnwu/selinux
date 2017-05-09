@@ -1,1 +1,4 @@
-subdirs=["libselinux"]
+subdirs = [
+    "libselinux",
+    "libsepol",
+]
