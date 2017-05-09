@@ -8,7 +8,7 @@ common_CFLAGS = [
     "-D_GNU_SOURCE",
     "-DNO_MEDIA_BACKEND",
     "-DNO_X_BACKEND",
-    "-DNO_DB_BACKEND"
+    "-DNO_DB_BACKEND",
 ]
 
 cc_defaults {
