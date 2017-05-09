@@ -1,0 +1,26 @@
+common_CFLAGS = [
+    "-Wall",
+    "-Werror",
+    "-Wshadow",
+]
+
+cc_binary_host {
+    name: "checkpolicy",
+    cflags: common_CFLAGS,
+    srcs: [
+        "policy_parse.y",
+        "policy_scan.l",
+        "queue.c",
+        "module_compiler.c",
+        "parse_util.c",
+        "policy_define.c",
+        "checkpolicy.c",
+    ],
+    static_libs: ["libsepol"],
+}
+
+cc_binary_host {
+    name: "dispol",
+    srcs: ["test/dispol.c"],
+    static_libs: ["libsepol"],
+}
