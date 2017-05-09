@@ -1,1 +1,1 @@
-include $(call all-named-subdir-makefiles, secilc libselinux)
+include $(call all-named-subdir-makefiles, libselinux)
