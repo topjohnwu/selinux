@@ -140,6 +140,26 @@ cc_library {
         },
         linux_bionic: {
             enabled: true,
+            srcs: [
+                "src/android/android_host.c",
+                "src/avc.c",
+                "src/avc_internal.c",
+                "src/avc_sidtab.c",
+                "src/compute_av.c",
+                "src/compute_create.c",
+                "src/compute_member.c",
+                "src/context.c",
+                "src/enabled.c",
+                "src/getenforce.c",
+                "src/getfilecon.c",
+                "src/get_initial_context.c",
+                "src/init.c",
+                "src/load_policy.c",
+                "src/mapping.c",
+                "src/procattr.c",
+                "src/setexecfilecon.c",
+                "src/stringrep.c",
+            ],
         },
 
         android: {
