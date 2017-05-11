@@ -4,7 +4,8 @@ BINDIR ?= $(PREFIX)/bin
 
 CFLAGS ?= -Wall -Werror
 override CFLAGS += -I../include
-LDLIBS += -L../src -lsepol 
+override LDFLAGS += -L../src
+LDLIBS += -lsepol
 
 TARGETS=$(patsubst %.c,%,$(wildcard *.c))
 

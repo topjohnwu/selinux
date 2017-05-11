@@ -86,6 +86,7 @@ roleattribute system_r TEMPLATETYPE_roles;
 type TEMPLATETYPE_t;
 type TEMPLATETYPE_exec_t;
 application_domain(TEMPLATETYPE_t, TEMPLATETYPE_exec_t)
+role TEMPLATETYPE_roles types TEMPLATETYPE_t;
 
 permissive TEMPLATETYPE_t;
 """
@@ -219,7 +220,7 @@ if_program_rules="""
 
 ########################################
 ## <summary>
-##	Execute TEMPLATE in the TEMPLATETYPE domin.
+##	Execute TEMPLATETYPE_exec_t in the TEMPLATETYPE domain.
 ## </summary>
 ## <param name=\"domain\">
 ## <summary>
@@ -234,6 +235,25 @@ interface(`TEMPLATETYPE_domtrans',`
 
 	corecmd_search_bin($1)
 	domtrans_pattern($1, TEMPLATETYPE_exec_t, TEMPLATETYPE_t)
+')
+
+######################################
+## <summary>
+##	Execute TEMPLATETYPE in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`TEMPLATETYPE_exec',`
+	gen_require(`
+		type TEMPLATETYPE_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, TEMPLATETYPE_exec_t)
 ')
 """
 
@@ -418,8 +438,12 @@ interface(`TEMPLATETYPE_admin',`
 if_middle_admin="""
 	')
 
-	allow $1 TEMPLATETYPE_t:process { ptrace signal_perms };
+	allow $1 TEMPLATETYPE_t:process { signal_perms };
 	ps_process_pattern($1, TEMPLATETYPE_t)
+
+    tunable_policy(`deny_ptrace',`',`
+        allow $1 TEMPLATETYPE_t:process ptrace;
+    ')
 """
 
 if_initscript_admin_types="""
