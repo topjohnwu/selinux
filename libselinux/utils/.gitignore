@@ -19,9 +19,9 @@ selabel_lookup
 selabel_lookup_best_match
 selabel_partial_match
 selinux_check_securetty_context
-selinux_restorecon
 selinuxenabled
 selinuxexeccon
 setenforce
 setfilecon
 togglesebool
+selinux_check_access

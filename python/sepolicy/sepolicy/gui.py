@@ -69,8 +69,14 @@ enabled = [_("No"), _("Yes")]
 action = [_("Disable"), _("Enable")]
 
 
-def compare(a, b):
-    return cmp(a.lower(), b.lower())
+def cmp(a, b):
+    if a is None and b is None:
+        return 0
+    if a is None:
+        return -1
+    if b is None:
+        return 1
+    return (a > b) - (a < b)
 
 import distutils.sysconfig
 ADVANCED_LABEL = (_("Advanced >>"), _("Advanced <<"))
@@ -673,9 +679,9 @@ class SELinuxGui():
         self.module_dict = {}
         for m in self.dbus.semodule_list().split("\n"):
             mod = m.split()
-            if len(mod) < 2:
+            if len(mod) < 3:
                 continue
-            self.module_dict[mod[0]] = {"version": mod[1], "Disabled": (len(mod) > 2)}
+            self.module_dict[mod[1]] = { "priority": mod[0], "Disabled" : (len(mod) > 3) }
 
         self.enable_unconfined_button.set_active(not self.module_dict["unconfined"]["Disabled"])
         self.enable_permissive_button.set_active(not self.module_dict["permissivedomains"]["Disabled"])
@@ -831,8 +837,7 @@ class SELinuxGui():
             self.enforce_button = self.disabled_button_default
 
     def populate_system_policy(self):
-        selinux_path = selinux.selinux_path()
-        types = map(lambda x: x[1], filter(lambda x: x[0] == selinux_path, os.walk(selinux_path)))[0]
+        types = next(os.walk(selinux.selinux_path(), topdown=True))[1]
         types.sort()
         ctr = 0
         for item in types:
@@ -1373,8 +1378,8 @@ class SELinuxGui():
                 self.treeview = self.network_in_treeview
                 category = _("listen for inbound connections")
 
-            self.add_button.set_tooltip_text(_("Add new port definition to which the '%(APP)s' domain is allowed to %s.") % {"APP": self.application, "PERM": category})
-            self.delete_button.set_tooltip_text(_("Delete modified port definitions to which the '%(APP)s' domain is allowed to %s.") % {"APP": self.application, "PERM": category})
+            self.add_button.set_tooltip_text(_("Add new port definition to which the '%(APP)s' domain is allowed to %(PERM)s.") % {"APP": self.application, "PERM": category})
+            self.delete_button.set_tooltip_text(_("Delete modified port definitions to which the '%(APP)s' domain is allowed to %(PERM)s.") % {"APP": self.application, "PERM": category})
             self.modify_button.set_tooltip_text(_("Modify port definitions to which the '%(APP)s' domain is allowed to %(PERM)s.") % {"APP": self.application, "PERM": category})
 
         if self.transitions_radio_button.get_active():
@@ -1594,8 +1599,8 @@ class SELinuxGui():
             self.show_popup(self.login_popup_window)
 
         if self.opage == FILE_EQUIV_PAGE:
-            self.file_equiv_source_entry.set_text(self.file_equiv_liststore.get_value(iter, 0))
-            self.file_equiv_dest_entry.set_text(self.file_equiv_liststore.get_value(iter, 1))
+            self.file_equiv_source_entry.set_text(self.unmarkup(self.file_equiv_liststore.get_value(iter, 0)))
+            self.file_equiv_dest_entry.set_text(self.unmarkup(self.file_equiv_liststore.get_value(iter, 1)))
             self.file_equiv_label.set_text((_("Modify File Equivalency Mapping. Mapping will be created when update is applied.")))
             self.file_equiv_popup_window.set_title(_("Modify SELinux File Equivalency"))
             self.clear_entry = True
