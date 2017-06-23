@@ -1,5 +1,10 @@
 #!/bin/sh
 
+if [ -z "${ANDROID_BUILD_TOP}" ]; then
+        echo 'ANDROID_BUILD_TOP not set. Have you run lunch?'
+        exit 1
+fi
+
 unamestr=`uname`
 if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
 	export LD_LIBRARY_PATH=$ANDROID_BUILD_TOP/external/selinux/prebuilts/lib
@@ -7,4 +12,5 @@ if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
 	exec python $ANDROID_BUILD_TOP/external/selinux/prebuilts/bin/seinfo.py "$@"
 else
 	echo "seinfo is only supported on linux"
+	exit 1
 fi
