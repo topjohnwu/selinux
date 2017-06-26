@@ -1,5 +1,17 @@
 #!/bin/sh
 
+if [ -z "${ANDROID_HOST_OUT}" ]; then
+	echo 'ANDROID_HOST_OUT not set. Have you run lunch?'
+	exit 1
+elif [ -z "${ANDROID_BUILD_TOP}" ]; then
+	echo 'ANDROID_BUILD_TOP not set. Have you run lunch?'
+	exit 1
+elif [ ! -f "$ANDROID_HOST_OUT/lib64/libselinux.so" ]; then
+	echo "Cannot find $ANDROID_HOST_OUT/lib64/libselinux.so"
+	echo "Need to build project"
+	exit 1
+fi
+
 unamestr=`uname`
 if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
 	export LD_PRELOAD=$ANDROID_HOST_OUT/lib64/libselinux.so
@@ -7,4 +19,5 @@ if [ "$unamestr" = "Linux" -o "$unamestr" = "linux" ]; then
 	python $ANDROID_BUILD_TOP/external/selinux/python/audit2allow/audit2allow "$@"
 else
 	echo "audit2allow is only supported on linux"
+	exit 1
 fi
