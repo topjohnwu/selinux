@@ -1,5 +1,11 @@
 #include "android_common.h"
 
+#ifdef __ANDROID_VNDK__
+#ifndef LOG_EVENT_STRING
+#define LOG_EVENT_STRING(...)
+#endif  // LOG_EVENT_STRING
+#endif  // __ANDROID_VNDK__
+
 static const struct selinux_opt seopts_prop_split[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts"}
