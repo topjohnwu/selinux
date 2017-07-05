@@ -1,15 +1,5 @@
 #include "android_common.h"
 
-static const struct selinux_opt seopts_prop_split[] = {
-    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts"}
-};
-
-static const struct selinux_opt seopts_prop_rootfs[] = {
-    { SELABEL_OPT_PATH, "/plat_property_contexts" },
-    { SELABEL_OPT_PATH, "/nonplat_property_contexts"}
-};
-
 static const struct selinux_opt seopts_service_split[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_service_contexts" },
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_service_contexts" }
@@ -35,32 +25,6 @@ static const struct selinux_opt seopts_vndservice =
 
 static const struct selinux_opt seopts_vndservice_rootfs =
     { SELABEL_OPT_PATH, "/vndservice_contexts" };
-
-struct selabel_handle* selinux_android_prop_context_handle(void)
-{
-    struct selabel_handle* sehandle;
-    const struct selinux_opt* seopts_prop;
-
-    // Prefer files from /system & /vendor, fall back to files from /
-    if (access(seopts_prop_split[0].value, R_OK) != -1) {
-        seopts_prop = seopts_prop_split;
-    } else {
-        seopts_prop = seopts_prop_rootfs;
-    }
-
-    sehandle = selabel_open(SELABEL_CTX_ANDROID_PROP,
-            seopts_prop, 2);
-    if (!sehandle) {
-        selinux_log(SELINUX_ERROR, "%s: Error getting property context handle (%s)\n",
-                __FUNCTION__, strerror(errno));
-        return NULL;
-    }
-    selinux_log(SELINUX_INFO, "SELinux: Loaded property_contexts from %s & %s.\n",
-            seopts_prop[0].value, seopts_prop[1].value);
-
-    return sehandle;
-}
-
 
 struct selabel_handle* selinux_android_service_open_context_handle(const struct selinux_opt* seopts_service,
                                                                    unsigned nopts)
