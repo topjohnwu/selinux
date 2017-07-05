@@ -102,6 +102,10 @@ cc_library_shared {
             version_script: "exported_vendor.map",
         },
     },
+
+    srcs: [
+        "src/android/android_vendor.c",
+    ],
 }
 
 cc_library {
