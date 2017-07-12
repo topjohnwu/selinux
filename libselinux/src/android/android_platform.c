@@ -9,7 +9,8 @@ static const struct selinux_opt seopts_file_split[] = {
 };
 
 static const struct selinux_opt seopts_file_rootfs[] = {
-    { SELABEL_OPT_PATH, "/file_contexts.bin" }
+    { SELABEL_OPT_PATH, "/plat_file_contexts" },
+    { SELABEL_OPT_PATH, "/nonplat_file_contexts" }
 };
 
 static const struct selinux_opt seopts_prop_split[] = {
