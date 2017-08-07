@@ -102,6 +102,7 @@ void cil_post_fc_fill_data(struct fc_data *fc, char *path)
 			break;
 		case '\\':
 			c++;
+			/* FALLTHRU */
 		default:
 			if (!fc->meta) {
 				fc->stem_len++;
@@ -154,6 +155,28 @@ int cil_post_filecon_compare(const void *a, const void *b)
 	return rc;
 }
 
+int cil_post_ibpkeycon_compare(const void *a, const void *b)
+{
+	int rc = SEPOL_ERR;
+	struct cil_ibpkeycon *aibpkeycon = *(struct cil_ibpkeycon **)a;
+	struct cil_ibpkeycon *bibpkeycon = *(struct cil_ibpkeycon **)b;
+
+	rc = strcmp(aibpkeycon->subnet_prefix_str, bibpkeycon->subnet_prefix_str);
+	if (rc)
+		return rc;
+
+	rc = (aibpkeycon->pkey_high - aibpkeycon->pkey_low)
+		- (bibpkeycon->pkey_high - bibpkeycon->pkey_low);
+	if (rc == 0) {
+		if (aibpkeycon->pkey_low < bibpkeycon->pkey_low)
+			rc = -1;
+		else if (bibpkeycon->pkey_low < aibpkeycon->pkey_low)
+			rc = 1;
+	}
+
+	return rc;
+}
+
 int cil_post_portcon_compare(const void *a, const void *b)
 {
 	int rc = SEPOL_ERR;
@@ -193,6 +216,25 @@ int cil_post_netifcon_compare(const void *a, const void *b)
 	struct cil_netifcon *bnetifcon = *(struct cil_netifcon**)b;
 
 	return  strcmp(anetifcon->interface_str, bnetifcon->interface_str);
+}
+
+int cil_post_ibendportcon_compare(const void *a, const void *b)
+{
+	int rc = SEPOL_ERR;
+
+	struct cil_ibendportcon *aibendportcon = *(struct cil_ibendportcon **)a;
+	struct cil_ibendportcon *bibendportcon = *(struct cil_ibendportcon **)b;
+
+	rc = strcmp(aibendportcon->dev_name_str, bibendportcon->dev_name_str);
+	if (rc)
+		return rc;
+
+	if (aibendportcon->port < bibendportcon->port)
+		return -1;
+	else if (bibendportcon->port < aibendportcon->port)
+		return 1;
+
+	return rc;
 }
 
 int cil_post_nodecon_compare(const void *a, const void *b)
@@ -401,6 +443,12 @@ static int __cil_post_db_count_helper(struct cil_tree_node *node, uint32_t *fini
 	case CIL_NODECON:
 		db->nodecon->count++;
 		break;
+	case CIL_IBPKEYCON:
+		db->ibpkeycon->count++;
+		break;
+	case CIL_IBENDPORTCON:
+		db->ibendportcon->count++;
+		break;
 	case CIL_PORTCON:
 		db->portcon->count++;
 		break;
@@ -491,6 +539,17 @@ static int __cil_post_db_array_helper(struct cil_tree_node *node, uint32_t *fini
 		sort->index++;
 		break;
 	}
+	case CIL_IBENDPORTCON: {
+		struct cil_sort *sort = db->ibendportcon;
+		uint32_t count = sort->count;
+		uint32_t i = sort->index;
+
+		if (!sort->array)
+			sort->array = cil_malloc(sizeof(*sort->array) * count);
+		sort->array[i] = node->data;
+		sort->index++;
+		break;
+	}
 	case CIL_FSUSE: {
 		struct cil_sort *sort = db->fsuse;
 		uint32_t count = sort->count;
@@ -531,6 +590,17 @@ static int __cil_post_db_array_helper(struct cil_tree_node *node, uint32_t *fini
 		if (sort->array == NULL) {
 			sort->array = cil_malloc(sizeof(*sort->array)*count);
 		}
+		sort->array[i] = node->data;
+		sort->index++;
+		break;
+	}
+	case CIL_IBPKEYCON: {
+		struct cil_sort *sort = db->ibpkeycon;
+		uint32_t count = sort->count;
+		uint32_t i = sort->index;
+
+		if (!sort->array)
+			sort->array = cil_malloc(sizeof(*sort->array) * count);
 		sort->array[i] = node->data;
 		sort->index++;
 		break;
@@ -1618,6 +1688,22 @@ static int __cil_post_db_cat_helper(struct cil_tree_node *node, uint32_t *finish
 		}
 		break;
 	}
+	case CIL_IBPKEYCON: {
+		struct cil_ibpkeycon *ibpkeycon = node->data;
+
+		rc = __evaluate_levelrange_expression(ibpkeycon->context->range, db);
+		if (rc != SEPOL_OK)
+			goto exit;
+		break;
+	}
+	case CIL_IBENDPORTCON: {
+		struct cil_ibendportcon *ibendportcon = node->data;
+
+		rc = __evaluate_levelrange_expression(ibendportcon->context->range, db);
+		if (rc != SEPOL_OK)
+			goto exit;
+		break;
+	}
 	case CIL_PORTCON: {
 		struct cil_portcon *portcon = node->data;
 		rc = __evaluate_levelrange_expression(portcon->context->range, db);
@@ -1977,6 +2063,8 @@ static int cil_post_db(struct cil_db *db)
 
 	qsort(db->netifcon->array, db->netifcon->count, sizeof(db->netifcon->array), cil_post_netifcon_compare);
 	qsort(db->genfscon->array, db->genfscon->count, sizeof(db->genfscon->array), cil_post_genfscon_compare);
+	qsort(db->ibpkeycon->array, db->ibpkeycon->count, sizeof(db->ibpkeycon->array), cil_post_ibpkeycon_compare);
+	qsort(db->ibendportcon->array, db->ibendportcon->count, sizeof(db->ibendportcon->array), cil_post_ibendportcon_compare);
 	qsort(db->portcon->array, db->portcon->count, sizeof(db->portcon->array), cil_post_portcon_compare);
 	qsort(db->nodecon->array, db->nodecon->count, sizeof(db->nodecon->array), cil_post_nodecon_compare);
 	qsort(db->fsuse->array, db->fsuse->count, sizeof(db->fsuse->array), cil_post_fsuse_compare);

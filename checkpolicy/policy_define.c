@@ -20,6 +20,7 @@
  * Copyright (C) 2004-2005 Trusted Computer Solutions, Inc.
  * Copyright (C) 2003 - 2008 Tresys Technology, LLC
  * Copyright (C) 2007 Red Hat Inc.
+ * Copyright (C) 2017 Mellanox Techonologies Inc.
  *	This program is free software; you can redistribute it and/or modify
  *  	it under the terms of the GNU General Public License as published by
  *	the Free Software Foundation, version 2.
@@ -5055,6 +5056,192 @@ int define_port_context(unsigned int low, unsigned int high)
 	free(id);
 	free(newc);
 	return -1;
+}
+
+int define_ibpkey_context(unsigned int low, unsigned int high)
+{
+	ocontext_t *newc, *c, *l, *head;
+	struct in6_addr subnet_prefix;
+	char *id;
+	int rc = 0;
+
+	if (policydbp->target_platform != SEPOL_TARGET_SELINUX) {
+		yyerror("ibpkeycon not supported for target");
+		return -1;
+	}
+
+	if (pass == 1) {
+		id = (char *)queue_remove(id_queue);
+		free(id);
+		parse_security_context(NULL);
+		return 0;
+	}
+
+	newc = malloc(sizeof(*newc));
+	if (!newc) {
+		yyerror("out of memory");
+		return -1;
+	}
+	memset(newc, 0, sizeof(*newc));
+
+	id = queue_remove(id_queue);
+	if (!id) {
+		yyerror("failed to read the subnet prefix");
+		rc = -1;
+		goto out;
+	}
+
+	rc = inet_pton(AF_INET6, id, &subnet_prefix);
+	free(id);
+	if (rc < 1) {
+		yyerror("failed to parse the subnet prefix");
+		if (rc == 0)
+			rc = -1;
+		goto out;
+	}
+
+	if (subnet_prefix.s6_addr[2] || subnet_prefix.s6_addr[3]) {
+		yyerror("subnet prefix should be 0's in the low order 64 bits.");
+		rc = -1;
+		goto out;
+	}
+
+	if (low > 0xffff || high > 0xffff) {
+		yyerror("pkey value too large, pkeys are 16 bits.");
+		rc = -1;
+		goto out;
+	}
+
+	memcpy(&newc->u.ibpkey.subnet_prefix, &subnet_prefix.s6_addr[0],
+	       sizeof(newc->u.ibpkey.subnet_prefix));
+
+	newc->u.ibpkey.low_pkey = low;
+	newc->u.ibpkey.high_pkey = high;
+
+	if (low > high) {
+		yyerror2("low pkey %d exceeds high pkey %d", low, high);
+		rc = -1;
+		goto out;
+	}
+
+	rc = parse_security_context(&newc->context[0]);
+	if (rc)
+		goto out;
+
+	/* Preserve the matching order specified in the configuration. */
+	head = policydbp->ocontexts[OCON_IBPKEY];
+	for (l = NULL, c = head; c; l = c, c = c->next) {
+		unsigned int low2, high2;
+
+		low2 = c->u.ibpkey.low_pkey;
+		high2 = c->u.ibpkey.high_pkey;
+
+		if (low == low2 && high == high2 &&
+		    c->u.ibpkey.subnet_prefix == newc->u.ibpkey.subnet_prefix) {
+			yyerror2("duplicate ibpkeycon entry for %d-%d ",
+				 low, high);
+			rc = -1;
+			goto out;
+		}
+		if (low2 <= low && high2 >= high &&
+		    c->u.ibpkey.subnet_prefix == newc->u.ibpkey.subnet_prefix) {
+			yyerror2("ibpkeycon entry for %d-%d hidden by earlier entry for %d-%d",
+				 low, high, low2, high2);
+			rc = -1;
+			goto out;
+		}
+	}
+
+	if (l)
+		l->next = newc;
+	else
+		policydbp->ocontexts[OCON_IBPKEY] = newc;
+
+	return 0;
+
+out:
+	free(newc);
+	return rc;
+}
+
+int define_ibendport_context(unsigned int port)
+{
+	ocontext_t *newc, *c, *l, *head;
+	char *id;
+	int rc = 0;
+
+	if (policydbp->target_platform != SEPOL_TARGET_SELINUX) {
+		yyerror("ibendportcon not supported for target");
+		return -1;
+	}
+
+	if (pass == 1) {
+		id = (char *)queue_remove(id_queue);
+		free(id);
+		parse_security_context(NULL);
+		return 0;
+	}
+
+	if (port > 0xff || port == 0) {
+		yyerror("Invalid ibendport port number, should be 0 < port < 256");
+		return -1;
+	}
+
+	newc = malloc(sizeof(*newc));
+	if (!newc) {
+		yyerror("out of memory");
+		return -1;
+	}
+	memset(newc, 0, sizeof(*newc));
+
+	newc->u.ibendport.dev_name = queue_remove(id_queue);
+	if (!newc->u.ibendport.dev_name) {
+		yyerror("failed to read infiniband device name.");
+		rc = -1;
+		goto out;
+	}
+
+	if (strlen(newc->u.ibendport.dev_name) > IB_DEVICE_NAME_MAX - 1) {
+		yyerror("infiniband device name exceeds max length of 63.");
+		rc = -1;
+		goto out;
+	}
+
+	newc->u.ibendport.port = port;
+
+	if (parse_security_context(&newc->context[0])) {
+		free(newc);
+		return -1;
+	}
+
+	/* Preserve the matching order specified in the configuration. */
+	head = policydbp->ocontexts[OCON_IBENDPORT];
+	for (l = NULL, c = head; c; l = c, c = c->next) {
+		unsigned int port2;
+
+		port2 = c->u.ibendport.port;
+
+		if (port == port2 &&
+		    !strcmp(c->u.ibendport.dev_name,
+			     newc->u.ibendport.dev_name)) {
+			yyerror2("duplicate ibendportcon entry for %s port %u",
+				 newc->u.ibendport.dev_name, port);
+			rc = -1;
+			goto out;
+		}
+	}
+
+	if (l)
+		l->next = newc;
+	else
+		policydbp->ocontexts[OCON_IBENDPORT] = newc;
+
+	return 0;
+
+out:
+	free(newc->u.ibendport.dev_name);
+	free(newc);
+	return rc;
 }
 
 int define_netif_context(void)

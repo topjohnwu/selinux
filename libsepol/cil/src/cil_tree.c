@@ -1,6 +1,6 @@
 /*
  * Copyright 2011 Tresys Technology, LLC. All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * 
@@ -1409,6 +1409,20 @@ void cil_tree_print_node(struct cil_tree_node *node)
 			return;
 
 		}
+		case CIL_IBPKEYCON: {
+			struct cil_ibpkeycon *ibpkeycon = node->data;
+
+			cil_log(CIL_INFO, "IBPKEYCON: %s", ibpkeycon->subnet_prefix_str);
+			cil_log(CIL_INFO, " (%d %d) ", ibpkeycon->pkey_low, ibpkeycon->pkey_high);
+
+			if (ibpkeycon->context)
+				cil_tree_print_context(ibpkeycon->context);
+			else if (ibpkeycon->context_str)
+				cil_log(CIL_INFO, " %s", ibpkeycon->context_str);
+
+			cil_log(CIL_INFO, "\n");
+			return;
+		}
 		case CIL_PORTCON: {
 			struct cil_portcon *portcon = node->data;
 			cil_log(CIL_INFO, "PORTCON:");
@@ -1488,6 +1502,19 @@ void cil_tree_print_node(struct cil_tree_node *node)
 			} else if (netifcon->packet_context_str != NULL) {
 				cil_log(CIL_INFO, " %s", netifcon->packet_context_str);
 			}
+
+			cil_log(CIL_INFO, "\n");
+			return;
+		}
+		case CIL_IBENDPORTCON: {
+			struct cil_ibendportcon *ibendportcon = node->data;
+
+			cil_log(CIL_INFO, "IBENDPORTCON: %s %u ", ibendportcon->dev_name_str, ibendportcon->port);
+
+			if (ibendportcon->context)
+				cil_tree_print_context(ibendportcon->context);
+			else if (ibendportcon->context_str)
+				cil_log(CIL_INFO, " %s", ibendportcon->context_str);
 
 			cil_log(CIL_INFO, "\n");
 			return;

@@ -515,12 +515,13 @@ int cil_resolve_aliasactual(struct cil_tree_node *current, void *extra_args, enu
 		goto exit;
 	}
 
-	rc = cil_resolve_name(current, aliasactual->alias_str, sym_index, extra_args, &alias_datum);
+	rc = cil_resolve_name_keep_aliases(current, aliasactual->alias_str, sym_index, extra_args, &alias_datum);
 	if (rc != SEPOL_OK) {
 		goto exit;
 	}
 	if (NODE(alias_datum)->flavor != alias_flavor) {
 		cil_log(CIL_ERR, "%s is not an alias\n",alias_datum->name);
+		rc = SEPOL_ERR;
 		goto exit;
 	}
 
@@ -529,10 +530,16 @@ int cil_resolve_aliasactual(struct cil_tree_node *current, void *extra_args, enu
 		goto exit;
 	}
 
+	if (NODE(actual_datum)->flavor != flavor && NODE(actual_datum)->flavor != alias_flavor) {
+		cil_log(CIL_ERR, "%s is a %s, but aliases a %s\n", alias_datum->name, cil_node_to_string(NODE(alias_datum)), cil_node_to_string(NODE(actual_datum)));
+		rc = SEPOL_ERR;
+		goto exit;
+	}
+
 	alias = (struct cil_alias *)alias_datum;
 
 	if (alias->actual != NULL) {
-		cil_log(CIL_ERR, "Alias cannot bind more than one value\n");
+		cil_log(CIL_ERR, "%s %s cannot bind more than one value\n", cil_node_to_string(NODE(alias_datum)), alias_datum->name);
 		rc = SEPOL_ERR;
 		goto exit;
 	}
@@ -1923,6 +1930,30 @@ int cil_resolve_filecon(struct cil_tree_node *current, void *extra_args)
 	return SEPOL_OK;
 }
 
+int cil_resolve_ibpkeycon(struct cil_tree_node *current, void *extra_args)
+{
+	struct cil_ibpkeycon *ibpkeycon = current->data;
+	struct cil_symtab_datum *context_datum = NULL;
+	int rc = SEPOL_ERR;
+
+	if (ibpkeycon->context_str) {
+		rc = cil_resolve_name(current, ibpkeycon->context_str, CIL_SYM_CONTEXTS, extra_args, &context_datum);
+		if (rc != SEPOL_OK)
+			goto exit;
+
+		ibpkeycon->context = (struct cil_context *)context_datum;
+	} else {
+		rc = cil_resolve_context(current, ibpkeycon->context, extra_args);
+		if (rc != SEPOL_OK)
+			goto exit;
+	}
+
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
 int cil_resolve_portcon(struct cil_tree_node *current, void *extra_args)
 {
 	struct cil_portcon *portcon = current->data;
@@ -2056,6 +2087,31 @@ int cil_resolve_netifcon(struct cil_tree_node *current, void *extra_args)
 			goto exit;
 		}
 	}
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
+int cil_resolve_ibendportcon(struct cil_tree_node *current, void *extra_args)
+{
+	struct cil_ibendportcon *ibendportcon = current->data;
+	struct cil_symtab_datum *con_datum = NULL;
+
+	int rc = SEPOL_ERR;
+
+	if (ibendportcon->context_str) {
+		rc = cil_resolve_name(current, ibendportcon->context_str, CIL_SYM_CONTEXTS, extra_args, &con_datum);
+		if (rc != SEPOL_OK)
+			goto exit;
+
+		ibendportcon->context = (struct cil_context *)con_datum;
+	} else {
+		rc = cil_resolve_context(current, ibendportcon->context, extra_args);
+		if (rc != SEPOL_OK)
+			goto exit;
+	}
+
 	return SEPOL_OK;
 
 exit:
@@ -3567,6 +3623,9 @@ int __cil_resolve_ast_node(struct cil_tree_node *node, void *extra_args)
 		case CIL_FILECON:
 			rc = cil_resolve_filecon(node, args);
 			break;
+		case CIL_IBPKEYCON:
+			rc = cil_resolve_ibpkeycon(node, args);
+			break;
 		case CIL_PORTCON:
 			rc = cil_resolve_portcon(node, args);
 			break;
@@ -3578,6 +3637,9 @@ int __cil_resolve_ast_node(struct cil_tree_node *node, void *extra_args)
 			break;
 		case CIL_NETIFCON:
 			rc = cil_resolve_netifcon(node, args);
+			break;
+		case CIL_IBENDPORTCON:
+			rc = cil_resolve_ibendportcon(node, args);
 			break;
 		case CIL_PIRQCON:
 			rc = cil_resolve_pirqcon(node, args);
@@ -4060,6 +4122,34 @@ static int __cil_resolve_name_helper(struct cil_db *db, struct cil_tree_node *no
 int cil_resolve_name(struct cil_tree_node *ast_node, char *name, enum cil_sym_index sym_index, void *extra_args, struct cil_symtab_datum **datum)
 {
 	int rc = SEPOL_ERR;
+	struct cil_tree_node *node = NULL;
+
+	rc = cil_resolve_name_keep_aliases(ast_node, name, sym_index, extra_args, datum);
+	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+
+	/* If this datum is an alias, then return the actual node
+	 * This depends on aliases already being processed
+	 */
+	node = NODE(*datum);
+	if (node->flavor == CIL_TYPEALIAS || node->flavor == CIL_SENSALIAS
+		|| node->flavor == CIL_CATALIAS) {
+		struct cil_alias *alias = (struct cil_alias *)(*datum);
+		if (alias->actual) {
+			*datum = alias->actual;
+		}
+	}
+
+	rc = SEPOL_OK;
+
+exit:
+	return rc;
+}
+
+int cil_resolve_name_keep_aliases(struct cil_tree_node *ast_node, char *name, enum cil_sym_index sym_index, void *extra_args, struct cil_symtab_datum **datum)
+{
+	int rc = SEPOL_ERR;
 	struct cil_args_resolve *args = extra_args;
 	struct cil_db *db = args->db;
 	struct cil_tree_node *node = NULL;
@@ -4144,20 +4234,6 @@ int cil_resolve_name(struct cil_tree_node *ast_node, char *name, enum cil_sym_in
 exit:
 	if (rc != SEPOL_OK) {
 		*datum = NULL;
-	}
-
-	if (*datum != NULL) {
-		/* If this datum is an alias, then return the actual node
-		 * This depends on aliases already being processed
-		 */
-		node = NODE(*datum);
-		if (node->flavor == CIL_TYPEALIAS || node->flavor == CIL_SENSALIAS
-			|| node->flavor == CIL_CATALIAS) {
-			struct cil_alias *alias = (struct cil_alias *)(*datum);
-			if (alias->actual) {
-				*datum = alias->actual;
-			}
-		}
 	}
 
 	args->last_resolved_name = name;
