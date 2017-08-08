@@ -1069,7 +1069,7 @@ static void cil_typebounds_to_policy(FILE *out, struct cil_list *types)
 		child = i1->data;
 		if (child->bounds != NULL) {
 			parent = child->bounds;
-			fprintf(out, "typebounds %s %s\n", parent->datum.fqn, child->datum.fqn);
+			fprintf(out, "typebounds %s %s;\n", parent->datum.fqn, child->datum.fqn);
 		}
 	}
 }
@@ -1714,6 +1714,35 @@ static void cil_genfscons_to_policy(FILE *out, struct cil_sort *genfscons, int m
 	}
 }
 
+static void cil_ibpkeycons_to_policy(FILE *out, struct cil_sort *ibpkeycons, int mls)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < ibpkeycons->count; i++) {
+		struct cil_ibpkeycon *ibpkeycon = (struct cil_ibpkeycon *)ibpkeycons->array[i];
+
+		fprintf(out, "ibpkeycon %s ", ibpkeycon->subnet_prefix_str);
+		fprintf(out, "%d ", ibpkeycon->pkey_low);
+		fprintf(out, "%d ", ibpkeycon->pkey_high);
+		cil_context_to_policy(out, ibpkeycon->context, mls);
+		fprintf(out, "\n");
+	}
+}
+
+static void cil_ibendportcons_to_policy(FILE *out, struct cil_sort *ibendportcons, int mls)
+{
+	uint32_t i;
+
+	for (i = 0; i < ibendportcons->count; i++) {
+		struct cil_ibendportcon *ibendportcon = (struct cil_ibendportcon *)ibendportcons->array[i];
+
+		fprintf(out, "ibendportcon %s ", ibendportcon->dev_name_str);
+		fprintf(out, "%u ", ibendportcon->port);
+		cil_context_to_policy(out, ibendportcon->context, mls);
+		fprintf(out, "\n");
+	}
+}
+
 static void cil_portcons_to_policy(FILE *out, struct cil_sort *portcons, int mls)
 {
 	unsigned i;
@@ -1750,7 +1779,7 @@ static void cil_netifcons_to_policy(FILE *out, struct cil_sort *netifcons, int m
 		cil_context_to_policy(out, netifcon->if_context, mls);
 		fprintf(out, " ");
 		cil_context_to_policy(out, netifcon->packet_context, mls);
-		fprintf(out, ";\n");
+		fprintf(out, "\n");
 	}
 }
 
@@ -1807,7 +1836,7 @@ static void cil_nodecons_to_policy(FILE *out, struct cil_sort *nodecons, int mls
 		}
 
 		cil_context_to_policy(out, nodecon->context, mls);
-		fprintf(out, ";\n");
+		fprintf(out, "\n");
 	}
 }
 
@@ -1899,9 +1928,9 @@ void cil_gen_policy(FILE *out, struct cil_db *db)
 	cil_commons_to_policy(out, lists[CIL_LIST_COMMON]);
 	cil_classes_to_policy(out, db->classorder);
 
-	cil_defaults_to_policy(out, lists[CIL_LIST_DEFAULT_USER], CIL_KEY_DEFAULTUSER);
-	cil_defaults_to_policy(out, lists[CIL_LIST_DEFAULT_ROLE], CIL_KEY_DEFAULTROLE);
-	cil_defaults_to_policy(out, lists[CIL_LIST_DEFAULT_TYPE], CIL_KEY_DEFAULTTYPE);
+	cil_defaults_to_policy(out, lists[CIL_LIST_DEFAULT_USER], "default_user");
+	cil_defaults_to_policy(out, lists[CIL_LIST_DEFAULT_ROLE], "default_role");
+	cil_defaults_to_policy(out, lists[CIL_LIST_DEFAULT_TYPE], "default_type");
 
 	if (db->mls == CIL_TRUE) {
 		cil_default_ranges_to_policy(out, lists[CIL_LIST_DEFAULT_RANGE]);
@@ -1942,6 +1971,8 @@ void cil_gen_policy(FILE *out, struct cil_db *db)
 	cil_genfscons_to_policy(out, db->genfscon, db->mls);
 	cil_portcons_to_policy(out, db->portcon, db->mls);
 	cil_netifcons_to_policy(out, db->netifcon, db->mls);
+	cil_ibpkeycons_to_policy(out, db->ibpkeycon, db->mls);
+	cil_ibendportcons_to_policy(out, db->ibendportcon, db->mls);
 	cil_nodecons_to_policy(out, db->nodecon, db->mls);
 	cil_pirqcons_to_policy(out, db->pirqcon, db->mls);
 	cil_iomemcons_to_policy(out, db->iomemcon, db->mls);

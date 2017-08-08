@@ -84,7 +84,8 @@ def get_all_users_info():
 
     for d in allusers_info:
         allusers.append(d['name'])
-        users_range[d['name'].split("_")[0]] = d['range']
+        if 'range' in d:
+            users_range[d['name'].split("_")[0]] = d['range']
 
     for u in allusers:
         if u not in ["system_u", "root", "unconfined_u"]:
@@ -192,7 +193,7 @@ class HTMLManPages:
         self.old_path = path + "/"
         self.new_path = self.old_path + self.os_version + "/"
 
-        if self.os_version in fedora_releases or rhel_releases:
+        if self.os_version in fedora_releases or self.os_version in rhel_releases:
             self.__gen_html_manpages()
         else:
             print("SELinux HTML man pages can not be generated for this %s" % os_version)
@@ -262,7 +263,7 @@ Fedora or Red Hat Enterprise Linux Man Pages.</h2>
 </pre>
 	""")
         fd.close()
-        print("%s has been created") % index
+        print("%s has been created" % index)
 
     def _gen_body(self):
         html = self.new_path + self.os_version + ".html"
@@ -333,7 +334,7 @@ Fedora or Red Hat Enterprise Linux Man Pages.</h2>
 """ % domainname_body)
 
         fd.close()
-        print("%s has been created") % html
+        print("%s has been created" % html)
 
     def _gen_css(self):
         style_css = self.old_path + "style.css"
@@ -396,7 +397,7 @@ pre.code {
 """)
 
         fd.close()
-        print("%s has been created") % style_css
+        print("%s has been created" % style_css)
 
 
 class ManPage:
@@ -807,6 +808,7 @@ Note: SELinux often uses regular expressions to specify labels that match multip
         self.fd.write(r"""
 .I The following file types are defined for %(domainname)s:
 """ % {'domainname': self.domainname})
+        flist.sort()
         for f in flist:
             self.fd.write("""
 
@@ -920,8 +922,7 @@ This manual page was auto-generated using
 .B "sepolicy manpage".
 
 .SH "SEE ALSO"
-selinux(8), %s(8), semanage(8), restorecon(8), chcon(1), sepolicy(8)
-""" % (self.domainname))
+selinux(8), %s(8), semanage(8), restorecon(8), chcon(1), sepolicy(8)""" % (self.domainname))
 
         if self.booltext != "":
             self.fd.write(", setsebool(8)")
@@ -938,7 +939,11 @@ selinux(8), %s(8), semanage(8), restorecon(8), chcon(1), sepolicy(8)
         return True
 
     def _entrypoints(self):
-        entrypoints = [x['target'] for x in sepolicy.search([sepolicy.ALLOW], {'source': self.type, 'permlist': ['entrypoint'], 'class': 'file'})]
+        entrypoints = [x['target'] for x in filter(lambda y:
+            y['source'] == self.type and y['class'] == 'file' and 'entrypoint' in y['permlist'],
+            sepolicy.get_all_allow_rules()
+        )]
+
         if len(entrypoints) == 0:
             return
 
@@ -969,7 +974,10 @@ All executeables with the default executable label, usually stored in /usr/bin a
 %s""" % ", ".join(paths))
 
     def _mcs_types(self):
-        mcs_constrained_type = next(sepolicy.info(sepolicy.ATTRIBUTE, "mcs_constrained_type"))
+        try:
+            mcs_constrained_type = next(sepolicy.info(sepolicy.ATTRIBUTE, "mcs_constrained_type"))
+        except StopIteration:
+            return
         if self.type not in mcs_constrained_type['types']:
             return
         self.fd.write ("""
@@ -980,15 +988,23 @@ For example one process might be launched with %(type)s_t:s0:c1,c2, and another 
 """ % {'type': self.domainname})
 
     def _writes(self):
-        permlist = sepolicy.search([sepolicy.ALLOW], {'source': self.type, 'permlist': ['open', 'write'], 'class': 'file'})
+        # add assigned attributes
+        src_list = [self.type]
+        try:
+            src_list += list(filter(lambda x: x['name'] == self.type, sepolicy.get_all_types_info()))[0]['attributes']
+        except:
+            pass
+
+        permlist = list(filter(lambda x:
+            x['source'] in src_list and
+            set(['open', 'write']).issubset(x['permlist']) and
+            x['class'] == 'file',
+            sepolicy.get_all_allow_rules()))
         if permlist is None or len(permlist) == 0:
             return
 
         all_writes = []
         attributes = ["proc_type", "sysctl_type"]
-        for i in permlist:
-            if not i['target'].endswith("_t"):
-                attributes.append(i['target'])
 
         for i in permlist:
             if self._valid_write(i['target'], attributes):
@@ -1187,7 +1203,12 @@ The SELinux user %s_u is able to connect to the following tcp ports.
 """ % ",".join(ports))
 
     def _home_exec(self):
-        permlist = sepolicy.search([sepolicy.ALLOW], {'source': self.type, 'target': 'user_home_type', 'class': 'file', 'permlist': ['ioctl', 'read', 'getattr', 'execute', 'execute_no_trans', 'open']})
+        permlist = list(filter(lambda x:
+            x['source'] == self.type and
+            x['target'] == 'user_home_type' and
+            x['class'] == 'file' and
+            set(['ioctl', 'read', 'getattr', 'execute', 'execute_no_trans', 'open']).issubset(set(x['permlist'])),
+            sepolicy.get_all_allow_rules()))
         self.fd.write("""
 .SH HOME_EXEC
 """)

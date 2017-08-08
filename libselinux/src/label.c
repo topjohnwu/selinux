@@ -60,113 +60,6 @@ static selabel_initfunc initfuncs[] = {
 	CONFIG_ANDROID_BACKEND(selabel_service_init),
 };
 
-static void selabel_subs_fini(struct selabel_sub *ptr)
-{
-	struct selabel_sub *next;
-
-	while (ptr) {
-		next = ptr->next;
-		free(ptr->src);
-		free(ptr->dst);
-		free(ptr);
-		ptr = next;
-	}
-}
-
-static char *selabel_sub(struct selabel_sub *ptr, const char *src)
-{
-	char *dst = NULL;
-	int len;
-
-	while (ptr) {
-		if (strncmp(src, ptr->src, ptr->slen) == 0 ) {
-			if (src[ptr->slen] == '/' || 
-			    src[ptr->slen] == 0) {
-				if ((src[ptr->slen] == '/') &&
-				    (strcmp(ptr->dst, "/") == 0))
-					len = ptr->slen + 1;
-				else
-					len = ptr->slen;
-				if (asprintf(&dst, "%s%s", ptr->dst, &src[len]) < 0)
-					return NULL;
-				return dst;
-			}
-		}
-		ptr = ptr->next;
-	}
-	return NULL;
-}
-
-struct selabel_sub *selabel_subs_init(const char *path,
-					    struct selabel_sub *list,
-					    struct selabel_digest *digest)
-{
-	char buf[1024];
-	FILE *cfg = fopen(path, "re");
-	struct selabel_sub *sub = NULL;
-	struct stat sb;
-
-	if (!cfg)
-		return list;
-
-	if (fstat(fileno(cfg), &sb) < 0)
-		return list;
-
-	while (fgets_unlocked(buf, sizeof(buf) - 1, cfg)) {
-		char *ptr = NULL;
-		char *src = buf;
-		char *dst = NULL;
-
-		while (*src && isspace(*src))
-			src++;
-		if (src[0] == '#') continue;
-		ptr = src;
-		while (*ptr && ! isspace(*ptr))
-			ptr++;
-		*ptr++ = '\0';
-		if (! *src) continue;
-
-		dst = ptr;
-		while (*dst && isspace(*dst))
-			dst++;
-		ptr=dst;
-		while (*ptr && ! isspace(*ptr))
-			ptr++;
-		*ptr='\0';
-		if (! *dst)
-			continue;
-
-		sub = malloc(sizeof(*sub));
-		if (! sub)
-			goto err;
-		memset(sub, 0, sizeof(*sub));
-
-		sub->src=strdup(src);
-		if (! sub->src)
-			goto err;
-
-		sub->dst=strdup(dst);
-		if (! sub->dst)
-			goto err;
-
-		sub->slen = strlen(src);
-		sub->next = list;
-		list = sub;
-	}
-
-	if (digest_add_specfile(digest, cfg, NULL, sb.st_size, path) < 0)
-		goto err;
-
-out:
-	fclose(cfg);
-	return list;
-err:
-	if (sub)
-		free(sub->src);
-	free(sub);
-	goto out;
-}
-
 static inline struct selabel_digest *selabel_is_digest_set
 				    (const struct selinux_opt *opts,
 				    unsigned n,
@@ -252,27 +145,6 @@ out:
 }
 
 /* Public API helpers */
-static char *selabel_sub_key(struct selabel_handle *rec, const char *key)
-{
-	char *ptr = NULL;
-	char *dptr = NULL;
-
-	ptr = selabel_sub(rec->subs, key);
-	if (ptr) {
-		dptr = selabel_sub(rec->dist_subs, ptr);
-		if (dptr) {
-			free(ptr);
-			ptr = dptr;
-		}
-	} else {
-		ptr = selabel_sub(rec->dist_subs, key);
-	}
-	if (ptr)
-		return ptr;
-
-	return NULL;
-}
-
 static int selabel_fini(struct selabel_handle *rec,
 			    struct selabel_lookup_rec *lr,
 			    int translating)
@@ -296,20 +168,13 @@ selabel_lookup_common(struct selabel_handle *rec, int translating,
 		      const char *key, int type)
 {
 	struct selabel_lookup_rec *lr;
-	char *ptr = NULL;
 
 	if (key == NULL) {
 		errno = EINVAL;
 		return NULL;
 	}
 
-	ptr = selabel_sub_key(rec, key);
-	if (ptr) {
-		lr = rec->func_lookup(rec, ptr, type);
-		free(ptr);
-	} else {
-		lr = rec->func_lookup(rec, key, type);
-	}
+	lr = rec->func_lookup(rec, key, type);
 	if (!lr)
 		return NULL;
 
@@ -324,20 +189,13 @@ selabel_lookup_bm_common(struct selabel_handle *rec, int translating,
 		      const char *key, int type, const char **aliases)
 {
 	struct selabel_lookup_rec *lr;
-	char *ptr = NULL;
 
 	if (key == NULL) {
 		errno = EINVAL;
 		return NULL;
 	}
 
-	ptr = selabel_sub_key(rec, key);
-	if (ptr) {
-		lr = rec->func_lookup_best_match(rec, ptr, aliases, type);
-		free(ptr);
-	} else {
-		lr = rec->func_lookup_best_match(rec, key, aliases, type);
-	}
+	lr = rec->func_lookup_best_match(rec, key, aliases, type);
 	if (!lr)
 		return NULL;
 
@@ -375,8 +233,6 @@ struct selabel_handle *selabel_open(unsigned int backend,
 	rec->backend = backend;
 	rec->validating = selabel_is_validate_set(opts, nopts);
 
-	rec->subs = NULL;
-	rec->dist_subs = NULL;
 	rec->digest = selabel_is_digest_set(opts, nopts, rec->digest);
 
 	if ((*initfuncs[backend])(rec, opts, nopts)) {
@@ -415,9 +271,6 @@ int selabel_lookup_raw(struct selabel_handle *rec, char **con,
 
 bool selabel_partial_match(struct selabel_handle *rec, const char *key)
 {
-	char *ptr;
-	bool ret;
-
 	if (!rec->func_partial_match) {
 		/*
 		 * If the label backend does not support partial matching,
@@ -426,15 +279,7 @@ bool selabel_partial_match(struct selabel_handle *rec, const char *key)
 		return true;
 	}
 
-	ptr = selabel_sub_key(rec, key);
-	if (ptr) {
-		ret = rec->func_partial_match(rec, ptr);
-		free(ptr);
-	} else {
-		ret = rec->func_partial_match(rec, key);
-	}
-
-	return ret;
+	return rec->func_partial_match(rec, key);
 }
 
 int selabel_lookup_best_match(struct selabel_handle *rec, char **con,
@@ -501,8 +346,7 @@ int selabel_digest(struct selabel_handle *rec,
 void selabel_close(struct selabel_handle *rec)
 {
 	size_t i;
-	selabel_subs_fini(rec->subs);
-	selabel_subs_fini(rec->dist_subs);
+
 	if (rec->spec_files) {
 		for (i = 0; i < rec->spec_files_len; i++)
 			free(rec->spec_files[i]);

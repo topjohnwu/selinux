@@ -188,6 +188,8 @@ static void cil_init_keys(void)
 	CIL_KEY_MLSVALIDATETRANS = cil_strpool_add("mlsvalidatetrans");
 	CIL_KEY_CONTEXT = cil_strpool_add("context");
 	CIL_KEY_FILECON = cil_strpool_add("filecon");
+	CIL_KEY_IBPKEYCON = cil_strpool_add("ibpkeycon");
+	CIL_KEY_IBENDPORTCON = cil_strpool_add("ibendportcon");
 	CIL_KEY_PORTCON = cil_strpool_add("portcon");
 	CIL_KEY_NODECON = cil_strpool_add("nodecon");
 	CIL_KEY_GENFSCON = cil_strpool_add("genfscon");
@@ -257,6 +259,8 @@ void cil_db_init(struct cil_db **db)
 	cil_sort_init(&(*db)->genfscon);
 	cil_sort_init(&(*db)->filecon);
 	cil_sort_init(&(*db)->nodecon);
+	cil_sort_init(&(*db)->ibpkeycon);
+	cil_sort_init(&(*db)->ibendportcon);
 	cil_sort_init(&(*db)->portcon);
 	cil_sort_init(&(*db)->pirqcon);
 	cil_sort_init(&(*db)->iomemcon);
@@ -308,6 +312,8 @@ void cil_db_destroy(struct cil_db **db)
 	cil_sort_destroy(&(*db)->genfscon);
 	cil_sort_destroy(&(*db)->filecon);
 	cil_sort_destroy(&(*db)->nodecon);
+	cil_sort_destroy(&(*db)->ibpkeycon);
+	cil_sort_destroy(&(*db)->ibendportcon);
 	cil_sort_destroy(&(*db)->portcon);
 	cil_sort_destroy(&(*db)->pirqcon);
 	cil_sort_destroy(&(*db)->iomemcon);
@@ -728,8 +734,14 @@ void cil_destroy_data(void **data, enum cil_flavor flavor)
 	case CIL_FILECON:
 		cil_destroy_filecon(*data);
 		break;
+	case CIL_IBPKEYCON:
+		cil_destroy_ibpkeycon(*data);
+		break;
 	case CIL_PORTCON:
 		cil_destroy_portcon(*data);
+		break;
+	case CIL_IBENDPORTCON:
+		cil_destroy_ibendportcon(*data);
 		break;
 	case CIL_NODECON:
 		cil_destroy_nodecon(*data);
@@ -1097,6 +1109,10 @@ const char * cil_node_to_string(struct cil_tree_node *node)
 		return CIL_KEY_FSUSE;
 	case CIL_FILECON:
 		return CIL_KEY_FILECON;
+	case CIL_IBPKEYCON:
+		return CIL_KEY_IBPKEYCON;
+	case CIL_IBENDPORTCON:
+		return CIL_KEY_IBENDPORTCON;
 	case CIL_PORTCON:
 		return CIL_KEY_PORTCON;
 	case CIL_NODECON:
@@ -1830,6 +1846,16 @@ void cil_netifcon_init(struct cil_netifcon **netifcon)
 	(*netifcon)->context_str = NULL;
 }
 
+void cil_ibendportcon_init(struct cil_ibendportcon **ibendportcon)
+{
+	*ibendportcon = cil_malloc(sizeof(**ibendportcon));
+
+	(*ibendportcon)->dev_name_str = NULL;
+	(*ibendportcon)->port = 0;
+	(*ibendportcon)->context_str = NULL;
+	(*ibendportcon)->context = NULL;
+}
+
 void cil_context_init(struct cil_context **context)
 {
 	*context = cil_malloc(sizeof(**context));
@@ -2253,6 +2279,17 @@ void cil_filecon_init(struct cil_filecon **filecon)
 	(*filecon)->type = 0;
 	(*filecon)->context_str = NULL;
 	(*filecon)->context = NULL;
+}
+
+void cil_ibpkeycon_init(struct cil_ibpkeycon **ibpkeycon)
+{
+	*ibpkeycon = cil_malloc(sizeof(**ibpkeycon));
+
+	(*ibpkeycon)->subnet_prefix_str = NULL;
+	(*ibpkeycon)->pkey_low = 0;
+	(*ibpkeycon)->pkey_high = 0;
+	(*ibpkeycon)->context_str = NULL;
+	(*ibpkeycon)->context = NULL;
 }
 
 void cil_portcon_init(struct cil_portcon **portcon)
