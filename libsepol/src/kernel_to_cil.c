@@ -2043,7 +2043,7 @@ static int write_cond_nodes_to_cil(FILE *out, struct policydb *pdb)
 		num++;
 	}
 
-	cond_data = calloc(sizeof(struct cond_data), num);
+	cond_data = calloc(num, sizeof(struct cond_data));
 	if (!cond_data) {
 		rc = -1;
 		goto exit;
@@ -2784,6 +2784,100 @@ exit:
 	return rc;
 }
 
+static int write_selinux_ibpkey_rules_to_cil(FILE *out, struct policydb *pdb)
+{
+	struct ocontext *ibpkeycon;
+	char subnet_prefix_str[INET6_ADDRSTRLEN];
+	struct in6_addr subnet_prefix = {0};
+	uint16_t low;
+	uint16_t high;
+	char low_high_str[44]; /* 2^64 <= 20 digits so "(low high)" <= 44 chars */
+	char *ctx;
+	int rc = 0;
+
+	for (ibpkeycon = pdb->ocontexts[OCON_IBPKEY]; ibpkeycon != NULL;
+	     ibpkeycon = ibpkeycon->next) {
+		memcpy(&subnet_prefix.s6_addr, &ibpkeycon->u.ibpkey.subnet_prefix,
+		       sizeof(ibpkeycon->u.ibpkey.subnet_prefix));
+
+		if (inet_ntop(AF_INET6, &subnet_prefix.s6_addr,
+			      subnet_prefix_str, INET6_ADDRSTRLEN) == NULL) {
+			sepol_log_err("ibpkeycon subnet_prefix is invalid: %s",
+				      strerror(errno));
+			rc = -1;
+			goto exit;
+		}
+
+		low = ibpkeycon->u.ibpkey.low_pkey;
+		high = ibpkeycon->u.ibpkey.high_pkey;
+		if (low == high) {
+			rc = snprintf(low_high_str, 44, "%u", low);
+		} else {
+			rc = snprintf(low_high_str, 44, "(%u %u)", low, high);
+		}
+		if (rc < 0 || rc >= 44) {
+			rc = -1;
+			goto exit;
+		}
+
+		ctx = context_to_str(pdb, &ibpkeycon->context[0]);
+		if (!ctx) {
+			rc = -1;
+			goto exit;
+		}
+
+		sepol_printf(out, "(ibpkeycon %s %s %s)\n", subnet_prefix_str, low_high_str, ctx);
+
+		free(ctx);
+	}
+
+	rc = 0;
+
+exit:
+	if (rc != 0) {
+		sepol_log_err("Error writing ibpkeycon rules to CIL\n");
+	}
+
+	return rc;
+}
+
+static int write_selinux_ibendport_rules_to_cil(FILE *out, struct policydb *pdb)
+{
+	struct ocontext *ibendportcon;
+	char port_str[4];
+	char *ctx;
+	int rc = 0;
+
+	for (ibendportcon = pdb->ocontexts[OCON_IBENDPORT];
+	     ibendportcon != NULL; ibendportcon = ibendportcon->next) {
+		rc = snprintf(port_str, 4, "%u", ibendportcon->u.ibendport.port);
+		if (rc < 0 || rc >= 4) {
+			rc = -1;
+			goto exit;
+		}
+
+		ctx = context_to_str(pdb, &ibendportcon->context[0]);
+		if (!ctx) {
+			rc = -1;
+			goto exit;
+		}
+
+		sepol_printf(out, "(ibendportcon %s %s %s)\n",
+			     ibendportcon->u.ibendport.dev_name, port_str, ctx);
+
+		free(ctx);
+	}
+
+	rc = 0;
+
+exit:
+	if (rc != 0) {
+		sepol_log_err("Error writing ibendportcon rules to CIL\n");
+	}
+
+	return rc;
+}
+
 static int write_xen_isid_rules_to_cil(FILE *out, struct policydb *pdb)
 {
 	return write_sid_context_rules_to_cil(out, pdb, xen_sid_to_str);
@@ -3177,6 +3271,16 @@ int sepol_kernel_policydb_to_cil(FILE *out, struct policydb *pdb)
 		}
 
 		rc = write_selinux_node6_rules_to_cil(out, pdb);
+		if (rc != 0) {
+			goto exit;
+		}
+
+		rc = write_selinux_ibpkey_rules_to_cil(out, pdb);
+		if (rc != 0) {
+			goto exit;
+		}
+
+		rc = write_selinux_ibendport_rules_to_cil(out, pdb);
 		if (rc != 0) {
 			goto exit;
 		}

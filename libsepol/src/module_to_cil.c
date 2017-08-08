@@ -3,6 +3,7 @@
  * Functions to convert policy module to CIL
  *
  * Copyright (C) 2015 Tresys Technology, LLC
+ * Copyright (C) 2017 Mellanox Technologies Inc.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -211,7 +212,12 @@ static void list_destroy(struct list **list)
 
 static void role_list_destroy(void)
 {
-	struct list_node *curr = role_list->head;
+	struct list_node *curr;
+
+	if (role_list == NULL) {
+		return;
+	}
+	curr = role_list->head;
 
 	while (curr != NULL) {
 		free(curr->data);
@@ -317,7 +323,7 @@ static int typealiases_gather_map(char *key, void *data, void *arg)
 	struct type_datum *type = data;
 	struct policydb *pdb = arg;
 	struct scope_datum *scope;
-	uint32_t i;
+	uint32_t len;
 	uint32_t scope_id;
 
 	if (type->primary != 1) {
@@ -326,8 +332,9 @@ static int typealiases_gather_map(char *key, void *data, void *arg)
 			return -1;
 		}
 
-		for (i = 0; i < scope->decl_ids_len; i++) {
-			scope_id = scope->decl_ids[i];
+		len = scope->decl_ids_len;
+		if (len > 0) {
+			scope_id = scope->decl_ids[len-1];
 			if (typealias_lists[scope_id] == NULL) {
 				rc = list_init(&typealias_lists[scope_id]);
 				if (rc != 0) {
@@ -982,8 +989,14 @@ static int ebitmap_to_names(struct ebitmap *map, char **vals_to_names, char ***n
 
 	num = 0;
 	ebitmap_for_each_bit(map, node, i) {
-		if (ebitmap_get_bit(map, i))
+		if (ebitmap_get_bit(map, i)) {
+			if (num >= UINT32_MAX / sizeof(*name_arr)) {
+				log_err("Overflow");
+				rc = -1;
+				goto exit;
+			}
 			num++;
+		}
 	}
 
 	name_arr = malloc(sizeof(*name_arr) * num);
@@ -1111,19 +1124,30 @@ static int name_list_to_string(char **names, int num_names, char **string)
 {
 	// create a space separated string of the names
 	int rc = -1;
-	int len = 0;
+	size_t len = 0;
 	int i;
 	char *str;
 	char *strpos;
-	int name_len;
-	int rlen;
 
 	for (i = 0; i < num_names; i++) {
 		len += strlen(names[i]);
+		if (len < strlen(names[i])) {
+			log_err("Overflow");
+			return -1;
+		}
 	}
 
 	// add spaces + null terminator
-	len += (num_names - 1) + 1;
+	len += num_names;
+	if (len < (size_t)num_names) {
+		log_err("Overflow");
+		return -1;
+	}
+
+	if (!len) {
+		log_err("Empty list");
+		return -1;
+	}
 
 	str = malloc(len);
 	if (str == NULL) {
@@ -1131,22 +1155,15 @@ static int name_list_to_string(char **names, int num_names, char **string)
 		rc = -1;
 		goto exit;
 	}
+	str[0] = 0;
 
 	strpos = str;
 
 	for (i = 0; i < num_names; i++) {
-		name_len = strlen(names[i]);
-		rlen = snprintf(strpos, len - (strpos - str), "%s", names[i]);
-		if (rlen < 0 || rlen >= len) {
-			log_err("Failed to generate name list");
-			rc = -1;
-			goto exit;
-		}
-
+		strpos = stpcpy(strpos, names[i]);
 		if (i < num_names - 1) {
-			strpos[name_len] = ' ';
+			*strpos++ = ' ';
 		}
-		strpos += name_len + 1;
 	}
 
 	*string = str;
@@ -1662,6 +1679,9 @@ static int common_to_cil(char *key, void *data, void *UNUSED(arg))
 
 	arr.count = 0;
 	arr.perms = calloc(common->permissions.nprim, sizeof(*arr.perms));
+	if (arr.perms == NULL) {
+		goto exit;
+	}
 	rc = hashtab_map(common->permissions.table, class_perm_to_array, &arr);
 	if (rc != 0) {
 		goto exit;
@@ -1952,6 +1972,9 @@ static int class_to_cil(int indent, struct policydb *pdb, struct avrule_block *U
 
 	arr.count = 0;
 	arr.perms = calloc(class->permissions.nprim, sizeof(*arr.perms));
+	if (arr.perms == NULL) {
+		goto exit;
+	}
 	rc = hashtab_map(class->permissions.table, class_perm_to_array, &arr);
 	if (rc != 0) {
 		goto exit;
@@ -2261,6 +2284,8 @@ static int type_to_cil(int indent, struct policydb *pdb, struct avrule_block *UN
 			ebitmap_to_cil(pdb, &type->types, SYM_TYPES);
 			cil_printf("))\n");
 		}
+		break;
+	case TYPE_ALIAS:
 		break;
 	default:
 		log_err("Unknown flavor (%i) of type %s", type->flavor, key);
@@ -2656,6 +2681,45 @@ exit:
 	return rc;
 }
 
+static int ocontext_selinux_ibpkey_to_cil(struct policydb *pdb,
+					struct ocontext *ibpkeycons)
+{
+	int rc = -1;
+	struct ocontext *ibpkeycon;
+	char subnet_prefix_str[INET6_ADDRSTRLEN];
+	struct in6_addr subnet_prefix = {0};
+	uint16_t high;
+	uint16_t low;
+
+	for (ibpkeycon = ibpkeycons; ibpkeycon; ibpkeycon = ibpkeycon->next) {
+		low = ibpkeycon->u.ibpkey.low_pkey;
+		high = ibpkeycon->u.ibpkey.high_pkey;
+		memcpy(&subnet_prefix.s6_addr, &ibpkeycon->u.ibpkey.subnet_prefix,
+		       sizeof(ibpkeycon->u.ibpkey.subnet_prefix));
+
+		if (inet_ntop(AF_INET6, &subnet_prefix.s6_addr,
+			      subnet_prefix_str, INET6_ADDRSTRLEN) == NULL) {
+			log_err("ibpkeycon subnet_prefix is invalid: %s",
+				strerror(errno));
+			rc = -1;
+			goto exit;
+		}
+
+		if (low == high)
+			cil_printf("(ibpkeycon %s %i ", subnet_prefix_str, low);
+		else
+			cil_printf("(ibpkeycon %s (%i %i) ", subnet_prefix_str, low,
+				   high);
+
+		context_to_cil(pdb, &ibpkeycon->context[0]);
+
+		cil_printf(")\n");
+	}
+	return 0;
+exit:
+	return rc;
+}
+
 static int ocontext_selinux_netif_to_cil(struct policydb *pdb, struct ocontext *netifs)
 {
 	struct ocontext *netif;
@@ -2736,6 +2800,19 @@ exit:
 	return rc;
 }
 
+static int ocontext_selinux_ibendport_to_cil(struct policydb *pdb, struct ocontext *ibendports)
+{
+	struct ocontext *ibendport;
+
+	for (ibendport = ibendports; ibendport; ibendport = ibendport->next) {
+		cil_printf("(ibendportcon %s %u ", ibendport->u.ibendport.dev_name, ibendport->u.ibendport.port);
+		context_to_cil(pdb, &ibendport->context[0]);
+
+		cil_printf(")\n");
+	}
+
+	return 0;
+}
 
 static int ocontext_selinux_fsuse_to_cil(struct policydb *pdb, struct ocontext *fsuses)
 {
@@ -2889,6 +2966,8 @@ static int ocontexts_to_cil(struct policydb *pdb)
 		ocontext_selinux_node_to_cil,
 		ocontext_selinux_fsuse_to_cil,
 		ocontext_selinux_node6_to_cil,
+		ocontext_selinux_ibpkey_to_cil,
+		ocontext_selinux_ibendport_to_cil,
 	};
 	static int (*ocon_xen_funcs[OCON_NUM])(struct policydb *pdb, struct ocontext *ocon) = {
 		ocontext_xen_isid_to_cil,
@@ -3321,6 +3400,7 @@ static int typealiases_to_cil(int indent, struct policydb *pdb, struct avrule_bl
 {
 	struct type_datum *alias_datum;
 	char *alias_name;
+	char *type_name;
 	struct list_node *curr;
 	struct avrule_decl *decl = stack_peek(decl_stack);
 	struct list *alias_list = typealias_lists[decl->decl_id];
@@ -3337,9 +3417,13 @@ static int typealiases_to_cil(int indent, struct policydb *pdb, struct avrule_bl
 			rc = -1;
 			goto exit;
 		}
-
+		if (alias_datum->flavor == TYPE_ALIAS) {
+			type_name = pdb->p_type_val_to_name[alias_datum->primary - 1];
+		} else {
+			type_name = pdb->p_type_val_to_name[alias_datum->s.value - 1];
+		}
 		cil_println(indent, "(typealias %s)", alias_name);
-		cil_println(indent, "(typealiasactual %s %s)", alias_name, pdb->p_type_val_to_name[alias_datum->s.value - 1]);
+		cil_println(indent, "(typealiasactual %s %s)", alias_name, type_name);
 	}
 
 	return 0;

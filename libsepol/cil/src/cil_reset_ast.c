@@ -288,6 +288,12 @@ static void cil_reset_filecon(struct cil_filecon *filecon)
 	}
 }
 
+static void cil_reset_ibpkeycon(struct cil_ibpkeycon *ibpkeycon)
+{
+	if (!ibpkeycon->context_str)
+		cil_reset_context(ibpkeycon->context);
+}
+
 static void cil_reset_portcon(struct cil_portcon *portcon)
 {
 	if (portcon->context_str == NULL) {
@@ -317,6 +323,13 @@ static void cil_reset_netifcon(struct cil_netifcon *netifcon)
 
 	if (netifcon->packet_context_str == NULL) {
 		cil_reset_context(netifcon->packet_context);
+	}
+}
+
+static void cil_reset_ibendportcon(struct cil_ibendportcon *ibendportcon)
+{
+	if (!ibendportcon->context_str) {
+		cil_reset_context(ibendportcon->context);
 	}
 }
 
@@ -488,6 +501,12 @@ int __cil_reset_node(struct cil_tree_node *node,  __attribute__((unused)) uint32
 		break;
 	case CIL_FILECON:
 		cil_reset_filecon(node->data);
+		break;
+	case CIL_IBPKEYCON:
+		cil_reset_ibpkeycon(node->data);
+		break;
+	case CIL_IBENDPORTCON:
+		cil_reset_ibendportcon(node->data);
 		break;
 	case CIL_PORTCON:
 		cil_reset_portcon(node->data);
