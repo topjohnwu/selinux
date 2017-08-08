@@ -33,6 +33,8 @@
 #include <semanage/context_record.h>
 #include <semanage/iface_record.h>
 #include <semanage/port_record.h>
+#include <semanage/ibpkey_record.h>
+#include <semanage/ibendport_record.h>
 #include <semanage/node_record.h>
 
 /* Dbase */
@@ -47,6 +49,10 @@
 #include <semanage/seusers_policy.h>
 #include <semanage/ports_local.h>
 #include <semanage/ports_policy.h>
+#include <semanage/ibpkeys_local.h>
+#include <semanage/ibendports_local.h>
+#include <semanage/ibendports_policy.h>
+#include <semanage/ibpkeys_policy.h>
 #include <semanage/interfaces_local.h>
 #include <semanage/interfaces_policy.h>
 #include <semanage/nodes_local.h>

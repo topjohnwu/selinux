@@ -99,6 +99,8 @@ static const char *semanage_sandbox_paths[SEMANAGE_STORE_NUM_PATHS] = {
 	"/homedir_template",
 	"/file_contexts.template",
 	"/commit_num",
+	"/pkeys.local",
+	"/ibendports.local",
 	"/ports.local",
 	"/interfaces.local",
 	"/nodes.local",
@@ -812,7 +814,7 @@ int semanage_remove_directory(const char *path)
 		return -1;
 	}
 	for (i = 0; i < num_entries; i++) {
-		char s[NAME_MAX];
+		char s[PATH_MAX];
 		struct stat buf;
 		snprintf(s, sizeof(s), "%s/%s", path, namelist[i]->d_name);
 		if (stat(s, &buf) == -1) {
