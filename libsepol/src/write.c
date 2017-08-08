@@ -16,6 +16,7 @@
  *
  * Copyright (C) 2004-2005 Trusted Computer Solutions, Inc.
  * Copyright (C) 2003-2005 Tresys Technology, LLC
+ * Copyright (C) 2017 Mellanox Technologies Inc.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -50,7 +51,8 @@ struct policy_data {
 	struct policydb *p;
 };
 
-static int avrule_write_list(avrule_t * avrules, struct policy_file *fp);
+static int avrule_write_list(policydb_t *p,
+			     avrule_t * avrules, struct policy_file *fp);
 
 static int ebitmap_write(ebitmap_t * e, struct policy_file *fp)
 {
@@ -779,9 +781,9 @@ static int cond_write_node(policydb_t * p,
 		if (cond_write_av_list(p, node->false_list, fp) != 0)
 			return POLICYDB_ERROR;
 	} else {
-		if (avrule_write_list(node->avtrue_list, fp))
+		if (avrule_write_list(p, node->avtrue_list, fp))
 			return POLICYDB_ERROR;
-		if (avrule_write_list(node->avfalse_list, fp))
+		if (avrule_write_list(p, node->avfalse_list, fp))
 			return POLICYDB_ERROR;
 	}
 
@@ -1410,6 +1412,35 @@ static int ocontext_write_selinux(struct policydb_compat_info *info,
 				if (context_write(p, &c->context[1], fp))
 					return POLICYDB_ERROR;
 				break;
+			case OCON_IBPKEY:
+				 /* The subnet prefix is in network order */
+				memcpy(buf, &c->u.ibpkey.subnet_prefix,
+				       sizeof(c->u.ibpkey.subnet_prefix));
+
+				buf[2] = cpu_to_le32(c->u.ibpkey.low_pkey);
+				buf[3] = cpu_to_le32(c->u.ibpkey.high_pkey);
+
+				items = put_entry(buf, sizeof(uint32_t), 4, fp);
+				if (items != 4)
+					return POLICYDB_ERROR;
+
+				if (context_write(p, &c->context[0], fp))
+					return POLICYDB_ERROR;
+				break;
+			case OCON_IBENDPORT:
+				len = strlen(c->u.ibendport.dev_name);
+				buf[0] = cpu_to_le32(len);
+				buf[1] = cpu_to_le32(c->u.ibendport.port);
+				items = put_entry(buf, sizeof(uint32_t), 2, fp);
+				if (items != 2)
+					return POLICYDB_ERROR;
+				items = put_entry(c->u.ibendport.dev_name, 1, len, fp);
+				if (items != len)
+					return POLICYDB_ERROR;
+
+				if (context_write(p, &c->context[0], fp))
+					return POLICYDB_ERROR;
+				break;
 			case OCON_PORT:
 				buf[0] = c->u.port.protocol;
 				buf[1] = c->u.port.low_port;
@@ -1613,17 +1644,12 @@ static int range_write(policydb_t * p, struct policy_file *fp)
 
 /************** module writing functions below **************/
 
-static int avrule_write(avrule_t * avrule, struct policy_file *fp)
+static int avrule_write(policydb_t *p, avrule_t * avrule,
+			struct policy_file *fp)
 {
 	size_t items, items2;
 	uint32_t buf[32], len;
 	class_perm_node_t *cur;
-
-	if (avrule->specified & AVRULE_XPERMS) {
-		ERR(fp->handle, "module policy does not support extended"
-				" permissions rules and one was specified");
-		return POLICYDB_ERROR;
-	}
 
 	items = 0;
 	buf[items++] = cpu_to_le32(avrule->specified);
@@ -1661,10 +1687,48 @@ static int avrule_write(avrule_t * avrule, struct policy_file *fp)
 		cur = cur->next;
 	}
 
+	if (avrule->specified & AVRULE_XPERMS) {
+		size_t nel = ARRAY_SIZE(avrule->xperms->perms);
+		uint32_t buf32[nel];
+		uint8_t buf8;
+		unsigned int i;
+
+		if (p->policyvers < MOD_POLICYDB_VERSION_XPERMS_IOCTL) {
+			ERR(fp->handle,
+			    "module policy version %u does not support ioctl"
+			    " extended permissions rules and one was specified",
+			    p->policyvers);
+			return POLICYDB_ERROR;
+		}
+
+		if (p->target_platform != SEPOL_TARGET_SELINUX) {
+			ERR(fp->handle,
+			    "Target platform %s does not support ioctl"
+			    " extended permissions rules and one was specified",
+			    policydb_target_strings[p->target_platform]);
+			return POLICYDB_ERROR;
+		}
+
+		buf8 = avrule->xperms->specified;
+		items = put_entry(&buf8, sizeof(uint8_t),1,fp);
+		if (items != 1)
+			return POLICYDB_ERROR;
+		buf8 = avrule->xperms->driver;
+		items = put_entry(&buf8, sizeof(uint8_t),1,fp);
+		if (items != 1)
+			return POLICYDB_ERROR;
+		for (i = 0; i < nel; i++)
+			buf32[i] = cpu_to_le32(avrule->xperms->perms[i]);
+		items = put_entry(buf32, sizeof(uint32_t), nel, fp);
+		if (items != nel)
+			return POLICYDB_ERROR;
+	}
+
 	return POLICYDB_SUCCESS;
 }
 
-static int avrule_write_list(avrule_t * avrules, struct policy_file *fp)
+static int avrule_write_list(policydb_t *p, avrule_t * avrules,
+			     struct policy_file *fp)
 {
 	uint32_t buf[32], len;
 	avrule_t *avrule;
@@ -1682,7 +1746,7 @@ static int avrule_write_list(avrule_t * avrules, struct policy_file *fp)
 
 	avrule = avrules;
 	while (avrule) {
-		if (avrule_write(avrule, fp))
+		if (avrule_write(p, avrule, fp))
 			return POLICYDB_ERROR;
 		avrule = avrule->next;
 	}
@@ -1870,7 +1934,7 @@ static int avrule_decl_write(avrule_decl_t * decl, int num_scope_syms,
 		return POLICYDB_ERROR;
 	}
 	if (cond_write_list(p, decl->cond_list, fp) == -1 ||
-	    avrule_write_list(decl->avrules, fp) == -1 ||
+	    avrule_write_list(p, decl->avrules, fp) == -1 ||
 	    role_trans_rule_write(p, decl->role_tr_rules, fp) == -1 ||
 	    role_allow_rule_write(decl->role_allow_rules, fp) == -1) {
 		return POLICYDB_ERROR;

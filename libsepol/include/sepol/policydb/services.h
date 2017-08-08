@@ -188,6 +188,22 @@ extern int sepol_port_sid(uint16_t domain,
 			  uint16_t port, sepol_security_id_t * out_sid);
 
 /*
+ * Return the SID of the ibpkey specified by
+ * `subnet prefix', and `pkey'.
+ */
+extern int sepol_ibpkey_sid(uint64_t subnet_prefix_p,
+			    uint16_t pkey,
+			    sepol_security_id_t *out_sid);
+
+/*
+ * Return the SID of the ibendport specified by
+ * `dev_name', and `port'.
+ */
+extern int sepol_ibendport_sid(char *dev_name,
+			       uint8_t port,
+			       sepol_security_id_t *out_sid);
+
+/*
  * Return the SIDs to use for a network interface
  * with the name `name'.  The `if_sid' SID is returned for 
  * the interface and the `msg_sid' SID is returned as

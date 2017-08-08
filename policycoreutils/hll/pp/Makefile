@@ -1,16 +1,15 @@
 # Installation directories.
 PREFIX ?= $(DESTDIR)/usr
 INCLUDEDIR ?= $(PREFIX)/include
-SBINDIR ?= $(PREFIX)/sbin
 MANDIR = $(PREFIX)/share/man
 LIBDIR ?= $(PREFIX)/lib
 LIBEXECDIR ?= $(PREFIX)/libexec
 HLLDIR ?= $(LIBEXECDIR)/selinux/hll
 
 CFLAGS ?= -Werror -Wall -W
-LDLIBS = -lsepol
+override LDLIBS += -lsepol
 
-PP_SRCS = $(wildcard *.c)
+PP_SRCS = $(sort $(wildcard *.c))
 PP_OBJS = $(patsubst %.c,%.o,$(PP_SRCS))
 
 all: pp

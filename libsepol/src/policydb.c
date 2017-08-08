@@ -18,6 +18,7 @@
  * Copyright (C) 2004-2005 Trusted Computer Solutions, Inc.
  * Copyright (C) 2003 - 2005 Tresys Technology, LLC
  * Copyright (C) 2003 - 2007 Red Hat, Inc.
+ * Copyright (C) 2017 Mellanox Technologies Inc.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -186,6 +187,13 @@ static struct policydb_compat_info policydb_compat[] = {
 	 .target_platform = SEPOL_TARGET_SELINUX,
 	},
 	{
+	 .type = POLICY_KERN,
+	 .version = POLICYDB_VERSION_INFINIBAND,
+	 .sym_num = SYM_NUM,
+	 .ocon_num = OCON_IBENDPORT + 1,
+	 .target_platform = SEPOL_TARGET_SELINUX,
+	},
+	{
 	 .type = POLICY_BASE,
 	 .version = MOD_POLICYDB_VERSION_BASE,
 	 .sym_num = SYM_NUM,
@@ -284,6 +292,20 @@ static struct policydb_compat_info policydb_compat[] = {
 	 .target_platform = SEPOL_TARGET_SELINUX,
 	},
 	{
+	 .type = POLICY_BASE,
+	 .version = MOD_POLICYDB_VERSION_XPERMS_IOCTL,
+	 .sym_num = SYM_NUM,
+	 .ocon_num = OCON_NODE6 + 1,
+	 .target_platform = SEPOL_TARGET_SELINUX,
+	},
+	{
+	 .type = POLICY_BASE,
+	 .version = MOD_POLICYDB_VERSION_INFINIBAND,
+	 .sym_num = SYM_NUM,
+	 .ocon_num = OCON_IBENDPORT + 1,
+	 .target_platform = SEPOL_TARGET_SELINUX,
+	},
+	{
 	 .type = POLICY_MOD,
 	 .version = MOD_POLICYDB_VERSION_BASE,
 	 .sym_num = SYM_NUM,
@@ -377,6 +399,20 @@ static struct policydb_compat_info policydb_compat[] = {
 	{
 	 .type = POLICY_MOD,
 	 .version = MOD_POLICYDB_VERSION_CONSTRAINT_NAMES,
+	 .sym_num = SYM_NUM,
+	 .ocon_num = 0,
+	 .target_platform = SEPOL_TARGET_SELINUX,
+	},
+	{
+	 .type = POLICY_MOD,
+	 .version = MOD_POLICYDB_VERSION_XPERMS_IOCTL,
+	 .sym_num = SYM_NUM,
+	 .ocon_num = 0,
+	 .target_platform = SEPOL_TARGET_SELINUX,
+	},
+	{
+	 .type = POLICY_MOD,
+	 .version = MOD_POLICYDB_VERSION_INFINIBAND,
 	 .sym_num = SYM_NUM,
 	 .ocon_num = 0,
 	 .target_platform = SEPOL_TARGET_SELINUX,
@@ -557,6 +593,8 @@ void avrule_destroy(avrule_t * x)
 		next = cur->next;
 		free(cur);
 	}
+
+	free(x->xperms);
 }
 
 void role_trans_rule_init(role_trans_rule_t * x)
@@ -1682,6 +1720,19 @@ int symtab_insert(policydb_t * pol, uint32_t sym,
 		return -ENOMEM;
 	}
 
+	if (scope_datum->scope == SCOPE_DECL && scope == SCOPE_REQ) {
+		/* Need to keep the decl at the end of the list */
+		uint32_t len, tmp;
+		len = scope_datum->decl_ids_len;
+		if (len < 2) {
+			/* This should be impossible here */
+			return -1;
+		}
+		tmp = scope_datum->decl_ids[len-2];
+		scope_datum->decl_ids[len-2] = scope_datum->decl_ids[len-1];
+		scope_datum->decl_ids[len-1] = tmp;
+	}
+
 	return retval;
 }
 
@@ -2766,7 +2817,7 @@ static int ocontext_read_selinux(struct policydb_compat_info *info,
 				if (rc < 0)
 					return -1;
 				len = le32_to_cpu(buf[0]);
-				if (zero_or_saturated(len))
+				if (zero_or_saturated(len) || len > 63)
 					return -1;
 				c->u.name = malloc(len + 1);
 				if (!c->u.name)
@@ -2780,6 +2831,41 @@ static int ocontext_read_selinux(struct policydb_compat_info *info,
 					return -1;
 				if (context_read_and_validate
 				    (&c->context[1], p, fp))
+					return -1;
+				break;
+			case OCON_IBPKEY:
+				rc = next_entry(buf, fp, sizeof(uint32_t) * 4);
+				if (rc < 0 || buf[2] > 0xffff || buf[3] > 0xffff)
+					return -1;
+
+				memcpy(&c->u.ibpkey.subnet_prefix, buf,
+				       sizeof(c->u.ibpkey.subnet_prefix));
+
+				c->u.ibpkey.low_pkey = le32_to_cpu(buf[2]);
+				c->u.ibpkey.high_pkey = le32_to_cpu(buf[3]);
+
+				if (context_read_and_validate
+				    (&c->context[0], p, fp))
+					return -1;
+				break;
+			case OCON_IBENDPORT:
+				rc = next_entry(buf, fp, sizeof(uint32_t) * 2);
+				if (rc < 0)
+					return -1;
+				len = le32_to_cpu(buf[0]);
+				if (len == 0 || len > IB_DEVICE_NAME_MAX - 1)
+					return -1;
+
+				c->u.ibendport.dev_name = malloc(len + 1);
+				if (!c->u.ibendport.dev_name)
+					return -1;
+				rc = next_entry(c->u.ibendport.dev_name, fp, len);
+				if (rc < 0)
+					return -1;
+				c->u.ibendport.dev_name[len] = 0;
+				c->u.ibendport.port = le32_to_cpu(buf[1]);
+				if (context_read_and_validate
+				    (&c->context[0], p, fp))
 					return -1;
 				break;
 			case OCON_PORT:
@@ -3196,8 +3282,7 @@ common_read, class_read, role_read, type_read, user_read,
 
 /************** module reading functions below **************/
 
-static avrule_t *avrule_read(policydb_t * p
-			     __attribute__ ((unused)), struct policy_file *fp)
+static avrule_t *avrule_read(policydb_t * p, struct policy_file *fp)
 {
 	unsigned int i;
 	uint32_t buf[2], len;
@@ -3215,8 +3300,8 @@ static avrule_t *avrule_read(policydb_t * p
 	if (rc < 0)
 		goto bad;
 
-	(avrule)->specified = le32_to_cpu(buf[0]);
-	(avrule)->flags = le32_to_cpu(buf[1]);
+	avrule->specified = le32_to_cpu(buf[0]);
+	avrule->flags = le32_to_cpu(buf[1]);
 
 	if (type_set_read(&avrule->stypes, fp))
 		goto bad;
@@ -3250,6 +3335,52 @@ static avrule_t *avrule_read(policydb_t * p
 			tail->next = cur;
 		}
 		tail = cur;
+	}
+
+	if (avrule->specified & AVRULE_XPERMS) {
+		uint8_t buf8;
+		size_t nel = ARRAY_SIZE(avrule->xperms->perms);
+		uint32_t buf32[nel];
+
+		if (p->policyvers < MOD_POLICYDB_VERSION_XPERMS_IOCTL) {
+			ERR(fp->handle,
+			    "module policy version %u does not support ioctl"
+			    " extended permissions rules and one was specified",
+			    p->policyvers);
+			goto bad;
+		}
+
+		if (p->target_platform != SEPOL_TARGET_SELINUX) {
+			ERR(fp->handle,
+			    "Target platform %s does not support ioctl"
+			    " extended permissions rules and one was specified",
+			    policydb_target_strings[p->target_platform]);
+			goto bad;
+		}
+
+		avrule->xperms = calloc(1, sizeof(*avrule->xperms));
+		if (!avrule->xperms)
+			goto bad;
+
+		rc = next_entry(&buf8, fp, sizeof(uint8_t));
+		if (rc < 0) {
+			ERR(fp->handle, "truncated entry");
+			goto bad;
+		}
+		avrule->xperms->specified = buf8;
+		rc = next_entry(&buf8, fp, sizeof(uint8_t));
+		if (rc < 0) {
+			ERR(fp->handle, "truncated entry");
+			goto bad;
+		}
+		avrule->xperms->driver = buf8;
+		rc = next_entry(buf32, fp, sizeof(uint32_t)*nel);
+		if (rc < 0) {
+			ERR(fp->handle, "truncated entry");
+			goto bad;
+		}
+		for (i = 0; i < nel; i++)
+			avrule->xperms->perms[i] = le32_to_cpu(buf32[i]);
 	}
 
 	return avrule;
