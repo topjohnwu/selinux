@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2004-2005 Tresys Technology, LLC
  * Copyright (C) 2007 Red Hat, Inc.
+ * Copyright (C) 2017 Mellanox Technologies, Inc.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -938,7 +939,7 @@ int mls_semantic_range_expand(mls_semantic_range_t * sr, mls_range_t * r,
 		return -1;
 
 	if (mls_semantic_level_expand(&sr->level[1], &r->level[1], p, h) < 0) {
-		mls_semantic_level_destroy(&sr->level[0]);
+		mls_level_destroy(&r->level[0]);
 		return -1;
 	}
 
@@ -2217,6 +2218,20 @@ static int ocontext_copy_selinux(expand_state_t *state)
 					return -1;
 				}
 				break;
+			case OCON_IBPKEY:
+				n->u.ibpkey.subnet_prefix = c->u.ibpkey.subnet_prefix;
+
+				n->u.ibpkey.low_pkey = c->u.ibpkey.low_pkey;
+				n->u.ibpkey.high_pkey = c->u.ibpkey.high_pkey;
+			break;
+			case OCON_IBENDPORT:
+				n->u.ibendport.dev_name = strdup(c->u.ibendport.dev_name);
+				if (!n->u.ibendport.dev_name) {
+					ERR(state->handle, "Out of memory!");
+					return -1;
+				}
+				n->u.ibendport.port = c->u.ibendport.port;
+				break;
 			case OCON_PORT:
 				n->u.port.protocol = c->u.port.protocol;
 				n->u.port.low_port = c->u.port.low_port;
@@ -2337,13 +2352,20 @@ static int type_attr_map(hashtab_key_t key
 	value = type->s.value;
 
 	if (type->flavor == TYPE_ATTRIB) {
-		if (ebitmap_cpy(&p->attr_type_map[value - 1], &type->types)) {
-			goto oom;
-		}
-		ebitmap_for_each_bit(&type->types, tnode, i) {
-			if (!ebitmap_node_get_bit(tnode, i))
-				continue;
-			if (ebitmap_set_bit(&p->type_attr_map[i], value - 1, 1)) {
+		if (!(type->flags & TYPE_FLAGS_EXPAND_ATTR_TRUE)) {
+			if (ebitmap_cpy(&p->attr_type_map[value - 1], &type->types)) {
+				goto oom;
+			}
+			ebitmap_for_each_bit(&type->types, tnode, i) {
+				if (!ebitmap_node_get_bit(tnode, i))
+					continue;
+				if (ebitmap_set_bit(&p->type_attr_map[i], value - 1, 1)) {
+					goto oom;
+				}
+			}
+		} else {
+			/* Attribute is being expanded, so remove */
+			if (ebitmap_set_bit(&p->type_attr_map[value - 1], value - 1, 0)) {
 				goto oom;
 			}
 		}
@@ -2513,46 +2535,41 @@ int type_set_expand(type_set_t * set, ebitmap_t * t, policydb_t * p,
 	unsigned int i;
 	ebitmap_t types, neg_types;
 	ebitmap_node_t *tnode;
+	unsigned char expand = alwaysexpand || ebitmap_length(&set->negset) || set->flags;
+	type_datum_t *type;
 	int rc =-1;
 
 	ebitmap_init(&types);
 	ebitmap_init(t);
 
-	if (alwaysexpand || ebitmap_length(&set->negset) || set->flags) {
-		/* First go through the types and OR all the attributes to types */
-		ebitmap_for_each_bit(&set->types, tnode, i) {
-			if (ebitmap_node_get_bit(tnode, i)) {
+	/* First go through the types and OR all the attributes to types */
+	ebitmap_for_each_bit(&set->types, tnode, i) {
+		if (!ebitmap_node_get_bit(tnode, i))
+			continue;
 
-				/*
-				 * invalid policies might have more types set in the ebitmap than
-				 * what's available in the type_val_to_struct mapping
-				 */
-				if (i >= p->p_types.nprim)
-					goto err_types;
+		/*
+		 * invalid policies might have more types set in the ebitmap than
+		 * what's available in the type_val_to_struct mapping
+		 */
+		if (i >= p->p_types.nprim)
+			goto err_types;
 
-				if (!p->type_val_to_struct[i]) {
-					goto err_types;
-				}
+		type = p->type_val_to_struct[i];
 
-				if (p->type_val_to_struct[i]->flavor ==
-				    TYPE_ATTRIB) {
-					if (ebitmap_union
-					    (&types,
-					     &p->type_val_to_struct[i]->
-					     types)) {
-						goto err_types;
-					}
-				} else {
-					if (ebitmap_set_bit(&types, i, 1)) {
-						goto err_types;
-					}
-				}
+		if (!type) {
+			goto err_types;
+		}
+
+		if (type->flavor == TYPE_ATTRIB &&
+		    (expand || (type->flags & TYPE_FLAGS_EXPAND_ATTR_TRUE))) {
+			if (ebitmap_union(&types, &type->types)) {
+				goto err_types;
+			}
+		} else {
+			if (ebitmap_set_bit(&types, i, 1)) {
+				goto err_types;
 			}
 		}
-	} else {
-		/* No expansion of attributes, just copy the set as is. */
-		if (ebitmap_cpy(&types, &set->types))
-			goto err_types;
 	}
 
 	/* Now do the same thing for negset */

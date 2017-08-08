@@ -12,10 +12,10 @@ LIBSEPOL := ../src/libsepol.a
 # This is less than ideal, but it makes the tests easier to maintain by allowing source policies
 # to be loaded directly.
 CHECKPOLICY := ../../checkpolicy/
-CPPFLAGS += -I../include/ -I$(CHECKPOLICY)
+override CPPFLAGS += -I../include/ -I$(CHECKPOLICY)
 
 # test program object files
-objs := $(patsubst %.c,%.o,$(wildcard *.c))
+objs := $(patsubst %.c,%.o,$(sort $(wildcard *.c)))
 parserobjs := $(CHECKPOLICY)queue.o $(CHECKPOLICY)y.tab.o \
 	$(CHECKPOLICY)parse_util.o $(CHECKPOLICY)lex.yy.o \
 	$(CHECKPOLICY)policy_define.o $(CHECKPOLICY)module_compiler.o
