@@ -74,6 +74,8 @@ int cil_resolve_constrain(struct cil_tree_node *current, void *extra_args);
 int cil_resolve_validatetrans(struct cil_tree_node *current, void *extra_args);
 int cil_resolve_context(struct cil_tree_node *current, struct cil_context *context, void *extra_args);
 int cil_resolve_filecon(struct cil_tree_node *current, void *extra_args);
+int cil_resolve_ibpkeycon(struct cil_tree_node *current, void *extra_args);
+int cil_resolve_ibendportcon(struct cil_tree_node *current, void *extra_args);
 int cil_resolve_portcon(struct cil_tree_node *current, void *extra_args);
 int cil_resolve_genfscon(struct cil_tree_node *current, void *extra_args);
 int cil_resolve_nodecon(struct cil_tree_node *current, void *extra_args);
@@ -97,5 +99,6 @@ int cil_resolve_tunif(struct cil_tree_node *current, void *extra_args);
 
 int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current);
 int cil_resolve_name(struct cil_tree_node *ast_node, char *name, enum cil_sym_index sym_index, void *extra_args, struct cil_symtab_datum **datum);
+int cil_resolve_name_keep_aliases(struct cil_tree_node *ast_node, char *name, enum cil_sym_index sym_index, void *extra_args, struct cil_symtab_datum **datum);
 
 #endif /* CIL_RESOLVE_AST_H_ */

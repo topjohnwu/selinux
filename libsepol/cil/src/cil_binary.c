@@ -3218,6 +3218,40 @@ exit:
 	return rc;
 }
 
+int cil_ibpkeycon_to_policydb(policydb_t *pdb, struct cil_sort *ibpkeycons)
+{
+	int rc = SEPOL_ERR;
+	uint32_t i = 0;
+	ocontext_t *tail = NULL;
+	struct in6_addr subnet_prefix;
+
+	for (i = 0; i < ibpkeycons->count; i++) {
+		struct cil_ibpkeycon *cil_ibpkeycon = ibpkeycons->array[i];
+		ocontext_t *new_ocon = cil_add_ocontext(&pdb->ocontexts[OCON_IBPKEY], &tail);
+
+		rc = inet_pton(AF_INET6, cil_ibpkeycon->subnet_prefix_str, &subnet_prefix);
+		if (rc != 1) {
+			cil_log(CIL_ERR, "ibpkeycon subnet prefix not in valid IPV6 format\n");
+			rc = SEPOL_ERR;
+			goto exit;
+		}
+
+		memcpy(&new_ocon->u.ibpkey.subnet_prefix, &subnet_prefix.s6_addr[0],
+		       sizeof(new_ocon->u.ibpkey.subnet_prefix));
+		new_ocon->u.ibpkey.low_pkey = cil_ibpkeycon->pkey_low;
+		new_ocon->u.ibpkey.high_pkey = cil_ibpkeycon->pkey_high;
+
+		rc = __cil_context_to_sepol_context(pdb, cil_ibpkeycon->context, &new_ocon->context[0]);
+		if (rc != SEPOL_OK)
+			goto exit;
+	}
+
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
 int cil_portcon_to_policydb(policydb_t *pdb, struct cil_sort *portcons)
 {
 	int rc = SEPOL_ERR;
@@ -3281,6 +3315,30 @@ int cil_netifcon_to_policydb(policydb_t *pdb, struct cil_sort *netifcons)
 			context_destroy(&new_ocon->context[0]);
 			goto exit;
 		}
+	}
+
+	return SEPOL_OK;
+
+exit:
+	return rc;
+}
+
+int cil_ibendportcon_to_policydb(policydb_t *pdb, struct cil_sort *ibendportcons)
+{
+	int rc = SEPOL_ERR;
+	uint32_t i;
+	ocontext_t *tail = NULL;
+
+	for (i = 0; i < ibendportcons->count; i++) {
+		ocontext_t *new_ocon = cil_add_ocontext(&pdb->ocontexts[OCON_IBENDPORT], &tail);
+		struct cil_ibendportcon *cil_ibendportcon = ibendportcons->array[i];
+
+		new_ocon->u.ibendport.dev_name = cil_strdup(cil_ibendportcon->dev_name_str);
+		new_ocon->u.ibendport.port = cil_ibendportcon->port;
+
+		rc = __cil_context_to_sepol_context(pdb, cil_ibendportcon->context, &new_ocon->context[0]);
+		if (rc != SEPOL_OK)
+			goto exit;
 	}
 
 	return SEPOL_OK;
@@ -3844,6 +3902,16 @@ int __cil_contexts_to_policydb(policydb_t *pdb, const struct cil_db *db)
 	}
 
 	rc = cil_genfscon_to_policydb(pdb, db->genfscon);
+	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+
+	rc = cil_ibpkeycon_to_policydb(pdb, db->ibpkeycon);
+	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+
+	rc = cil_ibendportcon_to_policydb(pdb, db->ibendportcon);
 	if (rc != SEPOL_OK) {
 		goto exit;
 	}

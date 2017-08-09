@@ -1012,6 +1012,26 @@ exit:
 	return rc;
 }
 
+int __cil_verify_ibendportcon(struct cil_db *db, struct cil_tree_node *node)
+{
+	int rc = SEPOL_ERR;
+	struct cil_ibendportcon *ib_end_port = node->data;
+	struct cil_context *ctx = ib_end_port->context;
+
+	/* Verify only when anonymous */
+	if (!ctx->datum.name) {
+		rc = __cil_verify_context(db, ctx);
+		if (rc != SEPOL_OK)
+			goto exit;
+	}
+
+	return SEPOL_OK;
+
+exit:
+	cil_tree_log(node, CIL_ERR, "Invalid ibendportcon");
+	return rc;
+}
+
 int __cil_verify_genfscon(struct cil_db *db, struct cil_tree_node *node)
 {
 	int rc = SEPOL_ERR;
@@ -1077,6 +1097,26 @@ int __cil_verify_nodecon(struct cil_db *db, struct cil_tree_node *node)
 
 exit:
 	cil_tree_log(node, CIL_ERR, "Invalid nodecon");
+	return rc;
+}
+
+int __cil_verify_ibpkeycon(struct cil_db *db, struct cil_tree_node *node)
+{
+	int rc = SEPOL_ERR;
+	struct cil_ibpkeycon *pkey = node->data;
+	struct cil_context *ctx = pkey->context;
+
+	/* Verify only when anonymous */
+	if (!ctx->datum.name) {
+		rc = __cil_verify_context(db, ctx);
+		if (rc != SEPOL_OK)
+			goto exit;
+	}
+
+	return SEPOL_OK;
+
+exit:
+	cil_tree_log(node, CIL_ERR, "Invalid ibpkeycon");
 	return rc;
 }
 
@@ -1451,6 +1491,12 @@ int __cil_verify_helper(struct cil_tree_node *node, uint32_t *finished, void *ex
 			break;
 		case CIL_NODECON:
 			rc = __cil_verify_nodecon(db, node);
+			break;
+		case CIL_IBPKEYCON:
+			rc = __cil_verify_ibpkeycon(db, node);
+			break;
+		case CIL_IBENDPORTCON:
+			rc = __cil_verify_ibendportcon(db, node);
 			break;
 		case CIL_PORTCON:
 			rc = __cil_verify_portcon(db, node);
