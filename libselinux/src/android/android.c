@@ -1,29 +1,43 @@
 #include "android_common.h"
 
+// For 'system', 'vendor' (mandatory) and/or 'odm' (optional).
+#define MAX_FILE_CONTEXT_SIZE 3
+
 #ifdef __ANDROID_VNDK__
 #ifndef LOG_EVENT_STRING
 #define LOG_EVENT_STRING(...)
 #endif  // LOG_EVENT_STRING
 #endif  // __ANDROID_VNDK__
 
-static const struct selinux_opt seopts_service_split[] = {
+static const struct selinux_opt seopts_service_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_service_contexts" },
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_service_contexts" }
+    { SELABEL_OPT_PATH, "/plat_service_contexts" }
 };
 
-static const struct selinux_opt seopts_service_rootfs[] = {
-    { SELABEL_OPT_PATH, "/plat_service_contexts" },
+#ifndef FULL_TREBLE
+static const struct selinux_opt seopts_service_vendor[] = {
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_service_contexts" },
+    { SELABEL_OPT_PATH, "/vendor_service_contexts" },
+    // TODO: remove nonplat* when no need to retain backward compatibility.
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_service_contexts" },
     { SELABEL_OPT_PATH, "/nonplat_service_contexts" }
 };
+#endif
 
-static const struct selinux_opt seopts_hwservice_split[] = {
+static const struct selinux_opt seopts_hwservice_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_hwservice_contexts" },
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_hwservice_contexts" }
+    { SELABEL_OPT_PATH, "/plat_hwservice_contexts" }
 };
-
-static const struct selinux_opt seopts_hwservice_rootfs[] = {
-    { SELABEL_OPT_PATH, "/plat_hwservice_contexts" },
+static const struct selinux_opt seopts_hwservice_vendor[] = {
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_hwservice_contexts" },
+    { SELABEL_OPT_PATH, "/vendor_hwservice_contexts" },
+    // TODO: remove nonplat* when no need to retain backward compatibility.
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_hwservice_contexts" },
     { SELABEL_OPT_PATH, "/nonplat_hwservice_contexts" }
+};
+static const struct selinux_opt seopts_hwservice_odm[] = {
+    { SELABEL_OPT_PATH, "/odm/etc/selinux/odm_hwservice_contexts" },
+    { SELABEL_OPT_PATH, "/odm_hwservice_contexts" }
 };
 
 static const struct selinux_opt seopts_vndservice =
@@ -54,33 +68,50 @@ struct selabel_handle* selinux_android_service_open_context_handle(const struct 
 
 struct selabel_handle* selinux_android_service_context_handle(void)
 {
-    const struct selinux_opt* seopts_service;
-
-    // Prefer files from /system & /vendor, fall back to files from /
-    if (access(seopts_service_split[0].value, R_OK) != -1) {
-        seopts_service = seopts_service_split;
-    } else {
-        seopts_service = seopts_service_rootfs;
+    struct selinux_opt seopts_service[MAX_FILE_CONTEXT_SIZE];
+    int size = 0;
+    unsigned int i;
+    for (i = 0; i < ARRAY_SIZE(seopts_service_plat); i++) {
+        if (access(seopts_service_plat[i].value, R_OK) != -1) {
+            seopts_service[size++] = seopts_service_plat[i];
+            break;
+        }
     }
-
-#ifdef FULL_TREBLE
-    // Treble compliant devices can only serve plat_service_contexts from servicemanager
-    return selinux_android_service_open_context_handle(seopts_service, 1);
-#else
-    return selinux_android_service_open_context_handle(seopts_service, 2);
+#ifndef FULL_TREBLE
+    for (i = 0; i < ARRAY_SIZE(seopts_service_vendor); i++) {
+        if (access(seopts_service_vendor[i].value, R_OK) != -1) {
+            seopts_service[size++] = seopts_service_vendor[i];
+            break;
+        }
+    }
 #endif
+    return selinux_android_service_open_context_handle(seopts_service, size);
 }
 
 struct selabel_handle* selinux_android_hw_service_context_handle(void)
 {
-    const struct selinux_opt* seopts_service;
-    if (access(seopts_hwservice_split[0].value, R_OK) != -1) {
-        seopts_service = seopts_hwservice_split;
-    } else {
-        seopts_service = seopts_hwservice_rootfs;
+    struct selinux_opt seopts_service[MAX_FILE_CONTEXT_SIZE];
+    int size = 0;
+    unsigned int i;
+    for (i = 0; i < ARRAY_SIZE(seopts_hwservice_plat); i++) {
+        if (access(seopts_hwservice_plat[i].value, R_OK) != -1) {
+            seopts_service[size++] = seopts_hwservice_plat[i];
+            break;
+        }
     }
-
-    return selinux_android_service_open_context_handle(seopts_service, 2);
+    for (i = 0; i < ARRAY_SIZE(seopts_hwservice_vendor); i++) {
+        if (access(seopts_hwservice_vendor[i].value, R_OK) != -1) {
+            seopts_service[size++] = seopts_hwservice_vendor[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_hwservice_odm); i++) {
+        if (access(seopts_hwservice_odm[i].value, R_OK) != -1) {
+            seopts_service[size++] = seopts_hwservice_odm[i];
+            break;
+        }
+    }
+    return selinux_android_service_open_context_handle(seopts_service, size);
 }
 
 struct selabel_handle* selinux_android_vendor_service_context_handle(void)
