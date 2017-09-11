@@ -87,6 +87,12 @@ cc_defaults {
         }
     },
 
+    product_variables: {
+        treble: {
+            cflags: ["-DFULL_TREBLE"],
+        },
+    },
+
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
 }
