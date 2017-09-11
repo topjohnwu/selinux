@@ -63,8 +63,12 @@ struct selabel_handle* selinux_android_service_context_handle(void)
         seopts_service = seopts_service_rootfs;
     }
 
-    // TODO(b/36866029) full treble devices can't load non-plat
+#ifdef FULL_TREBLE
+    // Treble compliant devices can only serve plat_service_contexts from servicemanager
+    return selinux_android_service_open_context_handle(seopts_service, 1);
+#else
     return selinux_android_service_open_context_handle(seopts_service, 2);
+#endif
 }
 
 struct selabel_handle* selinux_android_hw_service_context_handle(void)
