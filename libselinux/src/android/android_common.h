@@ -22,7 +22,9 @@
 #include <selinux/label.h>
 #include <selinux/avc.h>
 #include <openssl/sha.h>
+#ifndef __ANDROID_VNDK__
 #include <private/android_filesystem_config.h>
+#endif
 #include <log/log.h>
 #include "policy.h"
 #include "callbacks.h"
