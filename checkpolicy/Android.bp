@@ -21,6 +21,7 @@ cc_binary_host {
 
 cc_binary_host {
     name: "dispol",
+    cflags: common_CFLAGS,
     srcs: ["test/dispol.c"],
     static_libs: ["libsepol"],
 }
