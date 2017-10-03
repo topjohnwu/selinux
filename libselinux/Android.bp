@@ -126,7 +126,7 @@ cc_library {
     ],
 
     target: {
-        linux: {
+        linux_glibc: {
             srcs: [
                 "src/android/android_host.c",
                 "src/avc.c",
