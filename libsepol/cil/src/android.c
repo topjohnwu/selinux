@@ -780,12 +780,14 @@ exit:
 static int cil_build_mappings_tree(hashtab_key_t k, hashtab_datum_t d, void *args)
 {
 	struct cil_typeattributeset *attrset = NULL;
+	struct cil_typeattribute *typeattr = NULL;
 	struct cil_expandtypeattribute *expandattr = NULL;
 	struct cil_tree_node *ast_node = NULL;
 	struct version_args *verargs = (struct version_args *)args;
 	struct cil_tree_node *ast_parent = verargs->db->ast->root;
 	char *orig_type = (char *) k;
 	struct version_datum *vers_datum = (struct version_datum *) d;
+	char *new_key = __cil_attrib_get_versname(orig_type, verargs->num);
 
 	if (vers_datum->ast_node->flavor == CIL_TYPEATTRIBUTE) {
 		// platform attributes are not versioned
@@ -794,7 +796,7 @@ static int cil_build_mappings_tree(hashtab_key_t k, hashtab_datum_t d, void *arg
 	/* create typeattributeset datum */
 	cil_typeattributeset_init(&attrset);
 	cil_list_init(&attrset->str_expr, CIL_TYPE);
-	attrset->attr_str = __cil_attrib_get_versname(orig_type, verargs->num);
+	attrset->attr_str = new_key;
 	cil_list_append(attrset->str_expr, CIL_STRING, orig_type);
 
 	/* create containing tree node */
@@ -813,7 +815,7 @@ static int cil_build_mappings_tree(hashtab_key_t k, hashtab_datum_t d, void *arg
 	/* create expandtypeattribute datum */
 	cil_expandtypeattribute_init(&expandattr);
 	cil_list_init(&expandattr->attr_strs, CIL_TYPE);
-	cil_list_append(expandattr->attr_strs, CIL_STRING, __cil_attrib_get_versname(orig_type, verargs->num));
+	cil_list_append(expandattr->attr_strs, CIL_STRING, new_key);
 	expandattr->expand = CIL_TRUE;
 
 	/* create containing tree node */
@@ -821,6 +823,16 @@ static int cil_build_mappings_tree(hashtab_key_t k, hashtab_datum_t d, void *arg
 	ast_node->data = expandattr;
 	ast_node->flavor = CIL_EXPANDTYPEATTRIBUTE;
 	/* add to tree */
+	ast_node->parent = ast_parent;
+	ast_parent->cl_tail->next = ast_node;
+	ast_parent->cl_tail = ast_node;
+
+	/* re)declare typeattribute. */
+	cil_typeattribute_init(&typeattr);
+	typeattr->datum.name = new_key;
+	cil_tree_node_init(&ast_node);
+	ast_node->data = typeattr;
+	ast_node->flavor = CIL_TYPEATTRIBUTE;
 	ast_node->parent = ast_parent;
 	ast_parent->cl_tail->next = ast_node;
 	ast_parent->cl_tail = ast_node;
