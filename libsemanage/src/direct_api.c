@@ -210,6 +210,12 @@ int semanage_direct_connect(semanage_handle_t * sh)
 				     semanage_fcontext_dbase_local(sh)) < 0)
 		goto err;
 
+	if (fcontext_file_dbase_init(sh,
+				     semanage_path(SEMANAGE_ACTIVE, SEMANAGE_STORE_FC_HOMEDIRS),
+				     semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC_HOMEDIRS),
+				     semanage_fcontext_dbase_homedirs(sh)) < 0)
+		goto err;
+
 	if (seuser_file_dbase_init(sh,
 				   semanage_path(SEMANAGE_ACTIVE,
 						 SEMANAGE_SEUSERS_LOCAL),
@@ -349,6 +355,7 @@ static int semanage_direct_disconnect(semanage_handle_t * sh)
 	iface_file_dbase_release(semanage_iface_dbase_local(sh));
 	bool_file_dbase_release(semanage_bool_dbase_local(sh));
 	fcontext_file_dbase_release(semanage_fcontext_dbase_local(sh));
+	fcontext_file_dbase_release(semanage_fcontext_dbase_homedirs(sh));
 	seuser_file_dbase_release(semanage_seuser_dbase_local(sh));
 	node_file_dbase_release(semanage_node_dbase_local(sh));
 
@@ -1577,11 +1584,20 @@ rebuild:
 	/* run genhomedircon if its enabled, this should be the last operation
 	 * which requires the out policydb */
 	if (!sh->conf->disable_genhomedircon) {
-		if (out && (retval =
-			semanage_genhomedircon(sh, out, sh->conf->usepasswd, sh->conf->ignoredirs)) != 0) {
-			ERR(sh, "semanage_genhomedircon returned error code %d.",
-			    retval);
-			goto cleanup;
+		if (out){
+			if ((retval = semanage_genhomedircon(sh, out, sh->conf->usepasswd,
+								sh->conf->ignoredirs)) != 0) {
+				ERR(sh, "semanage_genhomedircon returned error code %d.", retval);
+				goto cleanup;
+			}
+			/* file_contexts.homedirs was created in SEMANAGE_TMP store */
+			retval = semanage_copy_file(
+						semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC_HOMEDIRS),
+						semanage_final_path(SEMANAGE_FINAL_TMP,	SEMANAGE_FC_HOMEDIRS),
+						sh->conf->file_mode);
+			if (retval < 0) {
+				goto cleanup;
+			}
 		}
 	} else {
 		WARN(sh, "WARNING: genhomedircon is disabled. \

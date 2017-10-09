@@ -11,14 +11,13 @@ domainsPage.py \
 fcontextPage.py \
 html_util.py \
 loginsPage.py \
-mappingsPage.py \
 modulesPage.py \
 polgen.glade \
 portsPage.py \
 semanagePage.py \
 statusPage.py \
-system-config-selinux.glade \
 system-config-selinux.png \
+system-config-selinux.ui \
 usersPage.py
 
 all: $(TARGETS) system-config-selinux.py polgengui.py
