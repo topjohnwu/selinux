@@ -21,6 +21,8 @@ int cil_android_attrib_mapping(struct cil_db **mdb, struct cil_db *srcdb, const 
 /*
  * cil_android_attributize - extract attributizable elements of the policy in
  * srcdb and convert all usage of those elements in tgtdb to versioned attributes.
+ * Keep the attributes and type definitions so that tgtdb policy is more robust
+ * against future changes to the public policy.
  *   tgtdb - initialized and parsed cil_db reference to modify.
  *   srcdb - initialized and parsed cil_db reference to source public policy
  *           from which to extract attributizable elements.
