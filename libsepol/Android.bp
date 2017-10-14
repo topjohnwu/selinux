@@ -1,10 +1,11 @@
 common_CFLAGS = [
     "-D_GNU_SOURCE",
     "-Wall",
+    "-Werror",
     "-W",
     "-Wundef",
     "-Wshadow",
-    "-Wmissing-noreturn",
+    "-Wno-error=missing-noreturn",
     "-Wmissing-format-attribute",
 ]
 
