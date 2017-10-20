@@ -102,26 +102,10 @@ cc_defaults {
     export_include_dirs: ["include"],
 }
 
-cc_library_shared {
-    name: "libselinux_vendor",
-    defaults: ["libselinux_defaults"],
-    vendor: true,
-    cflags: ["-DNO_FILE_BACKEND"],
-
-    target: {
-        android: {
-            version_script: "exported_vendor.map",
-        },
-    },
-
-    srcs: [
-        "src/android/android_vendor.c",
-    ],
-}
-
 cc_library {
     name: "libselinux",
     defaults: ["libselinux_defaults"],
+    vendor_available: true,
     host_supported: true,
     cflags: ["-DUSE_PCRE2"],
 
@@ -191,6 +175,19 @@ cc_library {
             },
 
             version_script: "exported.map",
+        },
+
+        vendor: {
+            exclude_srcs: [
+                "src/android/android_platform.c",
+            ],
+            srcs: [
+                "src/android/android_vendor.c",
+            ],
+            cflags: ["-DNO_FILE_BACKEND"],
+            exclude_shared_libs: ["libpackagelistparser"],
+            exclude_static_libs: ["libpackagelistparser"],
+            version_script: "exported_vendor.map",
         },
     },
 
