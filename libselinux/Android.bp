@@ -199,23 +199,15 @@ cc_library {
     },
 }
 
-// If one attempts to comment out the sefcontext_compile target in the
-// Android.mk that exists in the directory of this Android.bp file, understand
-// that I encountered 2 issues. The first issue was that it could not find
-// sepol/sepol.h. This is usually an issue if a dependency between the
-// export_includes of another component is not coupled to this component
-// properly. Looking at the Makefile from upstream, sefcontext_compile seems
-// to have a dependency on libsepol. The second issue occurs when you add the
-// libsepol dependency. The build system claims that their is no libsepol
-// library declared anywhere. Switching sefcontext_compile to an Android.mk for
-// now resolved the issue.
-//################################
-//cc_binary_host {
-//    name: "sefcontext_compile",
-//    cflags: common_CFLAGS,
-//    cflags: ["-DUSE_PCRE2"],
-//    srcs: ["utils/sefcontext_compile.c"],
-//
-//    static_libs: ["libselinux"],
-//    whole_static_libs: common_LIBRARIES,
-//}
+cc_binary_host {
+    name: "sefcontext_compile",
+    defaults: ["libselinux_defaults"],
+    cflags: ["-DUSE_PCRE2"],
+    srcs: ["utils/sefcontext_compile.c"],
+
+    static_libs: [
+        "libselinux",
+        "libsepol",
+    ],
+    whole_static_libs: ["libpcre2"],
+}
