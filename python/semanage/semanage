@@ -89,16 +89,6 @@ class CheckRole(argparse.Action):
             newval.append(v)
         setattr(namespace, self.dest, newval)
 
-store = ''
-
-
-class SetStore(argparse.Action):
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        global store
-        store = values
-        setattr(namespace, self.dest, values)
-
 
 class seParser(argparse.ArgumentParser):
 
@@ -134,67 +124,21 @@ class SetImportFile(argparse.Action):
                 sys.exit(1)
         setattr(namespace, self.dest, values)
 
-# functions for OBJECT initialization
-
-
-def login_ini():
-    OBJECT = seobject.loginRecords(store)
-    return OBJECT
-
-
-def user_ini():
-    OBJECT = seobject.seluserRecords(store)
-    return OBJECT
-
-
-def port_ini():
-    OBJECT = seobject.portRecords(store)
-    return OBJECT
-
-def ibpkey_ini():
-    OBJECT = seobject.ibpkeyRecords(store)
-    return OBJECT
-
-def ibendport_ini():
-    OBJECT = seobject.ibendportRecords(store)
-    return OBJECT
-
-def module_ini():
-    OBJECT = seobject.moduleRecords(store)
-    return OBJECT
-
-
-def interface_ini():
-    OBJECT = seobject.interfaceRecords(store)
-    return OBJECT
-
-
-def node_ini():
-    OBJECT = seobject.nodeRecords(store)
-    return OBJECT
-
-
-def fcontext_ini():
-    OBJECT = seobject.fcontextRecords(store)
-    return OBJECT
-
-
-def boolean_ini():
-    OBJECT = seobject.booleanRecords(store)
-    return OBJECT
-
-
-def permissive_ini():
-    OBJECT = seobject.permissiveRecords(store)
-    return OBJECT
-
-
-def dontaudit_ini():
-    OBJECT = seobject.dontauditClass(store)
-    return OBJECT
-
 # define dictonary for seobject OBEJCTS
-object_dict = {'login': login_ini, 'user': user_ini, 'port': port_ini, 'module': module_ini, 'interface': interface_ini, 'node': node_ini, 'fcontext': fcontext_ini, 'boolean': boolean_ini, 'permissive': permissive_ini, 'dontaudit': dontaudit_ini, 'ibpkey': ibpkey_ini, 'ibendport': ibendport_ini}
+object_dict = {
+    'login': seobject.loginRecords,
+    'user': seobject.seluserRecords,
+    'port': seobject.portRecords,
+    'module': seobject.moduleRecords,
+    'interface': seobject.interfaceRecords,
+    'node': seobject.nodeRecords,
+    'fcontext': seobject.fcontextRecords,
+    'boolean': seobject.booleanRecords,
+    'permissive': seobject.permissiveRecords,
+    'dontaudit': seobject.dontauditClass,
+    'ibpkey': seobject.ibpkeyRecords,
+    'ibendport': seobject.ibendportRecords
+}
 
 def generate_custom_usage(usage_text, usage_dict):
     # generate custom usage from given text and dictonary
@@ -238,8 +182,7 @@ def handleLogin(args):
 
     handle_opts(args, login_args, args.action)
 
-    OBJECT = object_dict['login']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['login'](args)
 
     if args.action is "add":
         OBJECT.add(args.login, args.seuser, args.range)
@@ -257,7 +200,7 @@ def handleLogin(args):
 
 
 def parser_add_store(parser, name):
-    parser.add_argument('-S', '--store', action=SetStore, help=_("Select an alternate SELinux Policy Store to manage"))
+    parser.add_argument('-S', '--store', default='', help=_("Select an alternate SELinux Policy Store to manage"))
 
 
 def parser_add_priority(parser, name):
@@ -269,7 +212,7 @@ def parser_add_noheading(parser, name):
 
 
 def parser_add_noreload(parser, name):
-    parser.add_argument('-N', '--noreload', action='store_false', default=True, help=_('Do not reload policy after commit'))
+    parser.add_argument('-N', '--noreload', action='store_true', default=False, help=_('Do not reload policy after commit'))
 
 
 def parser_add_locallist(parser, name):
@@ -372,8 +315,7 @@ def handleFcontext(args):
     else:
         handle_opts(args, fcontext_args, args.action)
 
-    OBJECT = object_dict['fcontext']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['fcontext'](args)
 
     if args.action is "add":
         if args.equal:
@@ -441,8 +383,7 @@ def handleUser(args):
 
     handle_opts(args, user_args, args.action)
 
-    OBJECT = object_dict['user']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['user'](args)
 
     if args.action is "add":
         OBJECT.add(args.selinux_name, args.roles, args.level, args.range, args.prefix)
@@ -492,8 +433,7 @@ def handlePort(args):
 
     handle_opts(args, port_args, args.action)
 
-    OBJECT = object_dict['port']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['port'](args)
 
     if args.action is "add":
         OBJECT.add(args.port, args.proto, args.range, args.type)
@@ -538,8 +478,7 @@ def handlePkey(args):
 
     handle_opts(args, ibpkey_args, args.action)
 
-    OBJECT = object_dict['ibpkey']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['ibpkey'](args)
 
     if args.action is "add":
         OBJECT.add(args.ibpkey, args.subnet_prefix, args.range, args.type)
@@ -582,8 +521,7 @@ def handleIbendport(args):
 
     handle_opts(args, ibendport_args, args.action)
 
-    OBJECT = object_dict['ibendport']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['ibendport'](args)
 
     if args.action is "add":
         OBJECT.add(args.ibendport, args.ibdev_name, args.range, args.type)
@@ -626,8 +564,7 @@ def handleInterface(args):
 
     handle_opts(args, interface_args, args.action)
 
-    OBJECT = object_dict['interface']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['interface'](args)
 
     if args.action is "add":
         OBJECT.add(args.interface, args.range, args.type)
@@ -666,8 +603,7 @@ def setupInterfaceParser(subparsers):
 
 
 def handleModule(args):
-    OBJECT = seobject.moduleRecords(store)
-    OBJECT.set_reload(args.noreload)
+    OBJECT = seobject.moduleRecords(args)
     if args.action == "add":
         OBJECT.add(args.module_name, args.priority)
     if args.action == "enable":
@@ -709,8 +645,7 @@ def handleNode(args):
     node_args = {'list': [('node', 'type', 'proto', 'netmask'), ('')], 'add': [('locallist'), ('type', 'node', 'proto', 'netmask')], 'modify': [('locallist'), ('node', 'netmask', 'proto')], 'delete': [('locallist'), ('node', 'netmask', 'prototype')], 'extract': [('locallist', 'node', 'type', 'proto', 'netmask'), ('')], 'deleteall': [('locallist'), ('')]}
     handle_opts(args, node_args, args.action)
 
-    OBJECT = object_dict['node']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['node'](args)
 
     if args.action is "add":
         OBJECT.add(args.node, args.netmask, args.proto, args.range, args.type)
@@ -756,8 +691,7 @@ def handleBoolean(args):
 
     handle_opts(args, boolean_args, args.action)
 
-    OBJECT = object_dict['boolean']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['boolean'](args)
 
     if args.action is "modify":
         if args.boolean:
@@ -795,8 +729,7 @@ def setupBooleanParser(subparsers):
 
 
 def handlePermissive(args):
-    OBJECT = object_dict['permissive']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['permissive'](args)
 
     if args.action is "list":
         OBJECT.list(args.noheading)
@@ -830,8 +763,7 @@ def setupPermissiveParser(subparsers):
 
 
 def handleDontaudit(args):
-    OBJECT = object_dict['dontaudit']()
-    OBJECT.set_reload(args.noreload)
+    OBJECT = object_dict['dontaudit'](args)
     OBJECT.toggle(args.action)
 
 
@@ -848,7 +780,7 @@ def handleExport(args):
     for i in manageditems:
         print("%s -D" % i)
     for i in manageditems:
-        OBJECT = object_dict[i]()
+        OBJECT = object_dict[i](args)
         for c in OBJECT.customized():
             print("%s %s" % (i, str(c)))
 
@@ -912,7 +844,7 @@ def mkargv(line):
 
 
 def handleImport(args):
-    trans = seobject.semanageRecords(store)
+    trans = seobject.semanageRecords(args)
     trans.start()
 
     for l in sys.stdin.readlines():
@@ -932,7 +864,6 @@ def handleImport(args):
         except KeyboardInterrupt:
             sys.exit(0)
 
-    trans.set_reload(args.noreload)
     trans.finish()
 
 
