@@ -105,7 +105,12 @@ cc_defaults {
 cc_library {
     name: "libselinux",
     defaults: ["libselinux_defaults"],
+
     vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
+
     host_supported: true,
     cflags: ["-DUSE_PCRE2"],
 
