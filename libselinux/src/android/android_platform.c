@@ -86,6 +86,12 @@ static bool compute_file_contexts_hash(uint8_t c_digest[], const struct selinux_
             goto cleanup;
         }
 
+        if (sb.st_size == 0) {
+            selinux_log(SELINUX_WARNING, "SELinux:  Skipping %s:  empty file\n",
+                    opts[i].value);
+            goto nextfile;
+        }
+
         map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
         if (map == MAP_FAILED) {
             selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
@@ -105,6 +111,7 @@ static bool compute_file_contexts_hash(uint8_t c_digest[], const struct selinux_
 
         /* reset everything for next file */
         munmap(map, sb.st_size);
+nextfile:
         close(fd);
         map = MAP_FAILED;
         fd = -1;
