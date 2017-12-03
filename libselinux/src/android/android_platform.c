@@ -1,26 +1,41 @@
 #include "android_common.h"
 #include <packagelistparser/packagelistparser.h>
 
+// For 'system', 'vendor' (mandatory) and/or 'odm' (optional).
+#define MAX_FILE_CONTEXT_SIZE 3
+
 static const char *const sepolicy_file = "/sepolicy";
 
-static const struct selinux_opt seopts_file_split[] = {
+static const struct selinux_opt seopts_file_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_file_contexts" }
+    { SELABEL_OPT_PATH, "/plat_file_contexts" }
 };
-
-static const struct selinux_opt seopts_file_rootfs[] = {
-    { SELABEL_OPT_PATH, "/plat_file_contexts" },
+static const struct selinux_opt seopts_file_vendor[] = {
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_file_contexts" },
+    { SELABEL_OPT_PATH, "/vendor_file_contexts" },
+    // TODO: remove nonplat* when no need to retain backward compatibility.
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_file_contexts" },
     { SELABEL_OPT_PATH, "/nonplat_file_contexts" }
 };
-
-static const struct selinux_opt seopts_prop_split[] = {
-    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts"}
+static const struct selinux_opt seopts_file_odm[] = {
+    { SELABEL_OPT_PATH, "/odm/etc/selinux/odm_file_contexts" },
+    { SELABEL_OPT_PATH, "/odm_file_contexts" }
 };
 
-static const struct selinux_opt seopts_prop_rootfs[] = {
-    { SELABEL_OPT_PATH, "/plat_property_contexts" },
-    { SELABEL_OPT_PATH, "/nonplat_property_contexts"}
+static const struct selinux_opt seopts_prop_plat[] = {
+    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
+    { SELABEL_OPT_PATH, "/plat_property_contexts" }
+};
+static const struct selinux_opt seopts_prop_vendor[] = {
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_property_contexts" },
+    { SELABEL_OPT_PATH, "/vendor_property_contexts" },
+    // TODO: remove nonplat* when no need to retain backward compatibility.
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts" },
+    { SELABEL_OPT_PATH, "/nonplat_property_contexts" }
+};
+static const struct selinux_opt seopts_prop_odm[] = {
+    { SELABEL_OPT_PATH, "/odm/etc/selinux/odm_property_contexts" },
+    { SELABEL_OPT_PATH, "/odm_property_contexts" }
 };
 
 /*
@@ -29,14 +44,20 @@ static const struct selinux_opt seopts_prop_rootfs[] = {
  * setting credentials for app processes and setting permissions
  * on app data directories.
  */
-static char const * const seapp_contexts_split[] = {
+static char const * const seapp_contexts_plat[] = {
 	"/system/etc/selinux/plat_seapp_contexts",
-	"/vendor/etc/selinux/nonplat_seapp_contexts"
+	"/plat_seapp_contexts"
 };
-
-static char const * const seapp_contexts_rootfs[] = {
-	"/plat_seapp_contexts",
+static char const * const seapp_contexts_vendor[] = {
+	"/vendor/etc/selinux/vendor_seapp_contexts",
+	"/vendor_seapp_contexts",
+        // TODO: remove nonplat* when no need to retain backward compatibility.
+	"/vendor/etc/selinux/nonplat_seapp_contexts",
 	"/nonplat_seapp_contexts"
+};
+static char const * const seapp_contexts_odm[] = {
+	"/odm/etc/selinux/odm_seapp_contexts",
+	"/odm_seapp_contexts"
 };
 
 uint8_t fc_digest[FC_DIGEST_SIZE];
@@ -135,29 +156,56 @@ static bool selinux_android_opts_file_exists(const struct selinux_opt *opt)
 
 struct selabel_handle* selinux_android_file_context_handle(void)
 {
-    if (selinux_android_opts_file_exists(seopts_file_split)) {
-        return selinux_android_file_context(seopts_file_split,
-                                            ARRAY_SIZE(seopts_file_split));
-    } else {
-        return selinux_android_file_context(seopts_file_rootfs,
-                                            ARRAY_SIZE(seopts_file_rootfs));
+    struct selinux_opt seopts_file[MAX_FILE_CONTEXT_SIZE];
+    int size = 0;
+    unsigned int i;
+    for (i = 0; i < ARRAY_SIZE(seopts_file_plat); i++) {
+        if (access(seopts_file_plat[i].value, R_OK) != -1) {
+            seopts_file[size++] = seopts_file_plat[i];
+            break;
+        }
     }
+    for (i = 0; i < ARRAY_SIZE(seopts_file_vendor); i++) {
+        if (access(seopts_file_vendor[i].value, R_OK) != -1) {
+            seopts_file[size++] = seopts_file_vendor[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_file_odm); i++) {
+        if (access(seopts_file_odm[i].value, R_OK) != -1) {
+            seopts_file[size++] = seopts_file_odm[i];
+            break;
+        }
+    }
+    return selinux_android_file_context(seopts_file, size);
 }
 
 struct selabel_handle* selinux_android_prop_context_handle(void)
 {
     struct selabel_handle* sehandle;
-    const struct selinux_opt* seopts_prop;
-
-    // Prefer files from /system & /vendor, fall back to files from /
-    if (access(seopts_prop_split[0].value, R_OK) != -1) {
-        seopts_prop = seopts_prop_split;
-    } else {
-        seopts_prop = seopts_prop_rootfs;
+    struct selinux_opt seopts_prop[MAX_FILE_CONTEXT_SIZE];
+    int size = 0;
+    unsigned int i;
+    for (i = 0; i < ARRAY_SIZE(seopts_prop_plat); i++) {
+        if (access(seopts_prop_plat[i].value, R_OK) != -1) {
+            seopts_prop[size++] = seopts_prop_plat[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_prop_vendor); i++) {
+        if (access(seopts_prop_vendor[i].value, R_OK) != -1) {
+            seopts_prop[size++] = seopts_prop_vendor[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_prop_odm); i++) {
+        if (access(seopts_prop_odm[i].value, R_OK) != -1) {
+            seopts_prop[size++] = seopts_prop_odm[i];
+            break;
+        }
     }
 
-    sehandle = selabel_open(SELABEL_CTX_ANDROID_PROP,
-            seopts_prop, 2);
+    sehandle = selabel_open(SELABEL_CTX_ANDROID_PROP, seopts_prop, size);
     if (!sehandle) {
         selinux_log(SELINUX_ERROR, "%s: Error getting property context handle (%s)\n",
                 __FUNCTION__, strerror(errno));
@@ -400,17 +448,26 @@ int selinux_android_seapp_context_reload(void)
 	unsigned lineno;
 	struct seapp_context *cur;
 	char *p, *name = NULL, *value = NULL, *saveptr;
-	size_t i, len, files_len;
+	size_t i, len, files_len = 0;
 	int n, ret;
-	const char *const *seapp_contexts_files;
-
-	// Prefer files from /system & /vendor, fall back to files from /
-	if (access(seapp_contexts_split[0], R_OK) != -1) {
-		seapp_contexts_files = seapp_contexts_split;
-		files_len = sizeof(seapp_contexts_split)/sizeof(seapp_contexts_split[0]);
-	} else {
-		seapp_contexts_files = seapp_contexts_rootfs;
-		files_len = sizeof(seapp_contexts_rootfs)/sizeof(seapp_contexts_rootfs[0]);
+	const char* seapp_contexts_files[MAX_FILE_CONTEXT_SIZE];
+	for (i = 0; i < ARRAY_SIZE(seapp_contexts_plat); i++) {
+		if (access(seapp_contexts_plat[i], R_OK) != -1) {
+			seapp_contexts_files[files_len++] = seapp_contexts_plat[i];
+			break;
+		}
+	}
+	for (i = 0; i < ARRAY_SIZE(seapp_contexts_vendor); i++) {
+		if (access(seapp_contexts_vendor[i], R_OK) != -1) {
+			seapp_contexts_files[files_len++] = seapp_contexts_vendor[i];
+			break;
+		}
+	}
+	for (i = 0; i < ARRAY_SIZE(seapp_contexts_odm); i++) {
+		if (access(seapp_contexts_odm[i], R_OK) != -1) {
+			seapp_contexts_files[files_len++] = seapp_contexts_odm[i];
+			break;
+		}
 	}
 
 	free_seapp_contexts();
