@@ -93,8 +93,8 @@ cc_defaults {
     },
 
     product_variables: {
-        treble: {
-            cflags: ["-DFULL_TREBLE"],
+        sepolicy_split: {
+            cflags: ["-DSEPOLICY_SPLIT"],
         },
     },
 
