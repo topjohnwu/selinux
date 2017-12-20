@@ -92,12 +92,6 @@ cc_defaults {
         }
     },
 
-    product_variables: {
-        sepolicy_split: {
-            cflags: ["-DSEPOLICY_SPLIT"],
-        },
-    },
-
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
 }
