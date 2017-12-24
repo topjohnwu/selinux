@@ -14,7 +14,6 @@ static const struct selinux_opt seopts_service_plat[] = {
     { SELABEL_OPT_PATH, "/plat_service_contexts" }
 };
 
-#ifndef SEPOLICY_SPLIT
 static const struct selinux_opt seopts_service_vendor[] = {
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_service_contexts" },
     { SELABEL_OPT_PATH, "/vendor_service_contexts" },
@@ -22,7 +21,6 @@ static const struct selinux_opt seopts_service_vendor[] = {
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_service_contexts" },
     { SELABEL_OPT_PATH, "/nonplat_service_contexts" }
 };
-#endif
 
 static const struct selinux_opt seopts_hwservice_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_hwservice_contexts" },
@@ -77,14 +75,13 @@ struct selabel_handle* selinux_android_service_context_handle(void)
             break;
         }
     }
-#ifndef SEPOLICY_SPLIT
     for (i = 0; i < ARRAY_SIZE(seopts_service_vendor); i++) {
         if (access(seopts_service_vendor[i].value, R_OK) != -1) {
             seopts_service[size++] = seopts_service_vendor[i];
             break;
         }
     }
-#endif
+
     return selinux_android_service_open_context_handle(seopts_service, size);
 }
 
