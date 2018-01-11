@@ -149,11 +149,6 @@ static struct selabel_handle* selinux_android_file_context(const struct selinux_
     return sehandle;
 }
 
-static bool selinux_android_opts_file_exists(const struct selinux_opt *opt)
-{
-    return (access(opt[0].value, R_OK) != -1);
-}
-
 struct selabel_handle* selinux_android_file_context_handle(void)
 {
     struct selinux_opt seopts_file[MAX_FILE_CONTEXT_SIZE];
@@ -449,7 +444,7 @@ int selinux_android_seapp_context_reload(void)
 	struct seapp_context *cur;
 	char *p, *name = NULL, *value = NULL, *saveptr;
 	size_t i, len, files_len = 0;
-	int n, ret;
+	int ret;
 	const char* seapp_contexts_files[MAX_FILE_CONTEXT_SIZE];
 	for (i = 0; i < ARRAY_SIZE(seapp_contexts_plat); i++) {
 		if (access(seapp_contexts_plat[i], R_OK) != -1) {
@@ -854,7 +849,6 @@ static int seapp_context_lookup(enum seapp_kind kind,
 	const char *username = NULL;
 	struct seapp_context *cur = NULL;
 	int i;
-	size_t n;
 	uid_t userid;
 	uid_t appid;
 	bool isPrivApp = false;
