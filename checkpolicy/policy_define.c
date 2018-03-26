@@ -40,6 +40,9 @@
 #ifndef IPPROTO_DCCP
 #define IPPROTO_DCCP 33
 #endif
+#ifndef IPPROTO_SCTP
+#define IPPROTO_SCTP 132
+#endif
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -1182,10 +1185,6 @@ int expand_attrib(void)
 			goto exit;
 		}
 
-		if (attr->flags & TYPE_FLAGS_EXPAND_ATTR) {
-			yyerror2("%s already has the expandattribute option specified", id);
-			goto exit;
-		}
 		if (ebitmap_set_bit(&attrs, attr->s.value - 1, TRUE)) {
 			yyerror("Out of memory!");
 			goto exit;
@@ -1213,6 +1212,12 @@ int expand_attrib(void)
 		attr = hashtab_search(policydbp->p_types.table,
 				policydbp->sym_val_to_name[SYM_TYPES][i]);
 		attr->flags |= flags;
+		if ((attr->flags & TYPE_FLAGS_EXPAND_ATTR_TRUE) &&
+				(attr->flags & TYPE_FLAGS_EXPAND_ATTR_FALSE)) {
+			yywarn("Expandattribute option was set to both true and false. "
+				"Resolving to false.");
+			attr->flags &= ~TYPE_FLAGS_EXPAND_ATTR_TRUE;
+		}
 	}
 
 	rc = 0;
@@ -5004,6 +5009,8 @@ int define_port_context(unsigned int low, unsigned int high)
 		protocol = IPPROTO_UDP;
 	} else if ((strcmp(id, "dccp") == 0) || (strcmp(id, "DCCP") == 0)) {
 		protocol = IPPROTO_DCCP;
+	} else if ((strcmp(id, "sctp") == 0) || (strcmp(id, "SCTP") == 0)) {
+		protocol = IPPROTO_SCTP;
 	} else {
 		yyerror2("unrecognized protocol %s", id);
 		goto bad;
