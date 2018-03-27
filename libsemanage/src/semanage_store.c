@@ -514,6 +514,7 @@ char *semanage_conf_path(void)
 {
 	char *semanage_conf = NULL;
 	int len;
+	struct stat sb;
 
 	len = strlen(semanage_root()) + strlen(selinux_path()) + strlen(SEMANAGE_CONF_FILE);
 	semanage_conf = calloc(len + 1, sizeof(char));
@@ -522,7 +523,7 @@ char *semanage_conf_path(void)
 	snprintf(semanage_conf, len + 1, "%s%s%s", semanage_root(), selinux_path(),
 		 SEMANAGE_CONF_FILE);
 
-	if (access(semanage_conf, R_OK) != 0) {
+	if (stat(semanage_conf, &sb) != 0 && errno == ENOENT) {
 		snprintf(semanage_conf, len + 1, "%s%s", selinux_path(), SEMANAGE_CONF_FILE);
 	}
 
@@ -538,7 +539,6 @@ char *semanage_conf_path(void)
 int semanage_create_store(semanage_handle_t * sh, int create)
 {
 	struct stat sb;
-	int mode_mask = R_OK | W_OK | X_OK;
 	const char *path = semanage_files[SEMANAGE_ROOT];
 	int fd;
 
@@ -557,9 +557,9 @@ int semanage_create_store(semanage_handle_t * sh, int create)
 			return -1;
 		}
 	} else {
-		if (!S_ISDIR(sb.st_mode) || access(path, mode_mask) == -1) {
+		if (!S_ISDIR(sb.st_mode)) {
 			ERR(sh,
-			    "Could not access module store at %s, or it is not a directory.",
+			    "Module store at %s is not a directory.",
 			    path);
 			return -1;
 		}
@@ -580,9 +580,9 @@ int semanage_create_store(semanage_handle_t * sh, int create)
 			return -1;
 		}
 	} else {
-		if (!S_ISDIR(sb.st_mode) || access(path, mode_mask) == -1) {
+		if (!S_ISDIR(sb.st_mode)) {
 			ERR(sh,
-			    "Could not access module store active subdirectory at %s, or it is not a directory.",
+			    "Module store active subdirectory at %s is not a directory.",
 			    path);
 			return -1;
 		}
@@ -603,9 +603,9 @@ int semanage_create_store(semanage_handle_t * sh, int create)
 			return -1;
 		}
 	} else {
-		if (!S_ISDIR(sb.st_mode) || access(path, mode_mask) == -1) {
+		if (!S_ISDIR(sb.st_mode)) {
 			ERR(sh,
-			    "Could not access module store active modules subdirectory at %s, or it is not a directory.",
+			    "Module store active modules subdirectory at %s is not a directory.",
 			    path);
 			return -1;
 		}
@@ -624,8 +624,8 @@ int semanage_create_store(semanage_handle_t * sh, int create)
 			return -1;
 		}
 	} else {
-		if (!S_ISREG(sb.st_mode) || access(path, R_OK | W_OK) == -1) {
-			ERR(sh, "Could not access lock file at %s.", path);
+		if (!S_ISREG(sb.st_mode)) {
+			ERR(sh, "Object at %s is not a lock file.", path);
 			return -1;
 		}
 	}
@@ -1509,8 +1509,14 @@ int semanage_split_fc(semanage_handle_t * sh)
 static int sefcontext_compile(semanage_handle_t * sh, const char *path) {
 
 	int r;
+	struct stat sb;
 
-	if (access(path, F_OK) != 0) {
+	if (stat(path, &sb) < 0) {
+		if (errno != ENOENT) {
+			ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+			return -1;
+		}
+
 		return 0;
 	}
 
@@ -1740,9 +1746,9 @@ static int semanage_commit_sandbox(semanage_handle_t * sh)
 
 	if (!sh->conf->save_previous) {
 		int errsv = errno;
-		retval = semanage_remove_directory(backup);
-		if (retval < 0) {
+		if (semanage_remove_directory(backup) != 0) {
 			ERR(sh, "Could not delete previous directory %s.", backup);
+			retval = -1;
 			goto cleanup;
 		}
 		errno = errsv;
@@ -2099,6 +2105,7 @@ int semanage_write_policydb(semanage_handle_t * sh, sepol_policydb_t * out,
 	const char *kernel_filename = NULL;
 	struct sepol_policy_file *pf = NULL;
 	FILE *outfile = NULL;
+	mode_t mask = umask(0077);
 
 	if ((kernel_filename =
 	     semanage_path(SEMANAGE_TMP, file)) == NULL) {
@@ -2127,6 +2134,7 @@ int semanage_write_policydb(semanage_handle_t * sh, sepol_policydb_t * out,
 	if (outfile != NULL) {
 		fclose(outfile);
 	}
+	umask(mask);
 	sepol_policy_file_free(pf);
 	return retval;
 }

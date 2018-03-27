@@ -503,15 +503,19 @@ exit:
 void cil_tree_print_expr(struct cil_list *datum_expr, struct cil_list *str_expr)
 {
 	char *expr_str;
+	int rc;
 
 	cil_log(CIL_INFO, "(");
 
 	if (datum_expr != NULL) {
-		cil_expr_to_string(datum_expr, &expr_str);
+		rc = cil_expr_to_string(datum_expr, &expr_str);
 	} else {
-		cil_expr_to_string(str_expr, &expr_str);
+		rc = cil_expr_to_string(str_expr, &expr_str);
 	}
-
+	if (rc < 0) {
+		cil_log(CIL_INFO, "ERROR)");
+		return;
+	}
 	cil_log(CIL_INFO, "%s)", expr_str);
 	free(expr_str);
 }
@@ -1432,6 +1436,8 @@ void cil_tree_print_node(struct cil_tree_node *node)
 				cil_log(CIL_INFO, " tcp");
 			} else if (portcon->proto == CIL_PROTOCOL_DCCP) {
 				cil_log(CIL_INFO, " dccp");
+			} else if (portcon->proto == CIL_PROTOCOL_SCTP) {
+				cil_log(CIL_INFO, " sctp");
 			}
 			cil_log(CIL_INFO, " (%d %d)", portcon->port_low, portcon->port_high);
 
