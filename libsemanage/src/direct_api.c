@@ -60,6 +60,7 @@
 
 #define PIPE_READ 0
 #define PIPE_WRITE 1
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 static void semanage_direct_destroy(semanage_handle_t * sh);
 static int semanage_direct_disconnect(semanage_handle_t * sh);
@@ -140,6 +141,7 @@ int semanage_direct_is_managed(semanage_handle_t * sh)
 int semanage_direct_connect(semanage_handle_t * sh)
 {
 	const char *path;
+	struct stat sb;
 
 	if (semanage_check_init(sh, sh->conf->store_root_path))
 		goto err;
@@ -147,9 +149,6 @@ int semanage_direct_connect(semanage_handle_t * sh)
 	if (sh->create_store)
 		if (semanage_create_store(sh, 1))
 			goto err;
-
-	if (semanage_access_check(sh) < SEMANAGE_CAN_READ)
-		goto err;
 
 	sh->u.direct.translock_file_fd = -1;
 	sh->u.direct.activelock_file_fd = -1;
@@ -305,10 +304,16 @@ int semanage_direct_connect(semanage_handle_t * sh)
 
 	/* set the disable dontaudit value */
 	path = semanage_path(SEMANAGE_ACTIVE, SEMANAGE_DISABLE_DONTAUDIT);
-	if (access(path, F_OK) == 0)
+
+	if (stat(path, &sb) == 0)
 		sepol_set_disable_dontaudit(sh->sepolh, 1);
-	else
+	else if (errno == ENOENT) {
+		/* The file does not exist */
 		sepol_set_disable_dontaudit(sh->sepolh, 0);
+	} else {
+		ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+		goto err;
+	}
 
 	return STATUS_SUCCESS;
 
@@ -323,25 +328,43 @@ static void semanage_direct_destroy(semanage_handle_t * sh
 	/* do nothing */
 }
 
-static int semanage_direct_disconnect(semanage_handle_t * sh)
+static int semanage_remove_tmps(semanage_handle_t *sh)
 {
-	/* destroy transaction */
-	if (sh->is_in_transaction) {
-		/* destroy sandbox */
-		if (semanage_remove_directory
-		    (semanage_path(SEMANAGE_TMP, SEMANAGE_TOPLEVEL)) < 0) {
+	if (sh->commit_err)
+		return 0;
+
+	/* destroy sandbox if it exists */
+	if (semanage_remove_directory
+	    (semanage_path(SEMANAGE_TMP, SEMANAGE_TOPLEVEL)) < 0) {
+		if (errno != ENOENT) {
 			ERR(sh, "Could not cleanly remove sandbox %s.",
 			    semanage_path(SEMANAGE_TMP, SEMANAGE_TOPLEVEL));
 			return -1;
 		}
-		if (semanage_remove_directory
-		    (semanage_final_path(SEMANAGE_FINAL_TMP,
-					 SEMANAGE_FINAL_TOPLEVEL)) < 0) {
+	}
+
+	/* destroy tmp policy if it exists */
+	if (semanage_remove_directory
+	    (semanage_final_path(SEMANAGE_FINAL_TMP,
+				 SEMANAGE_FINAL_TOPLEVEL)) < 0) {
+		if (errno != ENOENT) {
 			ERR(sh, "Could not cleanly remove tmp %s.",
 			    semanage_final_path(SEMANAGE_FINAL_TMP,
 						SEMANAGE_FINAL_TOPLEVEL));
 			return -1;
 		}
+	}
+
+	return 0;
+}
+
+static int semanage_direct_disconnect(semanage_handle_t *sh)
+{
+	int retval = 0;
+
+	/* destroy transaction and remove tmp files if no commit error */
+	if (sh->is_in_transaction) {
+		retval = semanage_remove_tmps(sh);
 		semanage_release_trans_lock(sh);
 	}
 
@@ -375,15 +398,11 @@ static int semanage_direct_disconnect(semanage_handle_t * sh)
 	/* Release object databases: active kernel policy */
 	bool_activedb_dbase_release(semanage_bool_dbase_active(sh));
 
-	return 0;
+	return retval;
 }
 
 static int semanage_direct_begintrans(semanage_handle_t * sh)
 {
-
-	if (semanage_access_check(sh) != SEMANAGE_CAN_WRITE) {
-		return -1;
-	}
 	if (semanage_get_trans_lock(sh) < 0) {
 		return -1;
 	}
@@ -1128,6 +1147,7 @@ static int semanage_compile_hll_modules(semanage_handle_t *sh,
 	int status = 0;
 	int i;
 	char cil_path[PATH_MAX];
+	struct stat sb;
 
 	assert(sh);
 	assert(modinfos);
@@ -1144,8 +1164,12 @@ static int semanage_compile_hll_modules(semanage_handle_t *sh,
 		}
 
 		if (semanage_get_ignore_module_cache(sh) == 0 &&
-				access(cil_path, F_OK) == 0) {
+				(status = stat(cil_path, &sb)) == 0) {
 			continue;
+		}
+		if (status != 0 && errno != ENOENT) {
+			ERR(sh, "Unable to access %s: %s\n", cil_path, strerror(errno));
+			goto cleanup; //an error in the "stat" call
 		}
 
 		status = semanage_compile_module(sh, &modinfos[i]);
@@ -1158,6 +1182,14 @@ static int semanage_compile_hll_modules(semanage_handle_t *sh,
 
 cleanup:
 	return status;
+}
+
+/* Copies a file from src to dst. If dst already exists then
+ * overwrite it. If source doesn't exist then return success.
+ * Returns 0 on success, -1 on error. */
+static int copy_file_if_exists(const char *src, const char *dst, mode_t mode){
+	int rc = semanage_copy_file(src, dst, mode);
+	return (rc < 0 && errno != ENOENT) ? rc : 0;
 }
 
 /********************* direct API functions ********************/
@@ -1176,6 +1208,8 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 	sepol_policydb_t *out = NULL;
 	struct cil_db *cildb = NULL;
 	semanage_module_info_t *modinfos = NULL;
+	mode_t mask = umask(0077);
+	struct stat sb;
 
 	int do_rebuild, do_write_kernel, do_install;
 	int fcontexts_modified, ports_modified, seusers_modified,
@@ -1214,10 +1248,16 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 
 	/* Create or remove the disable_dontaudit flag file. */
 	path = semanage_path(SEMANAGE_TMP, SEMANAGE_DISABLE_DONTAUDIT);
-	if (access(path, F_OK) == 0)
+	if (stat(path, &sb) == 0)
 		do_rebuild |= !(sepol_get_disable_dontaudit(sh->sepolh) == 1);
-	else
+	else if (errno == ENOENT) {
+		/* The file does not exist */
 		do_rebuild |= (sepol_get_disable_dontaudit(sh->sepolh) == 1);
+	} else {
+		ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+		retval = -1;
+		goto cleanup;
+	}
 	if (sepol_get_disable_dontaudit(sh->sepolh) == 1) {
 		FILE *touch;
 		touch = fopen(path, "w");
@@ -1239,10 +1279,17 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 
 	/* Create or remove the preserve_tunables flag file. */
 	path = semanage_path(SEMANAGE_TMP, SEMANAGE_PRESERVE_TUNABLES);
-	if (access(path, F_OK) == 0)
+	if (stat(path, &sb) == 0)
 		do_rebuild |= !(sepol_get_preserve_tunables(sh->sepolh) == 1);
-	else
+	else if (errno == ENOENT) {
+		/* The file does not exist */
 		do_rebuild |= (sepol_get_preserve_tunables(sh->sepolh) == 1);
+	} else {
+		ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+		retval = -1;
+		goto cleanup;
+	}
+
 	if (sepol_get_preserve_tunables(sh->sepolh) == 1) {
 		FILE *touch;
 		touch = fopen(path, "w");
@@ -1279,40 +1326,25 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 	 * a rebuild.
 	 */
 	if (!do_rebuild) {
-		path = semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_KERNEL);
-		if (access(path, F_OK) != 0) {
-			do_rebuild = 1;
-			goto rebuild;
-		}
+		int files[] = {SEMANAGE_STORE_KERNEL,
+					   SEMANAGE_STORE_FC,
+					   SEMANAGE_STORE_SEUSERS,
+					   SEMANAGE_LINKED,
+					   SEMANAGE_SEUSERS_LINKED,
+					   SEMANAGE_USERS_EXTRA_LINKED};
 
-		path = semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC);
-		if (access(path, F_OK) != 0) {
-			do_rebuild = 1;
-			goto rebuild;
-		}
+		for (i = 0; i < (int) ARRAY_SIZE(files); i++) {
+			path = semanage_path(SEMANAGE_TMP, files[i]);
+			if (stat(path, &sb) != 0) {
+				if (errno != ENOENT) {
+					ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+					retval = -1;
+					goto cleanup;
+				}
 
-		path = semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_SEUSERS);
-		if (access(path, F_OK) != 0) {
-			do_rebuild = 1;
-			goto rebuild;
-		}
-
-		path = semanage_path(SEMANAGE_TMP, SEMANAGE_LINKED);
-		if (access(path, F_OK) != 0) {
-			do_rebuild = 1;
-			goto rebuild;
-		}
-
-		path = semanage_path(SEMANAGE_TMP, SEMANAGE_SEUSERS_LINKED);
-		if (access(path, F_OK) != 0) {
-			do_rebuild = 1;
-			goto rebuild;
-		}
-
-		path = semanage_path(SEMANAGE_TMP, SEMANAGE_USERS_EXTRA_LINKED);
-		if (access(path, F_OK) != 0) {
-			do_rebuild = 1;
-			goto rebuild;
+				do_rebuild = 1;
+				goto rebuild;
+			}
 		}
 	}
 
@@ -1445,7 +1477,7 @@ rebuild:
 			goto cleanup;
 
 		path = semanage_path(SEMANAGE_TMP, SEMANAGE_SEUSERS_LINKED);
-		if (access(path, F_OK) == 0) {
+		if (stat(path, &sb) == 0) {
 			retval = semanage_copy_file(path,
 						    semanage_path(SEMANAGE_TMP,
 								  SEMANAGE_STORE_SEUSERS),
@@ -1453,12 +1485,17 @@ rebuild:
 			if (retval < 0)
 				goto cleanup;
 			pseusers->dtable->drop_cache(pseusers->dbase);
-		} else {
+		} else if (errno == ENOENT) {
+			/* The file does not exist */
 			pseusers->dtable->clear(sh, pseusers->dbase);
+		} else {
+			ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+			retval = -1;
+			goto cleanup;
 		}
 
 		path = semanage_path(SEMANAGE_TMP, SEMANAGE_USERS_EXTRA_LINKED);
-		if (access(path, F_OK) == 0) {
+		if (stat(path, &sb) == 0) {
 			retval = semanage_copy_file(path,
 						    semanage_path(SEMANAGE_TMP,
 								  SEMANAGE_USERS_EXTRA),
@@ -1466,8 +1503,13 @@ rebuild:
 			if (retval < 0)
 				goto cleanup;
 			pusers_extra->dtable->drop_cache(pusers_extra->dbase);
-		} else {
+		} else if (errno == ENOENT) {
+			/* The file does not exist */
 			pusers_extra->dtable->clear(sh, pusers_extra->dbase);
+		} else {
+			ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+			retval = -1;
+			goto cleanup;
 		}
 	}
 
@@ -1551,34 +1593,25 @@ rebuild:
 		goto cleanup;
 	}
 
-	path = semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC_LOCAL);
-	if (access(path, F_OK) == 0) {
-		retval = semanage_copy_file(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC_LOCAL),
-							semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_FC_LOCAL),
-							sh->conf->file_mode);
-		if (retval < 0) {
-			goto cleanup;
-		}
+	retval = copy_file_if_exists(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC_LOCAL),
+						semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_FC_LOCAL),
+						sh->conf->file_mode);
+	if (retval < 0) {
+		goto cleanup;
 	}
 
-	path = semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC);
-	if (access(path, F_OK) == 0) {
-		retval = semanage_copy_file(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC),
-							semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_FC),
-							sh->conf->file_mode);
-		if (retval < 0) {
-			goto cleanup;
-		}
+	retval = copy_file_if_exists(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC),
+						semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_FC),
+						sh->conf->file_mode);
+	if (retval < 0) {
+		goto cleanup;
 	}
 
-	path = semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_SEUSERS);
-	if (access(path, F_OK) == 0) {
-		retval = semanage_copy_file(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_SEUSERS),
-							semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_SEUSERS),
-							sh->conf->file_mode);
-		if (retval < 0) {
-			goto cleanup;
-		}
+	retval = copy_file_if_exists(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_SEUSERS),
+						semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_SEUSERS),
+						sh->conf->file_mode);
+	if (retval < 0) {
+		goto cleanup;
 	}
 
 	/* run genhomedircon if its enabled, this should be the last operation
@@ -1634,17 +1667,21 @@ cleanup:
 	free(mod_filenames);
 	sepol_policydb_free(out);
 	cil_db_destroy(&cildb);
-	semanage_release_trans_lock(sh);
 
 	free(fc_buffer);
 
-	/* regardless if the commit was successful or not, remove the
-	   sandbox if it is still there */
-	semanage_remove_directory(semanage_path
-				  (SEMANAGE_TMP, SEMANAGE_TOPLEVEL));
-	semanage_remove_directory(semanage_final_path
-				  (SEMANAGE_FINAL_TMP,
-				   SEMANAGE_FINAL_TOPLEVEL));
+	/* Set commit_err so other functions can detect any errors. Note that
+	 * retval > 0 will be the commit number.
+	 */
+	if (retval < 0)
+		sh->commit_err = retval;
+
+	if (semanage_remove_tmps(sh) != 0)
+		retval = -1;
+
+	semanage_release_trans_lock(sh);
+	umask(mask);
+
 	return retval;
 }
 
@@ -1802,6 +1839,7 @@ static int semanage_direct_extract(semanage_handle_t * sh,
 	ssize_t _data_len;
 	char *_data;
 	int compressed;
+	struct stat sb;
 
 	/* get path of module */
 	rc = semanage_module_get_path(
@@ -1814,8 +1852,8 @@ static int semanage_direct_extract(semanage_handle_t * sh,
 		goto cleanup;
 	}
 
-	if (access(module_path, F_OK) != 0) {
-		ERR(sh, "Module does not exist: %s", module_path);
+	if (stat(module_path, &sb) != 0) {
+		ERR(sh, "Unable to access %s: %s\n", module_path, strerror(errno));
 		rc = -1;
 		goto cleanup;
 	}
@@ -1844,7 +1882,13 @@ static int semanage_direct_extract(semanage_handle_t * sh,
 		goto cleanup;
 	}
 
-	if (extract_cil == 1 && strcmp(_modinfo->lang_ext, "cil") && access(input_file, F_OK) != 0) {
+	if (extract_cil == 1 && strcmp(_modinfo->lang_ext, "cil") && stat(input_file, &sb) != 0) {
+		if (errno != ENOENT) {
+			ERR(sh, "Unable to access %s: %s\n", input_file, strerror(errno));
+			rc = -1;
+			goto cleanup;
+		}
+
 		rc = semanage_compile_module(sh, _modinfo);
 		if (rc < 0) {
 			goto cleanup;
@@ -1989,6 +2033,12 @@ static int semanage_direct_get_enabled(semanage_handle_t *sh,
 	}
 
 	if (stat(path, &sb) < 0) {
+		if (errno != ENOENT) {
+			ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+			status = -1;
+			goto cleanup;
+		}
+
 		*enabled = 1;
 	}
 	else {
@@ -2016,6 +2066,7 @@ static int semanage_direct_set_enabled(semanage_handle_t *sh,
 	const char *path = NULL;
 	FILE *fp = NULL;
 	semanage_module_info_t *modinfo = NULL;
+	mode_t mask;
 
 	/* check transaction */
 	if (!sh->is_in_transaction) {
@@ -2076,7 +2127,9 @@ static int semanage_direct_set_enabled(semanage_handle_t *sh,
 
 	switch (enabled) {
 		case 0: /* disable the module */
+			mask = umask(0077);
 			fp = fopen(fn, "w");
+			umask(mask);
 
 			if (fp == NULL) {
 				ERR(sh,
@@ -2312,6 +2365,12 @@ static int semanage_direct_get_module_info(semanage_handle_t *sh,
 
 	/* set enabled/disabled status */
 	if (stat(fn, &sb) < 0) {
+		if (errno != ENOENT) {
+			ERR(sh, "Unable to access %s: %s\n", fn, strerror(errno));
+			status = -1;
+			goto cleanup;
+		}
+
 		ret = semanage_module_info_set_enabled(sh, *modinfo, 1);
 		if (ret != 0) {
 			status = -1;
@@ -2720,8 +2779,10 @@ static int semanage_direct_install_info(semanage_handle_t *sh,
 	int status = 0;
 	int ret = 0;
 	int type;
+	struct stat sb;
 
 	char path[PATH_MAX];
+	mode_t mask = umask(0077);
 
 	semanage_module_info_t *higher_info = NULL;
 	semanage_module_key_t higher_key;
@@ -2770,7 +2831,7 @@ static int semanage_direct_install_info(semanage_handle_t *sh,
 		if (higher_info->enabled == 0 && modinfo->enabled == -1) {
 			errno = 0;
 			WARN(sh,
-			     "%s module will be disabled after install due to default enabled status.",
+			     "%s module will be disabled after install as there is a disabled instance of this module present in the system.",
 			     modinfo->name);
 		}
 	}
@@ -2819,7 +2880,7 @@ static int semanage_direct_install_info(semanage_handle_t *sh,
 			goto cleanup;
 		}
 
-		if (access(path, F_OK) == 0) {
+		if (stat(path, &sb) == 0) {
 			ret = unlink(path);
 			if (ret != 0) {
 				ERR(sh, "Error while removing cached CIL file %s: %s", path, strerror(errno));
@@ -2833,6 +2894,7 @@ cleanup:
 	semanage_module_key_destroy(sh, &higher_key);
 	semanage_module_info_destroy(sh, higher_info);
 	free(higher_info);
+	umask(mask);
 
 	return status;
 }
