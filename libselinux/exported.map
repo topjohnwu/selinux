@@ -24,6 +24,7 @@
     selinux_android_vendor_service_context_handle;
     selinux_check_access;
     security_getenforce;
+    security_get_initial_context;
     security_setenforce;
     security_load_policy;
     security_policyvers;
