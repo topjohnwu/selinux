@@ -9,12 +9,6 @@ cc_binary {
     host_supported: true,
     cflags: common_CFLAGS,
     srcs: ["secilc.c"],
-    target: {
-        android: {
-            static_libs: ["libsepol"],
-        },
-        host: {
-            shared_libs: ["libsepol"],
-        },
-    },
+    static_libs: ["libsepol"],
+    stl: "none",
 }
