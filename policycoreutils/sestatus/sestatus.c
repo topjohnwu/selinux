@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <ctype.h>
+#include <limits.h>
 
 #define PROC_BASE "/proc"
 #define MAX_CHECK 50
@@ -61,6 +62,7 @@ int cmp_cmdline(const char *command, int pid)
 int pidof(const char *command)
 {
 /* inspired by killall5.c from psmisc */
+	char stackpath[PATH_MAX + 1], *p;
 	DIR *dir;
 	struct dirent *de;
 	int pid, ret = -1, self = getpid();
@@ -69,6 +71,11 @@ int pidof(const char *command)
 		perror(PROC_BASE);
 		return -1;
 	}
+
+	/* Resolve the path if it contains symbolic links */
+	p = realpath(command, stackpath);
+	if (p)
+		command = p;
 
 	while ((de = readdir(dir)) != NULL) {
 		errno = 0;
@@ -430,6 +437,7 @@ int main(int argc, char **argv)
 			printf("%s\n", context);
 			freecon(context);
 		}
+		free(pc[i]);
 	}
 
 	printf("\nFile contexts:\n");
@@ -472,6 +480,7 @@ int main(int argc, char **argv)
 				freecon(context);
 			}
 		}
+		free(fc[i]);
 	}
 
 	return 0;
