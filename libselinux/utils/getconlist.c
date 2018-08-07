@@ -19,7 +19,7 @@ static __attribute__ ((__noreturn__)) void usage(const char *name, const char *d
 
 int main(int argc, char **argv)
 {
-	char **list, *usercon = NULL, *cur_context = NULL;
+	char **list, *cur_context = NULL;
 	char *user = NULL, *level = NULL;
 	int ret, i, opt;
 
@@ -40,6 +40,7 @@ int main(int argc, char **argv)
 	if (!is_selinux_enabled()) {
 		fprintf(stderr,
 			"getconlist may be used only on a SELinux kernel.\n");
+		free(level);
 		return 1;
 	}
 
@@ -49,6 +50,7 @@ int main(int argc, char **argv)
 	if (((argc - optind) < 2)) {
 		if (getcon(&cur_context) < 0) {
 			fprintf(stderr, "Couldn't get current context.\n");
+			free(level);
 			return 2;
 		}
 	} else
@@ -67,7 +69,7 @@ int main(int argc, char **argv)
 		freeconary(list);
 	}
 
-	free(usercon);
+	free(level);
 
 	return 0;
 }
