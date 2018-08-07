@@ -1350,6 +1350,8 @@ static char **split_args(const char *arg0, char *arg_string,
 				if (isspace(*s) && !in_quote && !in_dquote) {
 					if (arg != NULL) {
 						rc = append_arg(&argv, &num_args, arg);
+						if (rc)
+							goto cleanup;
 						free(arg);
 						arg = NULL;
 					}
@@ -1366,6 +1368,8 @@ static char **split_args(const char *arg0, char *arg_string,
 	}
 	if (arg != NULL) {
 		rc = append_arg(&argv, &num_args, arg);
+		if (rc)
+			goto cleanup;
 		free(arg);
 		arg = NULL;
 	}
@@ -1593,7 +1597,12 @@ static int semanage_install_final_tmp(semanage_handle_t * sh)
 		/* skip genhomedircon if configured */
 		if (sh->conf->disable_genhomedircon &&
 		    i == SEMANAGE_FC_HOMEDIRS) continue;
-		
+
+		if (strlen(dst) >= sizeof(fn)) {
+			ERR(sh, "Unable to compose the final paths.");
+			status = -1;
+			goto cleanup;
+		}
 		strcpy(fn, dst);
 		ret = semanage_mkpath(sh, dirname(fn));
 		if (ret < 0) {

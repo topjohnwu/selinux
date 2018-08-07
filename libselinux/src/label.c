@@ -153,7 +153,7 @@ static int selabel_fini(struct selabel_handle *rec,
 
 	if (rec->spec_files)
 		path = rec->spec_files[0];
-	if (compat_validate(rec, lr, path, 0))
+	if (compat_validate(rec, lr, path, lr->lineno))
 		return -1;
 
 	if (translating && !lr->ctx_trans &&

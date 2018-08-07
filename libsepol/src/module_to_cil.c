@@ -298,6 +298,8 @@ static int roles_gather_map(char *key, void *data, void *args)
 	role_node->role = role;
 
 	rc = list_prepend((struct list *)args, role_node);
+	if (rc != 0)
+		free(role_node);
 	return rc;
 }
 
@@ -344,6 +346,11 @@ static int typealiases_gather_map(char *key, void *data, void *arg)
 					goto exit;
 				}
 			}
+			/* As typealias_lists[scope_id] does not hold the
+			 * ownership of its items (typealias_list_destroy does
+			 * not free the list items), "key" does not need to be
+			 * strdup'ed before it is inserted in the list.
+			 */
 			list_prepend(typealias_lists[scope_id], key);
 		}
 	}
@@ -1002,6 +1009,12 @@ static int ebitmap_to_names(struct ebitmap *map, char **vals_to_names, char ***n
 		}
 	}
 
+	if (!num) {
+		*names = NULL;
+		*num_names = 0;
+		goto exit;
+	}
+
 	name_arr = malloc(sizeof(*name_arr) * num);
 	if (name_arr == NULL) {
 		log_err("Out of memory");
@@ -1092,7 +1105,6 @@ static int roletype_role_in_ancestor_to_cil(struct policydb *pdb, struct stack *
 		goto exit;
 	}
 
-	curr = role_list->head;
 	for (curr = role_list->head; curr != NULL; curr = curr->next) {
 		role_node = curr->data;
 		if (!is_id_in_ancestor_scope(pdb, decl_stack, role_node->role_name, SYM_ROLES)) {
@@ -1284,7 +1296,6 @@ static int cond_expr_to_cil(int indent, struct policydb *pdb, struct cond_expr *
 				rc = -1;
 				goto exit;
 			}
-			num_params = 0;
 		} else {
 			switch(curr->expr_type) {
 			case COND_NOT:	op = "not";	break;
@@ -1824,8 +1835,6 @@ static int constraint_expr_to_string(struct policydb *pdb, struct constraint_exp
 				free(names);
 				names = NULL;
 			}
-
-			num_params = 0;
 		} else {
 			switch (expr->expr_type) {
 			case CEXPR_NOT: op = "not"; break;
@@ -1917,10 +1926,12 @@ exit:
 	free(new_val);
 	free(val1);
 	free(val2);
-	while ((val1 = stack_pop(stack)) != NULL) {
-		free(val1);
+	if (stack != NULL) {
+		while ((val1 = stack_pop(stack)) != NULL) {
+			free(val1);
+		}
+		stack_destroy(&stack);
 	}
-	stack_destroy(&stack);
 
 	return rc;
 }
@@ -4221,7 +4232,6 @@ exit:
 int sepol_ppfile_to_module_package(FILE *fp, struct sepol_module_package **mod_pkg)
 {
 	int rc = -1;
-	FILE *f = NULL;
 	struct sepol_policy_file *pf = NULL;
 	struct sepol_module_package *pkg = NULL;
 	char *data = NULL;
@@ -4273,9 +4283,6 @@ exit:
 	free(data);
 
 	sepol_policy_file_free(pf);
-	if (f != NULL) {
-		fclose(f);
-	}
 
 	if (rc != 0) {
 		sepol_module_package_free(pkg);
