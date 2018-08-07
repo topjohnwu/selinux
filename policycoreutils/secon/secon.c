@@ -309,7 +309,7 @@ static void cmd_line(int argc, char *argv[])
 		}
 	}
 
-	if (!done) {		/* defualt, if nothing specified */
+	if (!done) {		/* default, if nothing specified */
 		opts->disp_user = TRUE;
 		opts->disp_role = TRUE;
 		opts->disp_type = TRUE;
@@ -646,6 +646,7 @@ static void disp_con(security_context_t scon_raw)
 			disp__con_val("clearance", NULL, &color);
 		if (opts->disp_mlsr)
 			disp__con_val("mls-range", NULL, &color);
+		freecon(scon_trans);
 		return;
 	}
 

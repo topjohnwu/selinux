@@ -339,7 +339,7 @@ static int cil_expr_to_string(struct cil_list *expr, char **out)
 	int pos = 0;
 
 	cil_list_for_each(curr, expr) {
-		if (pos > COND_EXPR_MAXDEPTH) {
+		if (pos >= COND_EXPR_MAXDEPTH) {
 			rc = SEPOL_ERR;
 			goto exit;
 		}
@@ -512,7 +512,7 @@ void cil_tree_print_expr(struct cil_list *datum_expr, struct cil_list *str_expr)
 	} else {
 		rc = cil_expr_to_string(str_expr, &expr_str);
 	}
-	if (rc < 0) {
+	if (rc != SEPOL_OK) {
 		cil_log(CIL_INFO, "ERROR)");
 		return;
 	}

@@ -210,7 +210,6 @@ int read_binary_policy(const char *path, policydb_t *p)
 	if ((in_fp = fopen(path, "rb")) == NULL) {
 		fprintf(stderr, "Unable to open %s: %s\n", path,
 			strerror(errno));
-		sepol_handle_destroy(f.handle);
 		return -1;
 	}
 
@@ -220,7 +219,6 @@ int read_binary_policy(const char *path, policydb_t *p)
 	f.fp = in_fp;
 	rc = policydb_read(p, &f, 0);
 
-	sepol_handle_destroy(f.handle);
 	fclose(in_fp);
 	return rc;
 }
@@ -256,7 +254,7 @@ int write_binary_policy(const char *path, policydb_t *p)
 	if ((out_fp = fopen(path, "w" )) == NULL) {
 		fprintf(stderr, "Unable to open %s: %s\n", path,
 			strerror(errno));
-		sepol_handle_destroy(f.handle);
+		sepol_handle_destroy(handle);
 		return -1;
 	}
 

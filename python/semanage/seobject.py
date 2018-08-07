@@ -101,6 +101,8 @@ ftype_to_audit = {"": "any",
 
 try:
     import audit
+    #test if audit module is enabled
+    audit.audit_close(audit.audit_open())
 
     class logger:
 
@@ -138,7 +140,7 @@ try:
 
             self.log_list = []
             self.log_change_list = []
-except:
+except (OSError, ImportError):
     class logger:
 
         def __init__(self):
@@ -593,7 +595,6 @@ class loginRecords(semanageRecords):
 
         semanage_seuser_key_free(k)
         semanage_seuser_free(u)
-        self.mylog.log("login", name, sename=sename, serange=serange, serole=",".join(serole), oldserole=",".join(oldserole), oldsename=self.oldsename, oldserange=self.oldserange)
 
     def add(self, name, sename, serange):
         try:
@@ -601,7 +602,6 @@ class loginRecords(semanageRecords):
             self.__add(name, sename, serange)
             self.commit()
         except ValueError as error:
-            self.mylog.commit(0)
             raise error
 
     def __modify(self, name, sename="", serange=""):
@@ -653,7 +653,6 @@ class loginRecords(semanageRecords):
 
         semanage_seuser_key_free(k)
         semanage_seuser_free(u)
-        self.mylog.log("login", name, sename=self.sename, serange=self.serange, serole=",".join(serole), oldserole=",".join(oldserole), oldsename=self.oldsename, oldserange=self.oldserange)
 
     def modify(self, name, sename="", serange=""):
         try:
@@ -661,7 +660,6 @@ class loginRecords(semanageRecords):
             self.__modify(name, sename, serange)
             self.commit()
         except ValueError as error:
-            self.mylog.commit(0)
             raise error
 
     def __delete(self, name):
@@ -694,8 +692,6 @@ class loginRecords(semanageRecords):
         rec, self.sename, self.serange = selinux.getseuserbyname("__default__")
         range, (rc, serole) = userrec.get(self.sename)
 
-        self.mylog.log_remove("login", name, sename=self.sename, serange=self.serange, serole=",".join(serole), oldserole=",".join(oldserole), oldsename=self.oldsename, oldserange=self.oldserange)
-
     def delete(self, name):
         try:
             self.begin()
@@ -703,7 +699,6 @@ class loginRecords(semanageRecords):
             self.commit()
 
         except ValueError as error:
-            self.mylog.commit(0)
             raise error
 
     def deleteall(self):
@@ -717,7 +712,6 @@ class loginRecords(semanageRecords):
                 self.__delete(semanage_seuser_get_name(u))
             self.commit()
         except ValueError as error:
-            self.mylog.commit(0)
             raise error
 
     def get_all_logins(self):
@@ -2299,7 +2293,7 @@ class fcontextRecords(semanageRecords):
             raise ValueError(_("Target %s is not valid. Target is not allowed to end with '/'") % target)
 
         if substitute != "/" and substitute[-1] == "/":
-            raise ValueError(_("Substiture %s is not valid. Substitute is not allowed to end with '/'") % substitute)
+            raise ValueError(_("Substitute %s is not valid. Substitute is not allowed to end with '/'") % substitute)
 
         if target in self.equiv.keys():
             raise ValueError(_("Equivalence class for %s already exists") % target)
@@ -2651,7 +2645,7 @@ class booleanRecords(semanageRecords):
             self.current_booleans = []
             ptype = None
 
-        if self.store is None or self.store == ptype:
+        if self.store == "" or self.store == ptype:
             self.modify_local = True
         else:
             self.modify_local = False
