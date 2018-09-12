@@ -27,6 +27,7 @@
     selinux_set_callback;
     selinux_status_open;
     selinux_status_updated;
+    selinux_vendor_log_callback;
     setcon;
     setexeccon;
     setfilecon;

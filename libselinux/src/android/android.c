@@ -150,3 +150,30 @@ int selinux_log_callback(int type, const char *fmt, ...)
     va_end(ap);
     return 0;
 }
+
+int selinux_vendor_log_callback(int type, const char *fmt, ...)
+{
+    va_list ap;
+    int priority;
+    char *strp;
+
+    switch(type) {
+    case SELINUX_WARNING:
+        priority = ANDROID_LOG_WARN;
+        break;
+    case SELINUX_INFO:
+        priority = ANDROID_LOG_INFO;
+        break;
+    default:
+        priority = ANDROID_LOG_ERROR;
+        break;
+    }
+
+    va_start(ap, fmt);
+    if (vasprintf(&strp, fmt, ap) != -1) {
+        LOG_PRI(priority, "SELinux", "%s", strp);
+        free(strp);
+    }
+    va_end(ap);
+    return 0;
+}

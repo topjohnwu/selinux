@@ -42,6 +42,10 @@ extern int selinux_android_setfilecon(const char *pkgdir,
 extern int selinux_log_callback(int type, const char *fmt, ...)
     __attribute__ ((format(printf, 2, 3)));
 
+// API to support legacy usecase where full-treble legacy VNDK vendor needs to use this callback.
+extern int selinux_vendor_log_callback(int type, const char *fmt, ...)
+    __attribute__ ((format(printf, 2, 3)));
+
 #define SELINUX_ANDROID_RESTORECON_NOCHANGE 1
 #define SELINUX_ANDROID_RESTORECON_VERBOSE  2
 #define SELINUX_ANDROID_RESTORECON_RECURSE  4
