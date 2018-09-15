@@ -1,6 +1,7 @@
 {
   global:
     fgetfilecon;
+    fgetfilecon_raw;
     freecon;
     fsetfilecon;
     getcon;
@@ -29,6 +30,7 @@
     selinux_android_restorecon_pkgdir;
     selinux_android_service_context_handle;
     selinux_android_set_sehandle;
+    selinux_android_setcon;
     selinux_android_setcontext;
     selinux_android_vendor_service_context_handle;
     selinux_check_access;
@@ -43,6 +45,7 @@
     setfilecon;
     setfscreatecon;
     setsockcreatecon;
+    setsockcreatecon_raw;
     string_to_security_class;
   local: *;
 };
