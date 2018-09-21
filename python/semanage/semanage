@@ -53,7 +53,7 @@ usage_fcontext = "semanage fcontext [-h] [-n] [-N] [-S STORE] ["
 usage_fcontext_dict = {' --add': ('(', '-t TYPE', '-f FTYPE', '-r RANGE', '-s SEUSER', '|', '-e EQUAL', ')', 'FILE_SPEC',), ' --delete': ('(', '-t TYPE', '-f FTYPE', '|', '-e EQUAL', ')', 'FILE_SPEC',), ' --modify': ('(', '-t TYPE', '-f FTYPE', '-r RANGE', '-s SEUSER', '|', '-e EQUAL', ')', 'FILE_SPEC',), ' --list': ('[-C]',), ' --extract': ('',), ' --deleteall': ('',)}
 
 usage_user = "semanage user [-h] [-n] [-N] [-S STORE] ["
-usage_user_dict = {' --add': ('(', '-L LEVEL', '-R ROLES', '-r RANGE', '-s SEUSER', 'selinux_name'')'), ' --delete': ('selinux_name',), ' --modify': ('(', '-L LEVEL', '-R ROLES', '-r RANGE', '-s SEUSER', 'selinux_name', ')'), ' --list': ('-C',), ' --extract': ('',), ' --deleteall': ('',)}
+usage_user_dict = {' --add': ('(', '-L LEVEL', '-R ROLES', '-r RANGE', 'SEUSER', ')'), ' --delete': ('SEUSER',), ' --modify': ('(', '-L LEVEL', '-R ROLES', '-r RANGE', '-s SEUSER', 'SEUSER', ')'), ' --list': ('-C',), ' --extract': ('',), ' --deleteall': ('',)}
 
 usage_port = "semanage port [-h] [-n] [-N] [-S STORE] ["
 usage_port_dict = {' --add': ('-t TYPE', '-p PROTOCOL', '-r RANGE', '(', 'port_name', '|', 'port_range', ')'), ' --modify': ('-t TYPE', '-p PROTOCOL', '-r RANGE', '(', 'port_name', '|', 'port_range', ')'), ' --delete': ('-p PROTOCOL', '(', 'port_name', '|', 'port_range', ')'), ' --list': ('-C',), ' --extract': ('',), ' --deleteall': ('',)}
@@ -62,7 +62,7 @@ usage_ibpkey = "semanage ibpkey [-h] [-n] [-N] [-s STORE] ["
 usage_ibpkey_dict = {' --add': ('-t TYPE', '-x SUBNET_PREFIX', '-r RANGE', '(', 'ibpkey_name', '|', 'pkey_range', ')'), ' --modify': ('-t TYPE', '-x SUBNET_PREFIX', '-r RANGE', '(', 'ibpkey_name', '|', 'pkey_range', ')'), ' --delete': ('-x SUBNET_PREFIX', '(', 'ibpkey_name', '|', 'pkey_range', ')'), ' --list': ('-C',), ' --extract': ('',), ' --deleteall': ('',)}
 
 usage_ibendport = "semanage ibendport [-h] [-n] [-N] [-s STORE] ["
-usage_ibendport_dict = {' --add': ('-t TYPE', '-z IBDEV_NAME', '-r RANGE', '(', 'port', ')'), ' --modify': ('-t TYPE', '-z IBDEV_NAME', '-r RANGE', '(', 'port', ')'), ' --delete': ('-z IBDEV_NAME', '-r RANGE''(', 'port', ')'), ' --list': ('-C',), ' --extract': ('',), ' --deleteall': ('',)}
+usage_ibendport_dict = {' --add': ('-t TYPE', '-z IBDEV_NAME', '-r RANGE', '(', 'port', ')'), ' --modify': ('-t TYPE', '-z IBDEV_NAME', '-r RANGE', '(', 'port', ')'), ' --delete': ('-z IBDEV_NAME', '-r RANGE', '(', 'port', ')'), ' --list': ('-C',), ' --extract': ('',), ' --deleteall': ('',)}
 
 usage_node = "semanage node [-h] [-n] [-N] [-S STORE] ["
 usage_node_dict = {' --add': ('-M NETMASK', '-p PROTOCOL', '-t TYPE', '-r RANGE', 'node'), ' --modify': ('-M NETMASK', '-p PROTOCOL', '-t TYPE', '-r RANGE', 'node'), ' --delete': ('-M NETMASK', '-p PROTOCOL', 'node'), ' --list': ('-C',), ' --extract': ('',), ' --deleteall': ('',)}
@@ -421,7 +421,7 @@ def setupUserParser(subparsers):
     userParser.add_argument('-R', '--roles', default=[],
                             action=CheckRole,
                             help=_('''
-SELinux Roles.  You must enclose multiple roles within quotes,                  separate by spaces. Or specify -R multiple times.
+SELinux Roles.  You must enclose multiple roles within quotes, separate by spaces. Or specify -R multiple times.
 '''))
     userParser.add_argument('-P', '--prefix', default="user", help=argparse.SUPPRESS)
     userParser.add_argument('selinux_name', nargs='?', default=None, help=_('selinux_name'))

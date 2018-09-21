@@ -181,16 +181,6 @@ class LoadPolicy(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
-class CheckPolicyType(argparse.Action):
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        from sepolicy.generate import get_poltype_desc, poltype
-        if values not in poltype.keys():
-            raise ValueError("%s invalid SELinux policy type\n%s" % (values, get_poltype_desc()))
-            newval.append(v)
-        setattr(namespace, self.dest, values)
-
-
 class CheckUser(argparse.Action):
 
     def __call__(self, parser, namespace, value, option_string=None):
@@ -589,7 +579,7 @@ def gen_interface_args(parser):
 
 
 def gen_generate_args(parser):
-    from sepolicy.generate import DAEMON, get_poltype_desc, poltype, DAEMON, DBUS, INETD, CGI, SANDBOX, USER, EUSER, TUSER, XUSER, LUSER, AUSER, RUSER, NEWTYPE
+    from sepolicy.generate import get_poltype_desc, poltype, DAEMON, DBUS, INETD, CGI, SANDBOX, USER, EUSER, TUSER, XUSER, LUSER, AUSER, RUSER, NEWTYPE
 
     generate_usage = generate_custom_usage(usage, usage_dict)
 
