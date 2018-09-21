@@ -1175,7 +1175,7 @@ class SELinuxGui():
                         continue
                 self.files_initial_data_insert(self.writable_files_liststore, path, write, file_class)
 
-    def files_initial_data_insert(self, liststore, path, seLinux_label, file_class):
+    def files_initial_data_insert(self, liststore, path, selinux_label, file_class):
         iter = liststore.append(None)
         if path is None:
             path = _("MISSING FILE PATH")
@@ -1191,7 +1191,7 @@ class SELinuxGui():
                 file_class = self.markup(selinux_label)
                 file_class = self.markup(file_class)
         liststore.set_value(iter, 0, path)
-        liststore.set_value(iter, 1, seLinux_label)
+        liststore.set_value(iter, 1, selinux_label)
         liststore.set_value(iter, 2, file_class)
         liststore.set_value(iter, 7, modify)
 
@@ -2015,9 +2015,9 @@ class SELinuxGui():
         if self.modify:
             iter = self.get_selected_iter()
             oldpath = self.unmark(self.liststore.get_value(iter, 0))
-            setype = self.unmark(self.liststore.set_value(iter, 1))
+            oldsetype = self.unmark(self.liststore.set_value(iter, 1))
             oldtclass = self.liststore.get_value(iter, 2)
-            self.cur_dict["fcontext"][(path, tclass)] = {"action": "-m", "type": setype, "oldtype": oldsetype, "oldmls": oldmls, "oldclass": oldclass}
+            self.cur_dict["fcontext"][(path, tclass)] = {"action": "-m", "type": setype, "oldtype": oldsetype, "oldpath": oldpath, "oldclass": oldtclass}
         else:
             iter = self.liststore.append(None)
             self.cur_dict["fcontext"][(path, tclass)] = {"action": "-a", "type": setype}
@@ -2047,7 +2047,7 @@ class SELinuxGui():
             oldports = self.unmark(self.liststore.get_value(iter, 0))
             oldprotocol = self.unmark(self.liststore.get_value(iter, 1))
             oldsetype = self.unmark(self.liststore.set_value(iter, 2))
-            self.cur_dict["port"][(ports, protocol)] = {"action": "-m", "type": setype, "mls": mls, "oldtype": oldsetype, "oldmls": oldmls, "oldprotocol": oldprotocol, "oldports": oldports}
+            self.cur_dict["port"][(ports, protocol)] = {"action": "-m", "type": setype, "mls": mls, "oldtype": oldsetype, "oldprotocol": oldprotocol, "oldports": oldports}
         else:
             iter = self.liststore.append(None)
             self.cur_dict["port"][(ports, protocol)] = {"action": "-a", "type": setype, "mls": mls}
@@ -2522,7 +2522,7 @@ class SELinuxGui():
                     if self.cur_dict[k][(port, protocol)]["action"] == "-d":
                         update_buffer += "port -d -p %s %s\n" % (protocol, port)
                     else:
-                        update_buffer += "port %s -t %s -p %s %s\n" % (self.cur_dict[k][f]["action"], self.cur_dict[k][f]["type"], procotol, port)
+                        update_buffer += "port %s -t %s -p %s %s\n" % (self.cur_dict[k][f]["action"], self.cur_dict[k][f]["type"], protocol, port)
 
         return update_buffer
 

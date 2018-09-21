@@ -312,7 +312,7 @@ def collect(stmts, parent, val=None):
 
 def expand(ids, s):
     for id in ids:
-        if spt.has_key(id):
+        if spt.has_key(id):  # noqa
             s.update(spt.by_name(id))
         else:
             s.add(id)
@@ -786,7 +786,7 @@ def p_role_allow(p):
 
 def p_permissive(p):
     'permissive : PERMISSIVE names SEMI'
-    t.skip(1)
+    pass
 
 def p_avrule_def(p):
     '''avrule_def : ALLOW names names COLON names names SEMI
