@@ -168,15 +168,21 @@ except ValueError as e:
 def info(setype, name=None):
     if setype == TYPE:
         q = setools.TypeQuery(_pol)
-        if name:
-            q.name = name
+        q.name = name
+        results = list(q.results())
+
+        if name and len(results) < 1:
+            # type not found, try alias
+            q.name = None
+            q.alias = name
+            results = list(q.results())
 
         return ({
             'aliases': list(map(str, x.aliases())),
             'name': str(x),
             'permissive': bool(x.ispermissive),
             'attributes': list(map(str, x.attributes()))
-        } for x in q.results())
+        } for x in results)
 
     elif setype == ROLE:
         q = setools.RoleQuery(_pol)
@@ -272,34 +278,38 @@ def _setools_rule_to_dict(rule):
         'class': str(rule.tclass),
     }
 
+    # Evaluate boolean expression associated with given rule (if there is any)
     try:
-        enabled = bool(rule.qpol_symbol.is_enabled(rule.policy))
+        # Get state of all booleans in the conditional expression
+        boolstate = {}
+        for boolean in rule.conditional.booleans:
+            boolstate[str(boolean)] = boolean.state
+        # evaluate if the rule is enabled
+        enabled = rule.conditional.evaluate(**boolstate) == rule.conditional_block
     except AttributeError:
+        # non-conditional rules are always enabled
         enabled = True
 
-    if isinstance(rule, setools.policyrep.terule.AVRule):
-        d['enabled'] = enabled
+    d['enabled'] = enabled
 
     try:
         d['permlist'] = list(map(str, rule.perms))
-    except setools.policyrep.exception.RuleUseError:
+    except AttributeError:
         pass
 
     try:
         d['transtype'] = str(rule.default)
-    except setools.policyrep.exception.RuleUseError:
+    except AttributeError:
         pass
 
     try:
         d['boolean'] = [(str(rule.conditional), enabled)]
-    except (AttributeError, setools.policyrep.exception.RuleNotConditional):
+    except AttributeError:
         pass
 
     try:
         d['filename'] = rule.filename
-    except (AttributeError,
-            setools.policyrep.exception.RuleNotConditional,
-            setools.policyrep.exception.TERuleNoFilename):
+    except AttributeError:
         pass
 
     return d
@@ -435,6 +445,22 @@ def get_file_types(setype):
         except KeyError:
             mpaths[f] = []
     return mpaths
+
+
+def get_real_type_name(name):
+    """Return the real name of a type
+
+    * If 'name' refers to a type, return the same name.
+    * If 'name' refers to a type alias, return the corresponding type name.
+    * Otherwise return None.
+    """
+    if not name:
+        return None
+
+    try:
+        return next(info(TYPE, name))["name"]
+    except (RuntimeError, StopIteration):
+        return None
 
 
 def get_writable_files(setype):
@@ -1051,7 +1077,7 @@ def gen_short_name(setype):
         domainname = setype[:-2]
     else:
         domainname = setype
-    if domainname + "_t" not in all_domains:
+    if get_real_type_name(domainname + "_t") not in all_domains:
         raise ValueError("domain %s_t does not exist" % domainname)
     if domainname[-1] == 'd':
         short_name = domainname[:-1] + "_"
