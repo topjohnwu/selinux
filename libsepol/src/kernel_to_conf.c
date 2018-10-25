@@ -35,7 +35,7 @@ static char *cond_expr_to_str(struct policydb *pdb, struct cond_expr *expr)
 	char *str = NULL;
 	int rc;
 
-	rc = stack_init(&stack);
+	rc = strs_stack_init(&stack);
 	if (rc != 0) {
 		goto exit;
 	}
@@ -63,13 +63,13 @@ static char *cond_expr_to_str(struct policydb *pdb, struct cond_expr *expr)
 			}
 
 			if (num_params == 2) {
-				val2 = stack_pop(stack);
+				val2 = strs_stack_pop(stack);
 				if (!val2) {
 					sepol_log_err("Invalid conditional expression");
 					goto exit;
 				}
 			}
-			val1 = stack_pop(stack);
+			val1 = strs_stack_pop(stack);
 			if (!val1) {
 				sepol_log_err("Invalid conditional expression");
 				free(val2);
@@ -87,29 +87,29 @@ static char *cond_expr_to_str(struct policydb *pdb, struct cond_expr *expr)
 			sepol_log_err("Invalid conditional expression");
 			goto exit;
 		}
-		rc = stack_push(stack, new_val);
+		rc = strs_stack_push(stack, new_val);
 		if (rc != 0) {
 			sepol_log_err("Out of memory");
 			goto exit;
 		}
 	}
 
-	new_val = stack_pop(stack);
-	if (!new_val || !stack_empty(stack)) {
+	new_val = strs_stack_pop(stack);
+	if (!new_val || !strs_stack_empty(stack)) {
 		sepol_log_err("Invalid conditional expression");
 		goto exit;
 	}
 
 	str = new_val;
 
-	stack_destroy(&stack);
+	strs_stack_destroy(&stack);
 	return str;
 
 exit:
-	while ((new_val = stack_pop(stack)) != NULL) {
+	while ((new_val = strs_stack_pop(stack)) != NULL) {
 		free(new_val);
 	}
-	stack_destroy(&stack);
+	strs_stack_destroy(&stack);
 
 	return NULL;
 }
@@ -125,7 +125,7 @@ static char *constraint_expr_to_str(struct policydb *pdb, struct constraint_expr
 
 	*use_mls = 0;
 
-	rc = stack_init(&stack);
+	rc = strs_stack_init(&stack);
 	if (rc != 0) {
 		goto exit;
 	}
@@ -204,13 +204,13 @@ static char *constraint_expr_to_str(struct policydb *pdb, struct constraint_expr
 			}
 
 			if (num_params == 2) {
-				val2 = stack_pop(stack);
+				val2 = strs_stack_pop(stack);
 				if (!val2) {
 					sepol_log_err("Invalid constraint expression");
 					goto exit;
 				}
 			}
-			val1 = stack_pop(stack);
+			val1 = strs_stack_pop(stack);
 			if (!val1) {
 				sepol_log_err("Invalid constraint expression");
 				goto exit;
@@ -227,30 +227,30 @@ static char *constraint_expr_to_str(struct policydb *pdb, struct constraint_expr
 		if (!new_val) {
 			goto exit;
 		}
-		rc = stack_push(stack, new_val);
+		rc = strs_stack_push(stack, new_val);
 		if (rc != 0) {
 			sepol_log_err("Out of memory");
 			goto exit;
 		}
 	}
 
-	new_val = stack_pop(stack);
-	if (!new_val || !stack_empty(stack)) {
+	new_val = strs_stack_pop(stack);
+	if (!new_val || !strs_stack_empty(stack)) {
 		sepol_log_err("Invalid constraint expression");
 		goto exit;
 	}
 
 	str = new_val;
 
-	stack_destroy(&stack);
+	strs_stack_destroy(&stack);
 
 	return str;
 
 exit:
-	while ((new_val = stack_pop(stack)) != NULL) {
+	while ((new_val = strs_stack_pop(stack)) != NULL) {
 		free(new_val);
 	}
-	stack_destroy(&stack);
+	strs_stack_destroy(&stack);
 
 	return NULL;
 }
@@ -428,22 +428,30 @@ static int write_class_decl_rules_to_conf(FILE *out, struct policydb *pdb)
 	return 0;
 }
 
-static int write_sids_to_conf(FILE *out, const char *const *sid_to_str, struct ocontext *isids)
+static int write_sids_to_conf(FILE *out, const char *const *sid_to_str,
+			      unsigned num_sids, struct ocontext *isids)
 {
 	struct ocontext *isid;
 	struct strs *strs;
 	char *sid;
+	char unknown[17];
 	unsigned i;
 	int rc;
 
-	rc = strs_init(&strs, SECINITSID_NUM+1);
+	rc = strs_init(&strs, num_sids+1);
 	if (rc != 0) {
 		goto exit;
 	}
 
 	for (isid = isids; isid != NULL; isid = isid->next) {
 		i = isid->sid[0];
-		rc = strs_add_at_index(strs, (char *)sid_to_str[i], i);
+		if (i < num_sids) {
+			sid = (char *)sid_to_str[i];
+		} else {
+			snprintf(unknown, 17, "%s%u", "UNKNOWN", i);
+			sid = strdup(unknown);
+		}
+		rc = strs_add_at_index(strs, sid, i);
 		if (rc != 0) {
 			goto exit;
 		}
@@ -458,6 +466,10 @@ static int write_sids_to_conf(FILE *out, const char *const *sid_to_str, struct o
 	}
 
 exit:
+	for (i=num_sids; i<strs_num_items(strs); i++) {
+		sid = strs_read_at_index(strs, i);
+		free(sid);
+	}
 	strs_destroy(&strs);
 	if (rc != 0) {
 		sepol_log_err("Error writing sid rules to policy.conf\n");
@@ -471,9 +483,11 @@ static int write_sid_decl_rules_to_conf(FILE *out, struct policydb *pdb)
 	int rc = 0;
 
 	if (pdb->target_platform == SEPOL_TARGET_SELINUX) {
-		rc = write_sids_to_conf(out, selinux_sid_to_str, pdb->ocontexts[0]);
+		rc = write_sids_to_conf(out, selinux_sid_to_str, SELINUX_SID_SZ,
+					pdb->ocontexts[0]);
 	} else if (pdb->target_platform == SEPOL_TARGET_XEN) {
-		rc = write_sids_to_conf(out, xen_sid_to_str, pdb->ocontexts[0]);
+		rc = write_sids_to_conf(out, xen_sid_to_str, XEN_SID_SZ,
+					pdb->ocontexts[0]);
 	} else {
 		sepol_log_err("Unknown target platform: %i", pdb->target_platform);
 		rc = -1;
@@ -2339,11 +2353,12 @@ static char *context_to_str(struct policydb *pdb, struct context_struct *con)
 	return ctx;
 }
 
-static int write_sid_context_rules_to_conf(FILE *out, struct policydb *pdb, const char *const *sid_to_str)
+static int write_sid_context_rules_to_conf(FILE *out, struct policydb *pdb, const char *const *sid_to_str, unsigned num_sids)
 {
 	struct ocontext *isid;
 	struct strs *strs;
-	const char *sid;
+	char *sid;
+	char unknown[17];
 	char *ctx, *rule;
 	unsigned i;
 	int rc;
@@ -2355,7 +2370,13 @@ static int write_sid_context_rules_to_conf(FILE *out, struct policydb *pdb, cons
 
 	for (isid = pdb->ocontexts[0]; isid != NULL; isid = isid->next) {
 		i = isid->sid[0];
-		sid = sid_to_str[i];
+		if (i < num_sids) {
+			sid = (char *)sid_to_str[i];
+		} else {
+			snprintf(unknown, 17, "%s%u", "UNKNOWN", i);
+			sid = unknown;
+		}
+
 		ctx = context_to_str(pdb, &isid->context[0]);
 		if (!ctx) {
 			rc = -1;
@@ -2391,7 +2412,8 @@ exit:
 
 static int write_selinux_isid_rules_to_conf(FILE *out, struct policydb *pdb)
 {
-	return write_sid_context_rules_to_conf(out, pdb, selinux_sid_to_str);
+	return write_sid_context_rules_to_conf(out, pdb, selinux_sid_to_str,
+					       SELINUX_SID_SZ);
 }
 
 static int write_selinux_fsuse_rules_to_conf(FILE *out, struct policydb *pdb)
@@ -2745,7 +2767,7 @@ exit:
 
 static int write_xen_isid_rules_to_conf(FILE *out, struct policydb *pdb)
 {
-	return write_sid_context_rules_to_conf(out, pdb, xen_sid_to_str);
+	return write_sid_context_rules_to_conf(out, pdb, xen_sid_to_str, XEN_SID_SZ);
 }
 
 
