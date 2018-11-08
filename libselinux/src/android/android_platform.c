@@ -264,6 +264,7 @@ struct seapp_context {
 	bool isPrivAppSet;
 	bool isPrivApp;
 	int32_t minTargetSdkVersion;
+	bool fromRunAs;
 	/* outputs */
 	char *domain;
 	char *type;
@@ -378,6 +379,10 @@ static int seapp_context_cmp(const void *A, const void *B)
 		return -1;
 	else if (s1->minTargetSdkVersion < s2->minTargetSdkVersion)
 		return 1;
+
+	/* Give precedence to fromRunAs=true. */
+	if (s1->fromRunAs != s2->fromRunAs)
+		return (s1->fromRunAs ? -1 : 1);
 
 	/*
 	 * Check for a duplicated entry on the input selectors.
@@ -708,6 +713,15 @@ int selinux_android_seapp_context_reload(void)
 						free_seapp_context(cur);
 						goto err;
 					}
+				} else if (!strcasecmp(name, "fromRunAs")) {
+					if (!strcasecmp(value, "true"))
+						cur->fromRunAs = true;
+					else if (!strcasecmp(value, "false"))
+						cur->fromRunAs = false;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
 				} else {
 					free_seapp_context(cur);
 					goto err;
@@ -746,7 +760,7 @@ int selinux_android_seapp_context_reload(void)
 		for (i = 0; i < nspec; i++) {
 			cur = seapp_contexts[i];
 			selinux_log(SELINUX_INFO, "%s:  isSystemServer=%s  isEphemeralApp=%s isV2App=%s isOwner=%s user=%s seinfo=%s "
-					"name=%s path=%s isPrivApp=%s minTargetSdkVersion=%d -> domain=%s type=%s level=%s levelFrom=%s",
+					"name=%s path=%s isPrivApp=%s minTargetSdkVersion=%d fromRunAs=%s -> domain=%s type=%s level=%s levelFrom=%s",
 				__FUNCTION__,
 				cur->isSystemServer ? "true" : "false",
 				cur->isEphemeralAppSet ? (cur->isEphemeralApp ? "true" : "false") : "null",
@@ -756,6 +770,7 @@ int selinux_android_seapp_context_reload(void)
 				cur->seinfo, cur->name.str, cur->path.str,
 				cur->isPrivAppSet ? (cur->isPrivApp ? "true" : "false") : "null",
 				cur->minTargetSdkVersion,
+				cur->fromRunAs ? "true" : "false",
 				cur->domain, cur->type, cur->level,
 				levelFromName[cur->levelFrom]);
 		}
@@ -808,6 +823,7 @@ enum seapp_kind {
 #define EPHEMERAL_APP_STR ":ephemeralapp"
 #define V2_APP_STR ":v2"
 #define TARGETSDKVERSION_STR ":targetSdkVersion="
+#define FROM_RUNAS_STR ":fromRunAs"
 static int32_t get_app_targetSdkVersion(const char *seinfo)
 {
 	char *substr = strstr(seinfo, TARGETSDKVERSION_STR);
@@ -866,6 +882,7 @@ static int seapp_context_lookup(enum seapp_kind kind,
 	bool isEphemeralApp = false;
 	int32_t targetSdkVersion = 0;
 	bool isV2App = false;
+	bool fromRunAs = false;
 	char parsedseinfo[BUFSIZ];
 
 	__selinux_once(once, seapp_context_init);
@@ -876,6 +893,7 @@ static int seapp_context_lookup(enum seapp_kind kind,
 		isPrivApp = strstr(seinfo, PRIVILEGED_APP_STR) ? true : false;
 		isEphemeralApp = strstr(seinfo, EPHEMERAL_APP_STR) ? true : false;
 		isV2App = strstr(seinfo, V2_APP_STR) ? true : false;
+		fromRunAs = strstr(seinfo, FROM_RUNAS_STR) ? true : false;
 		targetSdkVersion = get_app_targetSdkVersion(seinfo);
 		if (targetSdkVersion < 0) {
 			selinux_log(SELINUX_ERROR,
@@ -961,6 +979,9 @@ static int seapp_context_lookup(enum seapp_kind kind,
 			continue;
 
 		if (cur->minTargetSdkVersion > targetSdkVersion)
+			continue;
+
+		if (cur->fromRunAs != fromRunAs)
 			continue;
 
 		if (cur->path.str) {
