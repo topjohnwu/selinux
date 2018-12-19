@@ -1,14 +1,18 @@
 #include "android_common.h"
 #include <packagelistparser/packagelistparser.h>
 
-// For 'system', 'vendor' (mandatory) and/or 'odm' (optional).
-#define MAX_FILE_CONTEXT_SIZE 3
+// For 'system', 'product' (optional), 'vendor' (mandatory) and/or 'odm' (optional).
+#define MAX_FILE_CONTEXT_SIZE 4
 
 static const char *const sepolicy_file = "/sepolicy";
 
 static const struct selinux_opt seopts_file_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
     { SELABEL_OPT_PATH, "/plat_file_contexts" }
+};
+static const struct selinux_opt seopts_file_product[] = {
+    { SELABEL_OPT_PATH, "/product/etc/selinux/product_file_contexts" },
+    { SELABEL_OPT_PATH, "/product_file_contexts" }
 };
 static const struct selinux_opt seopts_file_vendor[] = {
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_file_contexts" },
@@ -25,6 +29,10 @@ static const struct selinux_opt seopts_file_odm[] = {
 static const struct selinux_opt seopts_prop_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
     { SELABEL_OPT_PATH, "/plat_property_contexts" }
+};
+static const struct selinux_opt seopts_prop_product[] = {
+    { SELABEL_OPT_PATH, "/product/etc/selinux/product_property_contexts" },
+    { SELABEL_OPT_PATH, "/product_property_contexts" }
 };
 static const struct selinux_opt seopts_prop_vendor[] = {
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_property_contexts" },
@@ -47,6 +55,10 @@ static const struct selinux_opt seopts_prop_odm[] = {
 static char const * const seapp_contexts_plat[] = {
 	"/system/etc/selinux/plat_seapp_contexts",
 	"/plat_seapp_contexts"
+};
+static char const * const seapp_contexts_product[] = {
+	"/system/etc/selinux/product_seapp_contexts",
+	"/product_seapp_contexts"
 };
 static char const * const seapp_contexts_vendor[] = {
 	"/vendor/etc/selinux/vendor_seapp_contexts",
@@ -167,6 +179,12 @@ struct selabel_handle* selinux_android_file_context_handle(void)
             break;
         }
     }
+    for (i = 0; i < ARRAY_SIZE(seopts_file_product); i++) {
+        if (access(seopts_file_product[i].value, R_OK) != -1) {
+            seopts_file[size++] = seopts_file_product[i];
+            break;
+        }
+    }
     for (i = 0; i < ARRAY_SIZE(seopts_file_vendor); i++) {
         if (access(seopts_file_vendor[i].value, R_OK) != -1) {
             seopts_file[size++] = seopts_file_vendor[i];
@@ -191,6 +209,12 @@ struct selabel_handle* selinux_android_prop_context_handle(void)
     for (i = 0; i < ARRAY_SIZE(seopts_prop_plat); i++) {
         if (access(seopts_prop_plat[i].value, R_OK) != -1) {
             seopts_prop[size++] = seopts_prop_plat[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_prop_product); i++) {
+        if (access(seopts_prop_product[i].value, R_OK) != -1) {
+            seopts_prop[size++] = seopts_prop_product[i];
             break;
         }
     }
@@ -461,6 +485,12 @@ int selinux_android_seapp_context_reload(void)
 	for (i = 0; i < ARRAY_SIZE(seapp_contexts_plat); i++) {
 		if (access(seapp_contexts_plat[i], R_OK) != -1) {
 			seapp_contexts_files[files_len++] = seapp_contexts_plat[i];
+			break;
+		}
+	}
+	for (i = 0; i < ARRAY_SIZE(seapp_contexts_product); i++) {
+		if (access(seapp_contexts_product[i], R_OK) != -1) {
+			seapp_contexts_files[files_len++] = seapp_contexts_product[i];
 			break;
 		}
 	}
