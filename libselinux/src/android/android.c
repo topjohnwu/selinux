@@ -1,7 +1,7 @@
 #include "android_common.h"
 
-// For 'system', 'vendor' (mandatory) and/or 'odm' (optional).
-#define MAX_FILE_CONTEXT_SIZE 3
+// For 'system', 'product' (optional), 'vendor' (mandatory) and/or 'odm' (optional).
+#define MAX_FILE_CONTEXT_SIZE 4
 
 #ifdef __ANDROID_VNDK__
 #ifndef LOG_EVENT_STRING
@@ -13,7 +13,10 @@ static const struct selinux_opt seopts_service_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_service_contexts" },
     { SELABEL_OPT_PATH, "/plat_service_contexts" }
 };
-
+static const struct selinux_opt seopts_service_product[] = {
+    { SELABEL_OPT_PATH, "/product/etc/selinux/product_service_contexts" },
+    { SELABEL_OPT_PATH, "/product_service_contexts" }
+};
 static const struct selinux_opt seopts_service_vendor[] = {
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_service_contexts" },
     { SELABEL_OPT_PATH, "/vendor_service_contexts" },
@@ -25,6 +28,10 @@ static const struct selinux_opt seopts_service_vendor[] = {
 static const struct selinux_opt seopts_hwservice_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_hwservice_contexts" },
     { SELABEL_OPT_PATH, "/plat_hwservice_contexts" }
+};
+static const struct selinux_opt seopts_hwservice_product[] = {
+    { SELABEL_OPT_PATH, "/product/etc/selinux/product_hwservice_contexts" },
+    { SELABEL_OPT_PATH, "/product_hwservice_contexts" }
 };
 static const struct selinux_opt seopts_hwservice_vendor[] = {
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_hwservice_contexts" },
@@ -75,6 +82,12 @@ struct selabel_handle* selinux_android_service_context_handle(void)
             break;
         }
     }
+    for (i = 0; i < ARRAY_SIZE(seopts_service_product); i++) {
+        if (access(seopts_service_product[i].value, R_OK) != -1) {
+            seopts_service[size++] = seopts_service_product[i];
+            break;
+        }
+    }
     for (i = 0; i < ARRAY_SIZE(seopts_service_vendor); i++) {
         if (access(seopts_service_vendor[i].value, R_OK) != -1) {
             seopts_service[size++] = seopts_service_vendor[i];
@@ -93,6 +106,12 @@ struct selabel_handle* selinux_android_hw_service_context_handle(void)
     for (i = 0; i < ARRAY_SIZE(seopts_hwservice_plat); i++) {
         if (access(seopts_hwservice_plat[i].value, R_OK) != -1) {
             seopts_service[size++] = seopts_hwservice_plat[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_hwservice_product); i++) {
+        if (access(seopts_hwservice_product[i].value, R_OK) != -1) {
+            seopts_service[size++] = seopts_hwservice_product[i];
             break;
         }
     }
