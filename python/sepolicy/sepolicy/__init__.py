@@ -119,16 +119,34 @@ all_allow_rules = None
 all_transitions = None
 
 
+def policy_sortkey(policy_path):
+    # Parse the extension of a policy path which looks like .../policy/policy.31
+    extension = policy_path.rsplit('/policy.', 1)[1]
+    try:
+        return int(extension), policy_path
+    except ValueError:
+        # Fallback with sorting on the full path
+        return 0, policy_path
+
 def get_installed_policy(root="/"):
     try:
         path = root + selinux.selinux_binary_policy_path()
         policies = glob.glob("%s.*" % path)
-        policies.sort()
+        policies.sort(key=policy_sortkey)
         return policies[-1]
     except:
         pass
     raise ValueError(_("No SELinux Policy installed"))
 
+def get_store_policy(store):
+    """Get the path to the policy file located in the given store name"""
+    policies = glob.glob("%s%s/policy/policy.*" %
+                         (selinux.selinux_path(), store))
+    if not policies:
+        return None
+    # Return the policy with the higher version number
+    policies.sort(key=policy_sortkey)
+    return policies[-1]
 
 def policy(policy_file):
     global all_domains
@@ -156,6 +174,11 @@ def policy(policy_file):
     except:
         raise ValueError(_("Failed to read %s policy file") % policy_file)
 
+def load_store_policy(store):
+    policy_file = get_store_policy(store)
+    if not policy_file:
+        return None
+    policy(policy_file)
 
 try:
     policy_file = get_installed_policy()
