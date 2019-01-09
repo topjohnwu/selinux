@@ -57,7 +57,7 @@ static char const * const seapp_contexts_plat[] = {
 	"/plat_seapp_contexts"
 };
 static char const * const seapp_contexts_product[] = {
-	"/system/etc/selinux/product_seapp_contexts",
+	"/product/etc/selinux/product_seapp_contexts",
 	"/product_seapp_contexts"
 };
 static char const * const seapp_contexts_vendor[] = {
