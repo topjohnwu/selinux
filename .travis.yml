@@ -11,21 +11,20 @@ compiler:
 env:
   matrix:
     # Test the last version of Python and Ruby together, with some linkers
-    - PYVER=python3.7 RUBYLIBVER=2.5.1
-    - PYVER=python3.7 RUBYLIBVER=2.5.1 TEST_FLAGS_OVERRIDE=1
-    - PYVER=python3.7 RUBYLIBVER=2.5.1 LINKER=gold
-    - PYVER=python3.7 RUBYLIBVER=2.5.1 LINKER=bfd
+    - PYVER=python3.7 RUBYLIBVER=2.6
+    - PYVER=python3.7 RUBYLIBVER=2.6 TEST_FLAGS_OVERRIDE=1
+    - PYVER=python3.7 RUBYLIBVER=2.6 LINKER=gold
+    - PYVER=python3.7 RUBYLIBVER=2.6 LINKER=bfd
 
     # Test several Python versions
-    - PYVER=python2.7 RUBYLIBVER=2.5.1
-    - PYVER=python3.5 RUBYLIBVER=2.5.1
-    - PYVER=python3.6 RUBYLIBVER=2.5.1
-    # pypy2.7 seems not to be available in Travis-CI Xenial template yet.
-    # https://github.com/travis-ci/travis-ci/issues/9542
-    #- PYVER=pypy RUBYLIBVER=2.5.1
-    - PYVER=pypy3.5 RUBYLIBVER=2.5.1
+    - PYVER=python2.7 RUBYLIBVER=2.6
+    - PYVER=python3.5 RUBYLIBVER=2.6
+    - PYVER=python3.6 RUBYLIBVER=2.6
+    - PYVER=pypy2.7-6.0 RUBYLIBVER=2.6
+    - PYVER=pypy3.5-6.0 RUBYLIBVER=2.6
 
-    # Test several Ruby versions
+    # Test several Ruby versions (http://rubies.travis-ci.org/)
+    - PYVER=python3.7 RUBYLIBVER=2.5.1
     - PYVER=python3.7 RUBYLIBVER=2.4
     - PYVER=python3.7 RUBYLIBVER=2.3
     - PYVER=python3.7 RUBYLIBVER=2.2
@@ -33,9 +32,9 @@ env:
 matrix:
   exclude:
     - compiler: clang
-      env: PYVER=python3.7 RUBYLIBVER=2.5.1 LINKER=gold
+      env: PYVER=python3.7 RUBYLIBVER=2.6 LINKER=gold
     - compiler: clang
-      env: PYVER=python3.7 RUBYLIBVER=2.5.1 LINKER=bfd
+      env: PYVER=python3.7 RUBYLIBVER=2.6 LINKER=bfd
 
 # Use Travis-CI Ubuntu 16.04 Xenial Xerus infrastructure, "full image" variant
 sudo: required
@@ -64,14 +63,16 @@ addons:
     - xmlto
 
 install:
-  # Download refpolicy Makefile for sepolgen tests
-  - sudo mkdir -p /usr/share/selinux/default
-  - sudo curl --retry 10 -o /usr/share/selinux/default/Makefile 'https://raw.githubusercontent.com/SELinuxProject/refpolicy/RELEASE_2_20180114/support/Makefile.devel'
-  - sudo sed "s,^PREFIX :=.*,PREFIX := $TRAVIS_BUILD_DIR/installdir/usr," -i /usr/share/selinux/default/Makefile
-  - sudo mkdir -p /usr/share/selinux/refpolicy/include
-  - sudo curl --retry 10 -o /usr/share/selinux/refpolicy/include/build.conf 'https://raw.githubusercontent.com/SELinuxProject/refpolicy/RELEASE_2_20180114/build.conf'
+  # Download and install refpolicy headers for sepolgen tests
+  - curl --location --retry 10 -o "$TRAVIS_BUILD_DIR/refpolicy.tar.bz2" https://github.com/SELinuxProject/refpolicy/releases/download/RELEASE_2_20180701/refpolicy-2.20180701.tar.bz2
+  - tar -C "$TRAVIS_BUILD_DIR" -xvjf "$TRAVIS_BUILD_DIR/refpolicy.tar.bz2"
+  # Make refpolicy Makefile use the new toolchain when building modules
+  - sed -e "s,^PREFIX :=.*,PREFIX := \$(DESTDIR)/usr," -i "$TRAVIS_BUILD_DIR/refpolicy/support/Makefile.devel"
+  - sudo make -C "$TRAVIS_BUILD_DIR/refpolicy" install-headers
+  - sudo rm -rf "$TRAVIS_BUILD_DIR/refpolicy.tar.bz2" "$TRAVIS_BUILD_DIR/refpolicy"
   - sudo mkdir -p /etc/selinux
   - echo 'SELINUXTYPE=refpolicy' | sudo tee /etc/selinux/config
+  - echo 'SELINUX_DEVEL_PATH = /usr/share/selinux/refpolicy' | sudo tee /etc/selinux/sepolgen.conf
 
   # Make sepolgen tests work without really installing anything in the real root (doing this would conflict with Ubuntu packages)
   - sed -e "s,\"\(/usr/bin/[cs]\),\"$TRAVIS_BUILD_DIR/installdir\1," -i python/sepolgen/src/sepolgen/module.py
@@ -96,8 +97,12 @@ before_script:
   - export PYTHON="$VIRTUAL_ENV/bin/python"
   # Use the header files in /opt/python/... for Python because the virtualenvs do not provide Python.h
   - export PKG_CONFIG_PATH="/opt/python/$($PYTHON -c 'import sys;print("%d.%d.%d" % sys.version_info[:3])')/lib/pkgconfig"
-  # PyPy does not provide a config file for pkg-config nor a pypy-c.so
-  - if echo "$PYVER" | grep -q pypy ; then export PYINC=-I$($PYTHON -c 'import sys;print(sys.prefix)')/include PYLIBS= ; fi
+  # PyPy does not provide a config file for pkg-config
+  # libpypy-c.so is provided in bin/libpypy-c.so for PyPy and bin/libpypy3-c.so for PyPy3
+  - if echo "$PYVER" | grep -q pypy ; then
+        export PYINC=-I$($PYTHON -c 'import sys;print(sys.prefix)')/include ;
+        export PYLIBS="$($PYTHON -c 'import sys;print("-L%s/bin -l%s" % (sys.prefix, "pypy-c" if sys.version_info < (3,) else "pypy3-c"))')" ;
+    fi
 
   # Find the Ruby executable with version $RUBYLIBVER
   - rvm reinstall ruby-$RUBYLIBVER --binary
@@ -124,10 +129,7 @@ script:
   - make all $EXPLICIT_MAKE_VARS -k
 
   # Set up environment variables for the tests
-  - export LD_LIBRARY_PATH="$DESTDIR/usr/lib:$DESTDIR/lib"
-  - export PATH="$DESTDIR/usr/sbin:$DESTDIR/usr/bin:$DESTDIR/sbin:$DESTDIR/bin:$PATH"
-  - export PYTHONPATH="$DESTDIR$($PYTHON -c "from distutils.sysconfig import *;print(get_python_lib(prefix='/usr'))")"
-  - export RUBYLIB="$DESTDIR/$($RUBY -e 'puts RbConfig::CONFIG["vendorlibdir"]'):$DESTDIR/$($RUBY -e 'puts RbConfig::CONFIG["vendorarchdir"]')"
+  - . ./scripts/env_use_destdir
 
   # Show variables (to help debugging issues)
   - echo "$LD_LIBRARY_PATH"
