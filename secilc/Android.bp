@@ -19,5 +19,9 @@ cc_binary {
     // /system/bin/bootstrap/linker. RPATH is explicitly set to /system/lib/bootstrap
     // where the bootstrap libc.so is.
     bootstrap: true,
-    ldflags: ["-Wl,--rpath,/system/${LIB}/bootstrap"],
+    target: {
+        android: {
+            ldflags: ["-Wl,--rpath,/system/${LIB}/bootstrap"],
+        },
+    },
 }
