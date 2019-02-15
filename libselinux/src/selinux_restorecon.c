@@ -351,12 +351,19 @@ static int add_xattr_entry(const char *directory, bool delete_nonmatch,
 	new_entry->next = NULL;
 
 	new_entry->directory = strdup(directory);
-	if (!new_entry->directory)
+	if (!new_entry->directory) {
+		free(new_entry);
+		free(sha1_buf);
 		goto oom;
+	}
 
 	new_entry->digest = strdup(sha1_buf);
-	if (!new_entry->digest)
+	if (!new_entry->digest) {
+		free(new_entry->directory);
+		free(new_entry);
+		free(sha1_buf);
 		goto oom;
+	}
 
 	new_entry->result = digest_result;
 
@@ -672,8 +679,8 @@ static int restorecon_sb(const char *pathname, const struct stat *sb,
 				selinux_log(SELINUX_INFO,
 				 "%s not reset as customized by admin to %s\n",
 							    pathname, curcon);
-				goto out;
 			}
+			goto out;
 		}
 
 		if (!flags->set_specctx && curcon) {
@@ -850,6 +857,7 @@ int selinux_restorecon(const char *pathname_orig,
 
 	if (lstat(pathname, &sb) < 0) {
 		if (flags.ignore_noent && errno == ENOENT) {
+			free(xattr_value);
 			free(pathdnamer);
 			free(pathname);
 			return 0;
