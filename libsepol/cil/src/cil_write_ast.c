@@ -1153,7 +1153,6 @@ exit:
 static int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finished, void *extra_args)
 {
 	int rc = SEPOL_OK;
-	struct cil_db *db = NULL;
 	struct cil_args_write *args = NULL;
 	FILE *cil_out = NULL;
 
@@ -1162,7 +1161,6 @@ static int __cil_write_node_helper(struct cil_tree_node *node, uint32_t *finishe
 	}
 
 	args = extra_args;
-	db = args->db;
 	cil_out = args->cil_out;
 
 	switch (node->flavor) {
@@ -1462,7 +1460,6 @@ exit:
 static int __cil_write_last_child_helper(struct cil_tree_node *node, void *extra_args)
 {
 	int rc = SEPOL_ERR;
-	struct cil_db *db = NULL;
 	struct cil_args_write *args = NULL;
 	FILE *cil_out = NULL;
 
@@ -1471,7 +1468,6 @@ static int __cil_write_last_child_helper(struct cil_tree_node *node, void *extra
 	}
 
 	args = extra_args;
-	db = args->db;
 	cil_out = args->cil_out;
 
 	if (node->parent && node->parent->flavor != CIL_ROOT && node->parent->flavor != CIL_SRC_INFO) {
