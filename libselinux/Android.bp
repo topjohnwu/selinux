@@ -87,9 +87,6 @@ cc_defaults {
             cflags: [
                 "-DAUDITD_LOG_TAG=1003",
             ],
-
-            // mapping.c has redundant check of array p_in->perms.
-            clang_cflags: ["-Wno-pointer-bool-conversion"],
         }
     },
 
