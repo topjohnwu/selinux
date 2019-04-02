@@ -838,6 +838,10 @@ static void seapp_context_init(void)
 
 static pthread_once_t once = PTHREAD_ONCE_INIT;
 
+void selinux_android_seapp_context_init(void) {
+	__selinux_once(once, seapp_context_init);
+}
+
 /*
  * Max id that can be mapped to category set uniquely
  * using the current scheme.
@@ -915,7 +919,7 @@ static int seapp_context_lookup(enum seapp_kind kind,
 	bool fromRunAs = false;
 	char parsedseinfo[BUFSIZ];
 
-	__selinux_once(once, seapp_context_init);
+	selinux_android_seapp_context_init();
 
 	if (seinfo) {
 		if (seinfo_parse(parsedseinfo, seinfo, BUFSIZ))
