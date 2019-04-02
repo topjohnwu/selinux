@@ -60,6 +60,8 @@ extern int selinux_android_restorecon_pkgdir(const char *pkgdir,
                                              uid_t uid,
                                              unsigned int flags);
 
+extern void selinux_android_seapp_context_init(void);
+
 extern int selinux_android_seapp_context_reload(void);
 
 #ifdef __cplusplus
