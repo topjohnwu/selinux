@@ -1569,8 +1569,8 @@ static int selinux_android_restorecon_common(const char* pathname_orig,
     bool datadata = (flags & SELINUX_ANDROID_RESTORECON_DATADATA) ? true : false;
     bool skipce = (flags & SELINUX_ANDROID_RESTORECON_SKIPCE) ? true : false;
     bool cross_filesystems = (flags & SELINUX_ANDROID_RESTORECON_CROSS_FILESYSTEMS) ? true : false;
+    bool setrestoreconlast = (flags & SELINUX_ANDROID_RESTORECON_SKIP_SEHASH) ? false : true;
     bool issys;
-    bool setrestoreconlast = true;
     struct stat sb;
     struct statfs sfsb;
     FTS *fts;
