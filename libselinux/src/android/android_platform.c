@@ -72,76 +72,6 @@ static char const * const seapp_contexts_odm[] = {
 	"/odm_seapp_contexts"
 };
 
-uint8_t fc_digest[FC_DIGEST_SIZE];
-
-static bool compute_file_contexts_hash(uint8_t c_digest[], const struct selinux_opt *opts, unsigned nopts)
-{
-    int fd = -1;
-    void *map = MAP_FAILED;
-    bool ret = false;
-    uint8_t *fc_data = NULL;
-    size_t total_size = 0;
-    struct stat sb;
-    size_t i;
-
-    for (i = 0; i < nopts; i++) {
-        fd = open(opts[i].value, O_CLOEXEC | O_RDONLY);
-        if (fd < 0) {
-            selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
-                    opts[i].value, strerror(errno));
-            goto cleanup;
-        }
-
-        if (fstat(fd, &sb) < 0) {
-            selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
-                    opts[i].value, strerror(errno));
-            goto cleanup;
-        }
-
-        if (sb.st_size == 0) {
-            selinux_log(SELINUX_WARNING, "SELinux:  Skipping %s:  empty file\n",
-                    opts[i].value);
-            goto nextfile;
-        }
-
-        map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-        if (map == MAP_FAILED) {
-            selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
-                    opts[i].value, strerror(errno));
-            goto cleanup;
-        }
-
-        fc_data = realloc(fc_data, total_size + sb.st_size);
-        if (!fc_data) {
-            selinux_log(SELINUX_ERROR, "SELinux: Count not re-alloc for %s:  %s\n",
-                     opts[i].value, strerror(errno));
-            goto cleanup;
-        }
-
-        memcpy(fc_data + total_size, map, sb.st_size);
-        total_size += sb.st_size;
-
-        /* reset everything for next file */
-        munmap(map, sb.st_size);
-nextfile:
-        close(fd);
-        map = MAP_FAILED;
-        fd = -1;
-    }
-
-    SHA1(fc_data, total_size, c_digest);
-    ret = true;
-
-cleanup:
-    if (map != MAP_FAILED)
-        munmap(map, sb.st_size);
-    if (fd >= 0)
-        close(fd);
-    free(fc_data);
-
-    return ret;
-}
-
 static struct selabel_handle* selinux_android_file_context(const struct selinux_opt *opts,
                                                     unsigned nopts)
 {
@@ -156,10 +86,6 @@ static struct selabel_handle* selinux_android_file_context(const struct selinux_
     if (!sehandle) {
         selinux_log(SELINUX_ERROR, "%s: Error getting file context handle (%s)\n",
                 __FUNCTION__, strerror(errno));
-        return NULL;
-    }
-    if (!compute_file_contexts_hash(fc_digest, opts, nopts)) {
-        selabel_close(sehandle);
         return NULL;
     }
 
