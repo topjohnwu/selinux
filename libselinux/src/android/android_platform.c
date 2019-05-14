@@ -1324,6 +1324,7 @@ struct pkg_info *package_info_lookup(const char *name)
  * to delay restorecon of those until vold explicitly requests it. */
 // NOTE: these paths need to be kept in sync with vold
 #define DATA_SYSTEM_CE_PREFIX "/data/system_ce/"
+#define DATA_VENDOR_CE_PREFIX "/data/vendor_ce/"
 #define DATA_MISC_CE_PREFIX "/data/misc_ce/"
 
 /* The path prefixes of package data directories. */
@@ -1713,7 +1714,8 @@ static int selinux_android_restorecon_common(const char* pathname_orig,
 
             if (skipce &&
                 (!strncmp(ftsent->fts_path, DATA_SYSTEM_CE_PREFIX, sizeof(DATA_SYSTEM_CE_PREFIX)-1) ||
-                 !strncmp(ftsent->fts_path, DATA_MISC_CE_PREFIX, sizeof(DATA_MISC_CE_PREFIX)-1))) {
+                 !strncmp(ftsent->fts_path, DATA_MISC_CE_PREFIX, sizeof(DATA_MISC_CE_PREFIX)-1) ||
+                 !strncmp(ftsent->fts_path, DATA_VENDOR_CE_PREFIX, sizeof(DATA_VENDOR_CE_PREFIX)-1))) {
                 // Don't label anything below this directory.
                 fts_set(fts, ftsent, FTS_SKIP);
                 // but fall through and make sure we label the directory itself
