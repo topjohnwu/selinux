@@ -16,12 +16,6 @@ cc_binary {
     // and /system/lib/libc.so point to the mount points where nothing
     // is mounted on yet. Therefore, secilc has to have explicit knowledge about
     // the paths where the bootstrap Bionic is. bootstrap:true sets DT_INTERP to
-    // /system/bin/bootstrap/linker. RPATH is explicitly set to /system/lib/bootstrap
-    // where the bootstrap libc.so is.
+    // /system/bin/bootstrap/linker.
     bootstrap: true,
-    target: {
-        android: {
-            ldflags: ["-Wl,--rpath,/system/${LIB}/bootstrap"],
-        },
-    },
 }
