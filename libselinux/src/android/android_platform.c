@@ -3,7 +3,7 @@
 
 // For 'system', 'system_ext' (optional), 'product' (optional), 'vendor' (mandatory)
 // and/or 'odm' (optional).
-#define MAX_FILE_CONTEXT_SIZE 4
+#define MAX_FILE_CONTEXT_SIZE 5
 
 static const char *const sepolicy_file = "/sepolicy";
 
