@@ -2,7 +2,7 @@
 
 // For 'system', 'system_ext' (optional), 'product' (optional), 'vendor' (mandatory)
 // and/or 'odm' (optional).
-#define MAX_FILE_CONTEXT_SIZE 4
+#define MAX_FILE_CONTEXT_SIZE 5
 
 #ifdef __ANDROID_VNDK__
 #ifndef LOG_EVENT_STRING
