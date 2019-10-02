@@ -25,7 +25,6 @@
     selinux_android_hw_service_context_handle;
     selinux_android_load_policy;
     selinux_android_load_policy_from_fd;
-    selinux_android_prop_context_handle;
     selinux_android_restorecon;
     selinux_android_restorecon_pkgdir;
     selinux_android_seapp_context_init;

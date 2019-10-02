@@ -31,30 +31,6 @@ static const struct selinux_opt seopts_file_odm[] = {
     { SELABEL_OPT_PATH, "/odm_file_contexts" }
 };
 
-static const struct selinux_opt seopts_prop_plat[] = {
-    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_property_contexts" },
-    { SELABEL_OPT_PATH, "/plat_property_contexts" }
-};
-static const struct selinux_opt seopts_prop_system_ext[] = {
-    { SELABEL_OPT_PATH, "/system_ext/etc/selinux/system_ext_property_contexts" },
-    { SELABEL_OPT_PATH, "/system_ext_property_contexts" }
-};
-static const struct selinux_opt seopts_prop_product[] = {
-    { SELABEL_OPT_PATH, "/product/etc/selinux/product_property_contexts" },
-    { SELABEL_OPT_PATH, "/product_property_contexts" }
-};
-static const struct selinux_opt seopts_prop_vendor[] = {
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_property_contexts" },
-    { SELABEL_OPT_PATH, "/vendor_property_contexts" },
-    // TODO: remove nonplat* when no need to retain backward compatibility.
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_property_contexts" },
-    { SELABEL_OPT_PATH, "/nonplat_property_contexts" }
-};
-static const struct selinux_opt seopts_prop_odm[] = {
-    { SELABEL_OPT_PATH, "/odm/etc/selinux/odm_property_contexts" },
-    { SELABEL_OPT_PATH, "/odm_property_contexts" }
-};
-
 /*
  * XXX Where should this configuration file be located?
  * Needs to be accessible by zygote and installd when
@@ -143,55 +119,6 @@ struct selabel_handle* selinux_android_file_context_handle(void)
         }
     }
     return selinux_android_file_context(seopts_file, size);
-}
-
-struct selabel_handle* selinux_android_prop_context_handle(void)
-{
-    struct selabel_handle* sehandle;
-    struct selinux_opt seopts_prop[MAX_FILE_CONTEXT_SIZE];
-    int size = 0;
-    unsigned int i;
-    for (i = 0; i < ARRAY_SIZE(seopts_prop_plat); i++) {
-        if (access(seopts_prop_plat[i].value, R_OK) != -1) {
-            seopts_prop[size++] = seopts_prop_plat[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_prop_system_ext); i++) {
-        if (access(seopts_prop_system_ext[i].value, R_OK) != -1) {
-            seopts_prop[size++] = seopts_prop_system_ext[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_prop_product); i++) {
-        if (access(seopts_prop_product[i].value, R_OK) != -1) {
-            seopts_prop[size++] = seopts_prop_product[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_prop_vendor); i++) {
-        if (access(seopts_prop_vendor[i].value, R_OK) != -1) {
-            seopts_prop[size++] = seopts_prop_vendor[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_prop_odm); i++) {
-        if (access(seopts_prop_odm[i].value, R_OK) != -1) {
-            seopts_prop[size++] = seopts_prop_odm[i];
-            break;
-        }
-    }
-
-    sehandle = selabel_open(SELABEL_CTX_ANDROID_PROP, seopts_prop, size);
-    if (!sehandle) {
-        selinux_log(SELINUX_ERROR, "%s: Error getting property context handle (%s)\n",
-                __FUNCTION__, strerror(errno));
-        return NULL;
-    }
-    selinux_log(SELINUX_INFO, "SELinux: Loaded property_contexts from %s & %s.\n",
-            seopts_prop[0].value, seopts_prop[1].value);
-
-    return sehandle;
 }
 
 enum levelFrom {
