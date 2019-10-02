@@ -13,7 +13,6 @@
     selabel_close;
     selabel_lookup;
     selabel_open;
-    selinux_android_prop_context_handle;
     selinux_android_restorecon;
     selinux_android_service_context_handle;
     selinux_android_hw_service_context_handle;
