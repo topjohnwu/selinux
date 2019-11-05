@@ -627,7 +627,7 @@ int selinux_android_seapp_context_reload(void)
 					break;
 			}
 
-			if (cur->name.str &&
+			if (!cur->isPrivApp && cur->name.str &&
 			    (!cur->seinfo || !strcmp(cur->seinfo, "default"))) {
 				selinux_log(SELINUX_ERROR, "%s:  No specific seinfo value specified with name=\"%s\", on line %u:  insecure configuration!\n",
 					    seapp_contexts_files[i], cur->name.str, lineno);
