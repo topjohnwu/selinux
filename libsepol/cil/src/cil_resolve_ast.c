@@ -131,18 +131,14 @@ static int __cil_resolve_perms(symtab_t *class_symtab, symtab_t *common_symtab, 
 				}
 			}
 			if (rc != SEPOL_OK) {
-				struct cil_list *empty_list;
 				if (class_flavor == CIL_MAP_CLASS) {
 					cil_log(CIL_ERR, "Failed to resolve permission %s for map class\n", (char*)curr->data);
-					goto exit;
+				} else {
+					cil_log(CIL_ERR, "Failed to resolve permission %s\n", (char*)curr->data);
 				}
-				cil_log(CIL_WARN, "Failed to resolve permission %s\n", (char*)curr->data);
-				/* Use an empty list to represent unknown perm */
-				cil_list_init(&empty_list, perm_strs->flavor);
-				cil_list_append(*perm_datums, CIL_LIST, empty_list);
-			} else {
-				cil_list_append(*perm_datums, CIL_DATUM, perm_datum);
+				goto exit;
 			}
+			cil_list_append(*perm_datums, CIL_DATUM, perm_datum);
 		} else {
 			cil_list_append(*perm_datums, curr->flavor, curr->data);
 		}
@@ -1382,7 +1378,7 @@ static int insert_unordered(struct cil_list *merged, struct cil_list *unordered)
 
 		cil_list_for_each(item, unordered_list->list) {
 			if (cil_list_contains(merged, item->data)) {
-				/* item was declared in an ordered statement, which supercedes
+				/* item was declared in an ordered statement, which supersedes
 				 * all unordered statements */
 				if (item->flavor == CIL_CLASS) {
 					cil_log(CIL_WARN, "Ignoring '%s' as it has already been declared in classorder.\n", ((struct cil_class*)(item->data))->datum.name);
@@ -3765,14 +3761,16 @@ int __cil_resolve_ast_node_helper(struct cil_tree_node *node, uint32_t *finished
 		enum cil_log_level lvl = CIL_ERR;
 
 		if (optstack != NULL) {
-			lvl = CIL_WARN;
+			lvl = CIL_INFO;
 
 			struct cil_optional *opt = (struct cil_optional *)optstack->data;
 			struct cil_tree_node *opt_node = opt->datum.nodes->head->data;
-			cil_tree_log(opt_node, lvl, "Disabling optional '%s'", opt->datum.name);
 			/* disable an optional if something failed to resolve */
 			opt->enabled = CIL_FALSE;
+			cil_tree_log(node, lvl, "Failed to resolve %s statement", cil_node_to_string(node));
+			cil_tree_log(opt_node, lvl, "Disabling optional '%s'", opt->datum.name);
 			rc = SEPOL_OK;
+			goto exit;
 		}
 
 		cil_tree_log(node, lvl, "Failed to resolve %s statement", cil_node_to_string(node));
@@ -3988,7 +3986,7 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 		if (changed && (pass > CIL_PASS_CALL1)) {
 			/* Need to re-resolve because an optional was disabled that contained
 			 * one or more declarations. We only need to reset to the call1 pass 
-			 * because things done in the preceeding passes aren't allowed in 
+			 * because things done in the preceding passes aren't allowed in 
 			 * optionals, and thus can't be disabled.
 			 * Note: set pass to CIL_PASS_CALL1 because the pass++ will increment 
 			 * it to CIL_PASS_CALL2

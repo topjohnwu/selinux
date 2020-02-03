@@ -67,7 +67,7 @@ done
 }
 
 #
-# Get the default label returned from the kernel for a file with a lable the
+# Get the default label returned from the kernel for a file with a label the
 # kernel does not understand
 #
 get_undefined_type() {
@@ -111,7 +111,7 @@ VERBOSE="-p"
 FORCEFLAG=""
 RPMFILES=""
 PREFC=""
-RESTORE_MODE="DEFAULT"
+RESTORE_MODE=""
 SETFILES=/sbin/setfiles
 RESTORECON=/sbin/restorecon
 FILESYSTEMSRW=`get_rw_labeled_mounts`
@@ -213,16 +213,17 @@ restore () {
 OPTION=$1
 shift
 
-case "$RESTORE_MODE" in
-    PREFC)
-	diff_filecontext $*
-	return
-    ;;
-    BOOTTIME)
+# [-B | -N time ]
+if [ -n "$BOOTTIME" ]; then
 	newer $BOOTTIME $*
 	return
-    ;;
-esac
+fi
+
+# -C PREVIOUS_FILECONTEXT
+if [ "$RESTORE_MODE" == PREFC ]; then
+	diff_filecontext $*
+	return
+fi
 
 [ -x /usr/sbin/genhomedircon ] && /usr/sbin/genhomedircon
 
@@ -238,7 +239,7 @@ case "$RESTORE_MODE" in
     FILEPATH)
 	${RESTORECON} ${VERBOSE} ${EXCLUDEDIRS} ${FORCEFLAG} $* -R -- "$FILEPATH"
     ;;
-    DEFAULT)
+    *)
 	if [ -n "${FILESYSTEMSRW}" ]; then
 	    LogReadOnly
 	    echo "${OPTION}ing `echo ${FILESYSTEMSRW}`"
@@ -271,7 +272,7 @@ fullrelabel() {
 
 
 relabel() {
-    if [ "$RESTORE_MODE" != DEFAULT ]; then
+    if [ -n "$RESTORE_MODE" -a "$RESTORE_MODE" != DEFAULT ]; then
 	usage
 	exit 1
     fi
@@ -302,18 +303,18 @@ process() {
 case "$1" in
     restore) restore Relabel;;
     check) VERBOSE="-v"; restore Check -n;;
-    verify) restore Verify -n;;
+    verify) VERBOSE="-v"; restore Verify -n;;
     relabel) relabel;;
     onboot)
-	if [ "$RESTORE_MODE" != DEFAULT ]; then
+	if [ -n "$RESTORE_MODE" -a "$RESTORE_MODE" != DEFAULT ]; then
 	    usage
 	    exit 1
 	fi
 	> /.autorelabel || exit $?
 	[ -z "$FORCEFLAG" ] || echo -n "$FORCEFLAG " >> /.autorelabel
 	[ -z "$BOOTTIME" ] || echo -N $BOOTTIME >> /.autorelabel
-	# Force full relabel if / does not have a label on it
-	getfilecon / > /dev/null 2>&1  || echo -F >/.autorelabel
+	# Force full relabel if SELinux is not enabled
+	selinuxenabled || echo -F > /.autorelabel
 	echo "System will relabel on next boot"
 	;;
     *)
@@ -343,7 +344,7 @@ if [ $# -eq 0 ]; then
 fi
 
 set_restore_mode() {
-	if [ "$RESTORE_MODE" != DEFAULT ]; then
+	if [ -n "$RESTORE_MODE" ]; then
 		# can't specify two different modes
 		usage
 		exit 1
@@ -356,7 +357,7 @@ while getopts "N:BC:FfR:l:v" i; do
     case "$i" in
 	B)
 		BOOTTIME=`/bin/who -b | awk '{print $3}'`
-		set_restore_mode BOOTTIME
+		set_restore_mode DEFAULT
 		;;
 	N)
 		BOOTTIME=$OPTARG
