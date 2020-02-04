@@ -107,10 +107,8 @@ hidden_proto(selinux_trans_to_raw_context);
 hidden_proto(security_get_initial_context);
 hidden_proto(security_get_initial_context_raw);
 hidden_proto(selinux_reset_config);
+hidden_proto(selinux_flush_class_cache);
 
-hidden void flush_class_cache(void);
-
-extern int load_setlocaldefs hidden;
 extern int require_seusers hidden;
 extern int selinux_page_size hidden;
 

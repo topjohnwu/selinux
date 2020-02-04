@@ -19,7 +19,7 @@ class selinux_server(slip.dbus.service.Object):
 
     #
     # The semanage method runs a transaction on a series of semanage commands,
-    # these commnds can take the output of customized
+    # these commands can take the output of customized
     #
     @slip.dbus.polkit.require_auth("org.selinux.semanage")
     @dbus.service.method("org.selinux", in_signature='s')
@@ -85,7 +85,10 @@ class selinux_server(slip.dbus.service.Object):
             fd = open("/.autorelabel", "w")
             fd.close()
         else:
-            os.unlink("/.autorelabel")
+            try:
+                os.unlink("/.autorelabel")
+            except FileNotFoundError:
+                pass
 
     def write_selinux_config(self, enforcing=None, policy=None):
         path = selinux.selinux_path() + "config"

@@ -21,6 +21,15 @@
 
 #include "test_semanage_store.h"
 #include "test_utilities.h"
+#include "test_handle.h"
+#include "test_bool.h"
+#include "test_fcontext.h"
+#include "test_iface.h"
+#include "test_ibendport.h"
+#include "test_node.h"
+#include "test_port.h"
+#include "test_user.h"
+#include "test_other.h"
 
 #include <CUnit/Basic.h>
 #include <CUnit/Console.h>
@@ -59,6 +68,15 @@ static bool do_tests(int interactive, int verbose)
 
 	DECLARE_SUITE(semanage_store);
 	DECLARE_SUITE(semanage_utilities);
+	DECLARE_SUITE(handle);
+	DECLARE_SUITE(bool);
+	DECLARE_SUITE(fcontext);
+	DECLARE_SUITE(iface);
+	DECLARE_SUITE(ibendport);
+	DECLARE_SUITE(node);
+	DECLARE_SUITE(port);
+	DECLARE_SUITE(user);
+	DECLARE_SUITE(other);
 
 	if (verbose)
 		CU_basic_set_mode(CU_BRM_VERBOSE);

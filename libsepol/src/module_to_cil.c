@@ -54,6 +54,7 @@
 
 #include "kernel_to_common.h"
 #include "private.h"
+#include "module_internal.h"
 
 #ifdef __GNUC__
 #  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
@@ -1322,7 +1323,7 @@ static int cond_expr_to_cil(int indent, struct policydb *pdb, struct cond_expr *
 
 			// length = length of parameters +
 			//          length of operator +
-			//          1 space preceeding each parameter +
+			//          1 space preceding each parameter +
 			//          2 parens around the whole expression
 			//          + null terminator
 			len = strlen(val1) + strlen(val2) + strlen(op) + (num_params * 1) + 2 + 1;
@@ -1852,7 +1853,7 @@ static int constraint_expr_to_string(struct policydb *pdb, struct constraint_exp
 
 			// length = length of parameters +
 			//          length of operator +
-			//          1 space preceeding each parameter +
+			//          1 space preceding each parameter +
 			//          2 parens around the whole expression
 			//          + null terminator
 			len = strlen(val1) + strlen(val2) + strlen(op) + (num_params * 1) + 2 + 1;
@@ -2032,6 +2033,7 @@ static int class_to_cil(int indent, struct policydb *pdb, struct avrule_block *U
 		case DEFAULT_TARGET_LOW:		dflt = "target low";	break;
 		case DEFAULT_TARGET_HIGH:		dflt = "target high";	break;
 		case DEFAULT_TARGET_LOW_HIGH:	dflt = "target low-high";	break;
+		case DEFAULT_GLBLUB:		dflt = "glblub";		break;
 		default:
 			log_err("Unknown default range value: %i", class->default_range);
 			rc = -1;

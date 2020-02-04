@@ -73,9 +73,6 @@ usage_interface_dict = {' --add': ('-t TYPE', '-r RANGE', 'interface'), ' --modi
 usage_boolean = "semanage boolean [-h] [-n] [-N] [-S STORE] ["
 usage_boolean_dict = {' --modify': ('(', '--on', '|', '--off', ')', 'boolean'), ' --list': ('-C',), '  --extract': ('',), ' --deleteall': ('',)}
 
-
-
-
 class CheckRole(argparse.Action):
 
     def __call__(self, parser, namespace, value, option_string=None):
@@ -237,7 +234,7 @@ def parser_add_level(parser, name):
 
 
 def parser_add_range(parser, name):
-    parser.add_argument('-r', '--range', default="s0",
+    parser.add_argument('-r', '--range', default='',
                         help=_('''
 MLS/MCS Security Range (MLS/MCS Systems only)
 SELinux Range  for SELinux login mapping
@@ -248,7 +245,7 @@ SELinux Range for SELinux user defaults to s0.
 
 def parser_add_proto(parser, name):
     parser.add_argument('-p', '--proto', help=_('''
-    Protocol  for  the specified port (tcp|udp) or internet protocol
+    Protocol  for  the specified port (tcp|udp|dccp|sctp) or internet protocol
     version for the specified node (ipv4|ipv6).
 '''))
 
@@ -737,6 +734,11 @@ def handlePermissive(args):
 
     if args.action == "list":
         OBJECT.list(args.noheading)
+    elif args.action == "deleteall":
+        OBJECT.deleteall()
+    elif args.action == "extract":
+        for i in OBJECT.customized():
+            print("permissive %s" % str(i))
     elif args.type is not None:
         if args.action == "add":
             OBJECT.add(args.type)
@@ -752,9 +754,9 @@ def setupPermissiveParser(subparsers):
     pgroup = permissiveParser.add_mutually_exclusive_group(required=True)
     parser_add_add(pgroup, "permissive")
     parser_add_delete(pgroup, "permissive")
+    parser_add_deleteall(pgroup, "permissive")
+    parser_add_extract(pgroup, "permissive")
     parser_add_list(pgroup, "permissive")
-    #TODO: probably should be also added => need to implement own option handling
-    #parser_add_deleteall(pgroup)
 
     parser_add_noheading(permissiveParser, "permissive")
     parser_add_noreload(permissiveParser, "permissive")
@@ -778,7 +780,7 @@ def setupDontauditParser(subparsers):
 
 
 def handleExport(args):
-    manageditems = ["boolean", "login", "interface", "user", "port", "node", "fcontext", "module", "ibendport", "ibpkey"]
+    manageditems = ["boolean", "login", "interface", "user", "port", "node", "fcontext", "module", "ibendport", "ibpkey", "permissive"]
     for i in manageditems:
         print("%s -D" % i)
     for i in manageditems:
@@ -906,7 +908,7 @@ def createCommandParser():
 
 
 def make_io_args(args):
-    # import/export backward compability
+    # import/export backward compatibility
     args_origin = ["-S", "-o", "-i", "targeted", "minimum", "mls"]
     args_file = []
     args_ie = []
