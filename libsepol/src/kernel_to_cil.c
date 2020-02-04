@@ -108,10 +108,12 @@ static char *cond_expr_to_str(struct policydb *pdb, struct cond_expr *expr)
 	return str;
 
 exit:
-	while ((new_val = strs_stack_pop(stack)) != NULL) {
-		free(new_val);
+	if (stack) {
+		while ((new_val = strs_stack_pop(stack)) != NULL) {
+			free(new_val);
+		}
+		strs_stack_destroy(&stack);
 	}
-	strs_stack_destroy(&stack);
 
 	return NULL;
 }
@@ -251,10 +253,12 @@ static char *constraint_expr_to_str(struct policydb *pdb, struct constraint_expr
 	return str;
 
 exit:
-	while ((new_val = strs_stack_pop(stack)) != NULL) {
-		free(new_val);
+	if (stack) {
+		while ((new_val = strs_stack_pop(stack)) != NULL) {
+			free(new_val);
+		}
+		strs_stack_destroy(&stack);
 	}
-	strs_stack_destroy(&stack);
 
 	return NULL;
 }
@@ -697,6 +701,9 @@ static int write_default_range_to_cil(FILE *out, char *class_name, class_datum_t
 		break;
 	case DEFAULT_TARGET_LOW_HIGH:
 		dft = "target low-high";
+		break;
+	case DEFAULT_GLBLUB:
+		dft = "glblub";
 		break;
 	default:
 		sepol_log_err("Unknown default type value: %i", class->default_range);

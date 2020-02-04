@@ -134,12 +134,12 @@ static const secolor_t *find_color(int idx, const char *component,
 	}
 
 	while (ptr) {
-		if (fnmatch(ptr->pattern, component, 0) == 0) {
-			if (idx == COLOR_RANGE) {
-			    if (check_dominance(ptr->pattern, raw) == 0)
-					return &ptr->color;
-			} else 
-				return &ptr->color;
+		if (idx == COLOR_RANGE) {
+		    if (check_dominance(ptr->pattern, raw) == 0)
+			return &ptr->color;
+		} else {
+		    if (fnmatch(ptr->pattern, component, 0) == 0)
+			return &ptr->color;
 		}
 		ptr = ptr->next;
 	}
@@ -211,7 +211,7 @@ static int add_mnemonic(const char *name, uint32_t color)
 
 
 /* Process line from color file.
-   May modify the data pointed to by the buffer paremeter */
+   May modify the data pointed to by the buffer parameter */
 static int process_color(char *buffer, int line) {
 	char rule[10], pat[256], f[256], b[256];
 	uint32_t i, fg, bg;

@@ -112,7 +112,7 @@ static __attribute__((__noreturn__)) void usage(const char *progname)
 {
 	printf
 	    ("usage:  %s [-b[F]] [-C] [-d] [-U handle_unknown (allow,deny,reject)] [-M] "
-	     "[-c policyvers (%d-%d)] [-o output_file] [-S] "
+	     "[-c policyvers (%d-%d)] [-o output_file|-] [-S] "
 	     "[-t target_platform (selinux,xen)] [-V] [input_file]\n",
 	     progname, POLICYDB_VERSION_MIN, POLICYDB_VERSION_MAX);
 	exit(1);
@@ -390,11 +390,12 @@ int main(int argc, char **argv)
 	struct sepol_av_decision avd;
 	class_datum_t *cladatum;
 	const char *file = txtfile;
-	char ans[80 + 1], *outfile = NULL, *path, *fstype;
+	char ans[80 + 1], *path, *fstype;
+	const char *outfile = NULL;
 	size_t scontext_len, pathlen;
 	unsigned int i;
 	unsigned int protocol, port;
-	unsigned int binary = 0, debug = 0, sort = 0, cil = 0, conf = 0;
+	unsigned int binary = 0, debug = 0, sort = 0, cil = 0, conf = 0, optimize = 0;
 	struct val_to_name v;
 	int ret, ch, fd, target = SEPOL_TARGET_SELINUX;
 	unsigned int nel, uret;
@@ -419,11 +420,12 @@ int main(int argc, char **argv)
 		{"cil", no_argument, NULL, 'C'},
 		{"conf",no_argument, NULL, 'F'},
 		{"sort", no_argument, NULL, 'S'},
+		{"optimize", no_argument, NULL, 'O'},
 		{"help", no_argument, NULL, 'h'},
 		{NULL, 0, NULL, 0}
 	};
 
-	while ((ch = getopt_long(argc, argv, "o:t:dbU:MCFSVc:h", long_options, NULL)) != -1) {
+	while ((ch = getopt_long(argc, argv, "o:t:dbU:MCFSVc:Oh", long_options, NULL)) != -1) {
 		switch (ch) {
 		case 'o':
 			outfile = optarg;
@@ -465,6 +467,9 @@ int main(int argc, char **argv)
 			usage(argv[0]);
 		case 'S':
 			sort = 1;
+			break;
+		case 'O':
+			optimize = 1;
 			break;
 		case 'M':
 			mlspol = 1;
@@ -625,11 +630,24 @@ int main(int argc, char **argv)
 	if (policydb_load_isids(&policydb, &sidtab))
 		exit(1);
 
-	if (outfile) {
-		outfp = fopen(outfile, "w");
-		if (!outfp) {
-			perror(outfile);
+	if (optimize && policydbp->policy_type == POLICY_KERN) {
+		ret = policydb_optimize(policydbp);
+		if (ret) {
+			fprintf(stderr, "%s:  error optimizing policy\n", argv[0]);
 			exit(1);
+		}
+	}
+
+	if (outfile) {
+		if (!strcmp(outfile, "-")) {
+			outfp = stdout;
+			outfile = "<STDOUT>";
+		} else {
+			outfp = fopen(outfile, "w");
+			if (!outfp) {
+				perror(outfile);
+				exit(1);
+			}
 		}
 
 		policydb.policyvers = policyvers;
@@ -670,7 +688,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if (outfile) {
+		if (outfp != stdout) {
 			fclose(outfp);
 		}
 	} else if (cil) {
