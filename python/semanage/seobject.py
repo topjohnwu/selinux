@@ -380,7 +380,7 @@ class moduleRecords(semanageRecords):
     def customized(self):
         all = self.get_all()
         if len(all) == 0:
-            return
+            return []
         return ["-d %s" % x[0] for x in [t for t in all if t[1] == 0]]
 
     def list(self, heading=1, locallist=0):
@@ -477,6 +477,9 @@ class permissiveRecords(semanageRecords):
             if name and name.startswith("permissive_"):
                 l.append(name.split("permissive_")[1])
         return l
+
+    def customized(self):
+        return ["-a %s" % x for x in sorted(self.get_all())]
 
     def list(self, heading=1, locallist=0):
         all = [y["name"] for y in [x for x in sepolicy.info(sepolicy.TYPE) if x["permissive"]]]
@@ -1055,17 +1058,23 @@ class portRecords(semanageRecords):
             pass
 
     def __genkey(self, port, proto):
-        if proto == "tcp":
-            proto_d = SEMANAGE_PROTO_TCP
+        protocols = {"tcp": SEMANAGE_PROTO_TCP,
+                     "udp": SEMANAGE_PROTO_UDP,
+                     "sctp": SEMANAGE_PROTO_SCTP,
+                     "dccp": SEMANAGE_PROTO_DCCP}
+
+        if proto in protocols.keys():
+            proto_d = protocols[proto]
         else:
-            if proto == "udp":
-                proto_d = SEMANAGE_PROTO_UDP
-            else:
-                raise ValueError(_("Protocol udp or tcp is required"))
+            raise ValueError(_("Protocol has to be one of udp, tcp, dccp or sctp"))
         if port == "":
             raise ValueError(_("Port is required"))
 
-        ports = port.split("-")
+        if isinstance(port, str):
+            ports = port.split('-', 1)
+        else:
+            ports = (port,)
+
         if len(ports) == 1:
             high = low = int(ports[0])
         else:
@@ -1849,7 +1858,7 @@ class nodeRecords(semanageRecords):
         if addr == "":
             raise ValueError(_("Node Address is required"))
 
-        # verify valid comination
+        # verify valid combination
         if len(mask) == 0 or mask[0] == "/":
             i = IP(addr + mask)
             newaddr = i.strNormal(0)

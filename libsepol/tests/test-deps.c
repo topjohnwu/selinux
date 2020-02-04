@@ -66,6 +66,8 @@
 #include <sepol/debug.h>
 #include <sepol/handle.h>
 
+#include "helpers.h"
+
 #define BASE_MODREQ_TYPE_GLOBAL    0
 #define BASE_MODREQ_ATTR_GLOBAL    1
 #define BASE_MODREQ_OBJ_GLOBAL     2
@@ -126,7 +128,7 @@ int deps_test_cleanup(void)
  * symbols. It is capable of testing 2 scenarios - the dependencies are met
  * and the dependencies are not met.
  *
- * Paramaters:
+ * Parameters:
  *  req_met            boolean indicating whether the base policy meets the
  *                       requirements for the modules global block.
  *  b                  index of the base policy in the global bases_met array.
@@ -209,7 +211,7 @@ static void deps_modreq_global(void)
  * symbols. It is capable of testing 2 scenarios - the dependencies are met
  * and the dependencies are not met.
  *
- * Paramaters:
+ * Parameters:
  *  req_met            boolean indicating whether the base policy meets the
  *                       requirements for the modules global block.
  *  b                  index of the base policy in the global bases_met array.

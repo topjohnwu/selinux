@@ -258,7 +258,7 @@ extern int security_compute_user_raw(const char * scon,
 /* Validate a transition. This determines whether a transition from scon to newcon
    using tcon as the target for object class tclass is valid in the loaded policy.
    This checks against the mlsvalidatetrans and validatetrans constraints in the loaded policy.
-   Returns 0 if allowed and -1 if an error occured with errno set */
+   Returns 0 if allowed and -1 if an error occurred with errno set */
 extern int security_validatetrans(const char *scon,
 				  const char *tcon,
 				  security_class_t tclass,
@@ -286,11 +286,7 @@ extern int security_get_initial_context_raw(const char *name,
  * manipulating it as needed for current boolean settings and/or local 
  * definitions, and then calling security_load_policy to load it.
  *
- * 'preservebools' is a boolean flag indicating whether current 
- * policy boolean values should be preserved into the new policy (if 1) 
- * or reset to the saved policy settings (if 0).  The former case is the
- * default for policy reloads, while the latter case is an option for policy
- * reloads but is primarily for the initial policy load.
+ * 'preservebools' is no longer supported, set to 0.
  */
 extern int selinux_mkload_policy(int preservebools);
 
@@ -316,13 +312,15 @@ typedef struct {
 	char *name;
 	int value;
 } SELboolean;
-/* save a list of booleans in a single transaction.  */
+/* save a list of booleans in a single transaction. 'permanent' is no
+ * longer supported, set to 0.
+ */
 extern int security_set_boolean_list(size_t boolcnt,
 				     SELboolean * boollist, int permanent);
 
-/* Load policy boolean settings.
-   Path may be NULL, in which case the booleans are loaded from
-   the active policy boolean configuration file. */
+/* Load policy boolean settings. Deprecated as local policy booleans no
+ * longer supported. Will always return 0.
+ */
 extern int security_load_booleans(char *path);
 
 /* Check the validity of a security context. */
@@ -419,6 +417,9 @@ extern int security_av_string(security_class_t tclass,
 
 /* Display an access vector in a string representation. */
 extern void print_access_vector(security_class_t tclass, access_vector_t av);
+
+/* Flush the SELinux class cache, e.g. upon a policy reload. */
+extern void selinux_flush_class_cache(void);
 
 /* Set the function used by matchpathcon_init when displaying
    errors about the file_contexts configuration.  If not set,
@@ -569,8 +570,10 @@ extern const char *selinux_systemd_contexts_path(void);
 extern const char *selinux_contexts_path(void);
 extern const char *selinux_securetty_types_path(void);
 extern const char *selinux_booleans_subs_path(void);
+/* Deprecated as local policy booleans no longer supported. */
 extern const char *selinux_booleans_path(void);
 extern const char *selinux_customizable_types_path(void);
+/* Deprecated as policy ./users no longer supported. */
 extern const char *selinux_users_path(void);
 extern const char *selinux_usersconf_path(void);
 extern const char *selinux_translations_path(void);
@@ -610,13 +613,13 @@ extern int selinux_check_securetty_context(const char * tty_context);
    Normally, this is determined automatically during libselinux 
    initialization, but this is not always possible, e.g. for /sbin/init
    which performs the initial mount of selinuxfs. */
-void set_selinuxmnt(const char *mnt);
+extern void set_selinuxmnt(const char *mnt);
 
 /* Check if selinuxfs exists as a kernel filesystem */
-int selinuxfs_exists(void);
+extern int selinuxfs_exists(void);
 
 /* clear selinuxmnt variable and free allocated memory */
-void fini_selinuxmnt(void);
+extern void fini_selinuxmnt(void);
 
 /* Set an appropriate security context based on the filename of a helper
  * program, falling back to a new context with the specified type. */
