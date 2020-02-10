@@ -791,6 +791,8 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 
 #define POLICYDB_CONFIG_UNKNOWN_MASK	(DENY_UNKNOWN | REJECT_UNKNOWN | ALLOW_UNKNOWN)
 
+#define POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE  1 << 31;
+
 #define OBJECT_R "object_r"
 #define OBJECT_R_VAL 1
 
