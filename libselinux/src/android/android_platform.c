@@ -955,64 +955,6 @@ oom:
 	return -2;
 }
 
-int selinux_android_setfilecon(const char *pkgdir,
-				const char *pkgname,
-				const char *seinfo,
-				uid_t uid)
-{
-	char *orig_ctx_str = NULL;
-	char *ctx_str = NULL;
-	context_t ctx = NULL;
-	int rc = -1;
-
-	if (is_selinux_enabled() <= 0)
-		return 0;
-
-	rc = getfilecon(pkgdir, &ctx_str);
-	if (rc < 0)
-		goto err;
-
-	ctx = context_new(ctx_str);
-	orig_ctx_str = ctx_str;
-	if (!ctx)
-		goto oom;
-
-	rc = seapp_context_lookup(SEAPP_TYPE, uid, 0, seinfo, pkgname, NULL, ctx);
-	if (rc == -1)
-		goto err;
-	else if (rc == -2)
-		goto oom;
-
-	ctx_str = context_str(ctx);
-	if (!ctx_str)
-		goto oom;
-
-	rc = security_check_context(ctx_str);
-	if (rc < 0)
-		goto err;
-
-	if (strcmp(ctx_str, orig_ctx_str)) {
-		rc = setfilecon(pkgdir, ctx_str);
-		if (rc < 0)
-			goto err;
-	}
-
-	rc = 0;
-out:
-	freecon(orig_ctx_str);
-	context_free(ctx);
-	return rc;
-err:
-	selinux_log(SELINUX_ERROR, "%s:  Error setting context for pkgdir %s, uid %d: %s\n",
-		    __FUNCTION__, pkgdir, uid, strerror(errno));
-	rc = -1;
-	goto out;
-oom:
-	selinux_log(SELINUX_ERROR, "%s:  Out of memory\n", __FUNCTION__);
-	rc = -1;
-	goto out;
-}
-
 int selinux_android_setcon(const char *con)
 {
 	int ret = setcon(con);
