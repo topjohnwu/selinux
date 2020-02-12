@@ -32,11 +32,6 @@ extern int selinux_android_setcontext(uid_t uid,
 				      const char *seinfo,
 				      const char *name);
 
-extern int selinux_android_setfilecon(const char *pkgdir,
-				       const char *pkgname,
-				       const char *seinfo,
-				       uid_t uid);
-
 extern int selinux_log_callback(int type, const char *fmt, ...)
     __attribute__ ((format(printf, 2, 3)));
 
