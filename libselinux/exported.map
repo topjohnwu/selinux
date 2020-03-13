@@ -1,4 +1,4 @@
-{
+LIBSELINUX_R {
   global:
     fgetfilecon;
     fgetfilecon_raw;
