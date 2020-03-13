@@ -207,6 +207,11 @@ cc_library {
     shared: {
         shared_libs: ["libpcre2"],
     },
+
+    stubs: {
+        symbol_file: "exported.map",
+        versions: ["30"],
+    },
 }
 
 cc_binary_host {
