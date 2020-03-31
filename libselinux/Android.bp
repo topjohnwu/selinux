@@ -100,11 +100,6 @@ cc_library {
     name: "libselinux",
     defaults: ["libselinux_defaults"],
 
-    vendor_available: true,
-    vndk: {
-        enabled: true,
-    },
-    double_loadable: true,
     recovery_available: true,
 
     host_supported: true,
@@ -212,6 +207,12 @@ cc_library {
         symbol_file: "exported.map",
         versions: ["30"],
     },
+}
+
+llndk_library {
+    name: "libselinux",
+    export_include_dirs: ["include"],
+    symbol_file: "exported.map",
 }
 
 cc_binary_host {
