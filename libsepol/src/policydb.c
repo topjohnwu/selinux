@@ -1179,7 +1179,7 @@ int policydb_index_bools(policydb_t * p)
 	return 0;
 }
 
-static int policydb_index_decls(sepol_handle_t * handle, policydb_t * p)
+int policydb_index_decls(sepol_handle_t * handle, policydb_t * p)
 {
 	avrule_block_t *curblock;
 	avrule_decl_t *decl;
