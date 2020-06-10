@@ -17,6 +17,7 @@
     selinux_android_service_context_handle;
     selinux_android_hw_service_context_handle;
     selinux_android_vendor_service_context_handle;
+    selinux_android_keystore2_key_context_handle;
     selinux_check_access;
     security_getenforce;
     security_setenforce;
