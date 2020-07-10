@@ -49,3 +49,7 @@ LIBSELINUX_R {
     string_to_security_class;
   local: *;
 };
+
+LIBSELINUX_S { # introduced=S
+    selinux_android_context_with_level;
+};
