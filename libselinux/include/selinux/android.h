@@ -32,6 +32,11 @@ extern int selinux_android_setcontext(uid_t uid,
 				      const char *seinfo,
 				      const char *name);
 
+extern int selinux_android_context_with_level(const char * context,
+					      char ** newContext,
+					      uid_t userid,
+					      uid_t appid);
+
 extern int selinux_log_callback(int type, const char *fmt, ...)
     __attribute__ ((format(printf, 2, 3)));
 
