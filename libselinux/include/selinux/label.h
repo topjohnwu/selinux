@@ -37,6 +37,8 @@ struct selabel_handle;
 #define SELABEL_CTX_ANDROID_PROP 4
 /* Android service contexts */
 #define SELABEL_CTX_ANDROID_SERVICE 5
+/* Android keystore key contexts */
+#define SELABEL_CTX_ANDROID_KEYSTORE2_KEY 6
 
 /*
  * Available options
