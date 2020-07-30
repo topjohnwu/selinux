@@ -19,6 +19,8 @@ extern struct selabel_handle* selinux_android_hw_service_context_handle(void);
 
 extern struct selabel_handle* selinux_android_vendor_service_context_handle(void);
 
+extern struct selabel_handle* selinux_android_keystore2_key_context_handle(void);
+
 extern void selinux_android_set_sehandle(const struct selabel_handle *hndl);
 
 extern int selinux_android_load_policy(void);

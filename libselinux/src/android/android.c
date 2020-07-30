@@ -60,6 +60,23 @@ static const struct selinux_opt seopts_vndservice =
 static const struct selinux_opt seopts_vndservice_rootfs =
     { SELABEL_OPT_PATH, "/vndservice_contexts" };
 
+static const struct selinux_opt seopts_keystore2_key_plat[] = {
+    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_keystore2_key_contexts" },
+    { SELABEL_OPT_PATH, "/plat_keystore2_key_contexts" }
+};
+static const struct selinux_opt seopts_keystore2_key_system_ext[] = {
+    { SELABEL_OPT_PATH, "/system_ext/etc/selinux/system_ext_keystore2_key_contexts" },
+    { SELABEL_OPT_PATH, "/system_ext_keystore2_key_contexts" }
+};
+static const struct selinux_opt seopts_keystore2_key_product[] = {
+    { SELABEL_OPT_PATH, "/product/etc/selinux/product_keystore2_key_contexts" },
+    { SELABEL_OPT_PATH, "/product_keystore2_key_contexts" }
+};
+static const struct selinux_opt seopts_keystore2_key_vendor[] = {
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_keystore2_key_contexts" },
+    { SELABEL_OPT_PATH, "/vendor_keystore2_key_contexts" },
+};
+
 struct selabel_handle* selinux_android_service_open_context_handle(const struct selinux_opt* seopts_service,
                                                                    unsigned nopts)
 {
@@ -74,6 +91,26 @@ struct selabel_handle* selinux_android_service_open_context_handle(const struct 
         return NULL;
     }
     selinux_log(SELINUX_INFO, "SELinux: Loaded service_contexts from:\n");
+    for (unsigned i = 0; i < nopts; i++) {
+        selinux_log(SELINUX_INFO, "    %s\n", seopts_service[i].value);
+    }
+    return sehandle;
+}
+
+struct selabel_handle* selinux_android_keystore2_key_open_context_handle(const struct selinux_opt* seopts_service,
+                                                                   unsigned nopts)
+{
+    struct selabel_handle* sehandle;
+
+    sehandle = selabel_open(SELABEL_CTX_ANDROID_KEYSTORE2_KEY,
+            seopts_service, nopts);
+
+    if (!sehandle) {
+        selinux_log(SELINUX_ERROR, "%s: Error getting keystore key context handle (%s)\n",
+                __FUNCTION__, strerror(errno));
+        return NULL;
+    }
+    selinux_log(SELINUX_INFO, "SELinux: Loaded keystore2_key_contexts from:\n");
     for (unsigned i = 0; i < nopts; i++) {
         selinux_log(SELINUX_INFO, "    %s\n", seopts_service[i].value);
     }
@@ -161,6 +198,39 @@ struct selabel_handle* selinux_android_vendor_service_context_handle(void)
     }
 
     return selinux_android_service_open_context_handle(seopts_service, 1);
+}
+
+struct selabel_handle* selinux_android_keystore2_key_context_handle(void)
+{
+    struct selinux_opt seopts_keystore2_key[MAX_FILE_CONTEXT_SIZE];
+    int size = 0;
+    unsigned int i;
+    for (i = 0; i < ARRAY_SIZE(seopts_keystore2_key_plat); i++) {
+        if (access(seopts_keystore2_key_plat[i].value, R_OK) != -1) {
+            seopts_keystore2_key[size++] = seopts_keystore2_key_plat[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_keystore2_key_system_ext); i++) {
+        if (access(seopts_keystore2_key_system_ext[i].value, R_OK) != -1) {
+            seopts_keystore2_key[size++] = seopts_keystore2_key_system_ext[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_keystore2_key_product); i++) {
+        if (access(seopts_keystore2_key_product[i].value, R_OK) != -1) {
+            seopts_keystore2_key[size++] = seopts_keystore2_key_product[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_keystore2_key_vendor); i++) {
+        if (access(seopts_keystore2_key_vendor[i].value, R_OK) != -1) {
+            seopts_keystore2_key[size++] = seopts_keystore2_key_vendor[i];
+            break;
+        }
+    }
+
+    return selinux_android_keystore2_key_open_context_handle(seopts_keystore2_key, size);
 }
 
 int selinux_log_callback(int type, const char *fmt, ...)
