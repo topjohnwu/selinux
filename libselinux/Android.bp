@@ -231,13 +231,14 @@ cc_binary_host {
 rust_bindgen {
     name: "libselinux_bindgen",
     wrapper_src: "rust/selinux.h",
-    stem: "bindings",
+    crate_name: "selinux_bindgen",
+    source_stem: "bindings",
     local_include_dirs: ["include"],
 
     // Generate bindings only for the symbols that are actually exported (see exported.map).
     // This makes the generated bindings much more concise and improves compilation
     // time.
-    flags: [
+    bindgen_flags: [
         "--whitelist-function fgetfilecon",
         "--whitelist-function fgetfilecon_raw",
         "--whitelist-function freecon",
