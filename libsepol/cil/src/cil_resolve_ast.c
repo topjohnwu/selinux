@@ -136,14 +136,18 @@ static int __cil_resolve_perms(symtab_t *class_symtab, symtab_t *common_symtab, 
 				}
 			}
 			if (rc != SEPOL_OK) {
+				struct cil_list *empty_list;
 				if (class_flavor == CIL_MAP_CLASS) {
 					cil_log(CIL_ERR, "Failed to resolve permission %s for map class\n", (char*)curr->data);
-				} else {
-					cil_log(CIL_ERR, "Failed to resolve permission %s\n", (char*)curr->data);
+					goto exit;
 				}
-				goto exit;
+				cil_log(CIL_WARN, "Failed to resolve permission %s\n", (char*)curr->data);
+				/* Use an empty list to represent unknown perm */
+				cil_list_init(&empty_list, perm_strs->flavor);
+				cil_list_append(*perm_datums, CIL_LIST, empty_list);
+			} else {
+				cil_list_append(*perm_datums, CIL_DATUM, perm_datum);
 			}
-			cil_list_append(*perm_datums, CIL_DATUM, perm_datum);
 		} else {
 			cil_list_append(*perm_datums, curr->flavor, curr->data);
 		}
