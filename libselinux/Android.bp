@@ -80,6 +80,8 @@ cc_defaults {
                 "liblog",
             ],
 
+            header_libs: ["libcutils_headers"],
+
             local_include_dirs: [ "src" ],
 
             // 1003 corresponds to auditd, from system/core/logd/event.logtags
