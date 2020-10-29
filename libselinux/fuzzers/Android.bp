@@ -34,3 +34,17 @@ cc_fuzz {
     srcs: ["ContextFuzzer.cpp"],
     host_supported: true,
 }
+
+cc_fuzz {
+    name: "libselinux_selabel_lookup_fuzzer",
+    defaults: ["libselinux_fuzzer_defaults"],
+    srcs: ["selabel_lookup_fuzzer.cpp"],
+    dictionary: "selabel_lookup_fuzzer.dict",
+}
+
+cc_fuzz {
+    name: "libselinux_selinux_check_access_fuzzer",
+    defaults: ["libselinux_fuzzer_defaults"],
+    srcs: ["selinux_check_access_fuzzer.cpp"],
+    dictionary: "selinux_check_access_fuzzer.dict",
+}
