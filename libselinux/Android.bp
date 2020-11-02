@@ -104,6 +104,8 @@ cc_library {
 
     llndk_stubs: "libselinux.llndk",
 
+    ramdisk_available: true,
+    vendor_ramdisk_available: true,
     recovery_available: true,
 
     host_supported: true,
