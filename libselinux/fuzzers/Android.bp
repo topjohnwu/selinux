@@ -19,7 +19,10 @@ cc_defaults {
     cflags: [
         "-Wall",
     ],
-    static_libs: ["libselinux"],
+    static_libs: [
+        "liblog",
+        "libselinux",
+    ],
 }
 
 cc_fuzz {
@@ -47,4 +50,11 @@ cc_fuzz {
     defaults: ["libselinux_fuzzer_defaults"],
     srcs: ["selinux_check_access_fuzzer.cpp"],
     dictionary: "selinux_check_access_fuzzer.dict",
+}
+
+cc_fuzz {
+    name: "libselinux_selinux_android_restorecon_fuzzer",
+    defaults: ["libselinux_fuzzer_defaults"],
+    srcs: ["selinux_android_restorecon_fuzzer.cpp"],
+    dictionary: "selinux_android_restorecon_fuzzer.dict",
 }
