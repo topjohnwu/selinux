@@ -58,3 +58,31 @@ cc_fuzz {
     srcs: ["selinux_android_restorecon_fuzzer.cpp"],
     dictionary: "selinux_android_restorecon_fuzzer.dict",
 }
+
+cc_fuzz {
+    name: "libselinux_selinux_android_setcon_fuzzer",
+    defaults: ["libselinux_fuzzer_defaults"],
+    srcs: ["selinux_android_setcon_fuzzer.cpp"],
+    dictionary: "selinux_android_setcon_fuzzer.dict",
+}
+
+cc_fuzz {
+    name: "libselinux_setfilecon_fuzzer",
+    defaults: ["libselinux_fuzzer_defaults"],
+    srcs: ["setfilecon_fuzzer.cpp"],
+    dictionary: "setfilecon_fuzzer.dict",
+}
+
+cc_fuzz {
+    name: "libselinux_lsetfilecon_fuzzer",
+    defaults: ["libselinux_fuzzer_defaults"],
+    srcs: ["lsetfilecon_fuzzer.cpp"],
+    dictionary: "lsetfilecon_fuzzer.dict",
+}
+
+cc_fuzz {
+    name: "libselinux_string_to_security_class_fuzzer",
+    defaults: ["libselinux_fuzzer_defaults"],
+    srcs: ["string_to_security_class_fuzzer.cpp"],
+    dictionary: "string_to_security_class_fuzzer.dict",
+}
