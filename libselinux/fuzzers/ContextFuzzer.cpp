@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
+#include <fuzzer/FuzzedDataProvider.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string>
 
 #include <selinux/context.h>
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, [[maybe_unused]] size_t size) {
-  context_t context = context_new((char*) data);
+  FuzzedDataProvider fdp(data, size);
+  std::string contextName = fdp.ConsumeRemainingBytesAsString();
+
+  context_t context = context_new(contextName.c_str());
   // According to docs, this should be safe to call with null pointer
   // (meaning even if previous call fails).
   context_free(context);
