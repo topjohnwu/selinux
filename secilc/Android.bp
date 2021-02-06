@@ -1,3 +1,20 @@
+package {
+    default_applicable_licenses: ["external_selinux_secilc_license"],
+}
+
+// Added automatically by a large-scale-change
+// http://go/android-license-faq
+license {
+    name: "external_selinux_secilc_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-BSD",
+    ],
+    license_text: [
+        "COPYING",
+    ],
+}
+
 common_CFLAGS = [
     "-Wall",
     "-Werror",
