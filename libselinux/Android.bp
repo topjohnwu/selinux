@@ -216,7 +216,7 @@ cc_library {
                 shared_libs: ["libpackagelistparser"],
             },
 
-            version_script: "exported.map",
+            version_script: "exported.map.txt",
         },
 
         vendor: {
@@ -241,7 +241,7 @@ cc_library {
     },
 
     stubs: {
-        symbol_file: "exported.map",
+        symbol_file: "exported.map.txt",
         versions: ["30"],
     },
 }
@@ -249,7 +249,7 @@ cc_library {
 llndk_library {
     name: "libselinux.llndk",
     export_include_dirs: ["include"],
-    symbol_file: "exported.map",
+    symbol_file: "exported.map.txt",
 }
 
 cc_binary_host {
@@ -272,7 +272,7 @@ rust_bindgen {
     source_stem: "bindings",
     local_include_dirs: ["include"],
 
-    // Generate bindings only for the symbols that are actually exported (see exported.map).
+    // Generate bindings only for the symbols that are actually exported (see exported.map.txt).
     // This makes the generated bindings much more concise and improves compilation
     // time.
     bindgen_flags: [
