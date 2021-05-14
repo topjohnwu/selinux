@@ -1179,9 +1179,9 @@ struct pkg_info *package_info_lookup(const char *name)
  * credentials are presented (filenames inside are mangled), so we need
  * to delay restorecon of those until vold explicitly requests it. */
 // NOTE: these paths need to be kept in sync with vold
-#define DATA_SYSTEM_CE_PREFIX "/data/system_ce/"
-#define DATA_VENDOR_CE_PREFIX "/data/vendor_ce/"
-#define DATA_MISC_CE_PREFIX "/data/misc_ce/"
+#define DATA_SYSTEM_CE_PREFIX "/data/system_ce"
+#define DATA_VENDOR_CE_PREFIX "/data/vendor_ce"
+#define DATA_MISC_CE_PREFIX "/data/misc_ce"
 
 /* The path prefixes of package data directories. */
 #define DATA_DATA_PATH "/data/data"
