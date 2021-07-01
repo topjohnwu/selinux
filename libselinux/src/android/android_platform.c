@@ -155,12 +155,9 @@ struct seapp_context {
 	bool isSystemServer;
 	bool isEphemeralAppSet;
 	bool isEphemeralApp;
-	bool isOwnerSet;
-	bool isOwner;
 	struct prefix_str user;
 	char *seinfo;
 	struct prefix_str name;
-	struct prefix_str path;
 	bool isPrivAppSet;
 	bool isPrivApp;
 	int32_t minTargetSdkVersion;
@@ -180,7 +177,6 @@ static void free_seapp_context(struct seapp_context *s)
 	free_prefix_str(&s->user);
 	free(s->seinfo);
 	free_prefix_str(&s->name);
-	free_prefix_str(&s->path);
 	free(s->domain);
 	free(s->type);
 	free(s->level);
@@ -203,10 +199,6 @@ static int seapp_context_cmp(const void *A, const void *B)
 	 * unspecified isEphemeral=. */
 	if (s1->isEphemeralAppSet != s2->isEphemeralAppSet)
 		return (s1->isEphemeralAppSet ? -1 : 1);
-
-	/* Give precedence to a specified isOwner= over an unspecified isOwner=. */
-	if (s1->isOwnerSet != s2->isOwnerSet)
-		return (s1->isOwnerSet ? -1 : 1);
 
 	/* Give precedence to a specified user= over an unspecified user=. */
 	if (s1->user.str && !s2->user.str)
@@ -246,22 +238,6 @@ static int seapp_context_cmp(const void *A, const void *B)
 			return (s1->name.len > s2->name.len) ? -1 : 1;
 	}
 
-	/* Give precedence to a specified path= over an unspecified path=. */
-	if (s1->path.str && !s2->path.str)
-		return -1;
-	if (!s1->path.str && s2->path.str)
-		return 1;
-
-	if (s1->path.str) {
-		/* Give precedence to a fixed path= string over a prefix. */
-		if (s1->path.is_prefix != s2->path.is_prefix)
-			return (s2->path.is_prefix ? -1 : 1);
-
-		/* Give precedence to a longer prefix over a shorter prefix. */
-		if (s1->path.is_prefix && s1->path.len != s2->path.len)
-			return (s1->path.len > s2->path.len) ? -1 : 1;
-	}
-
 	/* Give precedence to a specified isPrivApp= over an unspecified isPrivApp=. */
 	if (s1->isPrivAppSet != s2->isPrivAppSet)
 		return (s1->isPrivAppSet ? -1 : 1);
@@ -280,16 +256,14 @@ static int seapp_context_cmp(const void *A, const void *B)
 
 	/*
 	 * Check for a duplicated entry on the input selectors.
-	 * We already compared isSystemServer, isOwnerSet, and isOwner above.
+	 * We already compared isSystemServer above.
 	 * We also have already checked that both entries specify the same
 	 * string fields, so if s1 has a non-NULL string, then so does s2.
 	 */
 	dup = (!s1->user.str || !strcmp(s1->user.str, s2->user.str)) &&
 		(!s1->seinfo || !strcmp(s1->seinfo, s2->seinfo)) &&
 		(!s1->name.str || !strcmp(s1->name.str, s2->name.str)) &&
-		(!s1->path.str || !strcmp(s1->path.str, s2->path.str)) &&
 		(s1->isPrivAppSet && s1->isPrivApp == s2->isPrivApp) &&
-		(s1->isOwnerSet && s1->isOwner == s2->isOwner) &&
 		(s1->isSystemServer && s1->isSystemServer == s2->isSystemServer) &&
 		(s1->isEphemeralAppSet && s1->isEphemeralApp == s2->isEphemeralApp);
 
@@ -302,8 +276,6 @@ static int seapp_context_cmp(const void *A, const void *B)
 			selinux_log(SELINUX_ERROR, " seinfo=%s\n", s1->seinfo);
 		if (s1->name.str)
 			selinux_log(SELINUX_ERROR, " name=%s\n", s1->name.str);
-		if (s1->path.str)
-			selinux_log(SELINUX_ERROR, " path=%s\n", s1->path.str);
 	}
 
 	/* Anything else has equal precedence. */
@@ -469,16 +441,6 @@ int selinux_android_seapp_context_reload(void)
 						free_seapp_context(cur);
 						goto err;
 					}
-				} else if (!strcasecmp(name, "isOwner")) {
-					cur->isOwnerSet = true;
-					if (!strcasecmp(value, "true"))
-						cur->isOwner = true;
-					else if (!strcasecmp(value, "false"))
-						cur->isOwner = false;
-					else {
-						free_seapp_context(cur);
-						goto err;
-					}
 				} else if (!strcasecmp(name, "user")) {
 					if (cur->user.str) {
 						free_seapp_context(cur);
@@ -579,19 +541,6 @@ int selinux_android_seapp_context_reload(void)
 						free_seapp_context(cur);
 						goto oom;
 					}
-				} else if (!strcasecmp(name, "path")) {
-					if (cur->path.str) {
-						free_seapp_context(cur);
-						goto err;
-					}
-					cur->path.str = strdup(value);
-					if (!cur->path.str) {
-						free_seapp_context(cur);
-					goto oom;
-					}
-					cur->path.len = strlen(cur->path.str);
-					if (cur->path.str[cur->path.len-1] == '*')
-						cur->path.is_prefix = 1;
 				} else if (!strcasecmp(name, "isPrivApp")) {
 					cur->isPrivAppSet = true;
 					if (!strcasecmp(value, "true"))
@@ -654,14 +603,13 @@ int selinux_android_seapp_context_reload(void)
 		int i;
 		for (i = 0; i < nspec; i++) {
 			cur = seapp_contexts[i];
-			selinux_log(SELINUX_INFO, "%s:  isSystemServer=%s  isEphemeralApp=%s isOwner=%s user=%s seinfo=%s "
-					"name=%s path=%s isPrivApp=%s minTargetSdkVersion=%d fromRunAs=%s -> domain=%s type=%s level=%s levelFrom=%s",
+			selinux_log(SELINUX_INFO, "%s:  isSystemServer=%s  isEphemeralApp=%s user=%s seinfo=%s "
+					"name=%s isPrivApp=%s minTargetSdkVersion=%d fromRunAs=%s -> domain=%s type=%s level=%s levelFrom=%s",
 				__FUNCTION__,
 				cur->isSystemServer ? "true" : "false",
 				cur->isEphemeralAppSet ? (cur->isEphemeralApp ? "true" : "false") : "null",
-				cur->isOwnerSet ? (cur->isOwner ? "true" : "false") : "null",
 				cur->user.str,
-				cur->seinfo, cur->name.str, cur->path.str,
+				cur->seinfo, cur->name.str,
 				cur->isPrivAppSet ? (cur->isPrivApp ? "true" : "false") : "null",
 				cur->minTargetSdkVersion,
 				cur->fromRunAs ? "true" : "false",
@@ -798,11 +746,9 @@ static int seapp_context_lookup(enum seapp_kind kind,
 				bool isSystemServer,
 				const char *seinfo,
 				const char *pkgname,
-				const char *path,
 				context_t ctx)
 {
 	struct passwd *pwd;
-	bool isOwner;
 	const char *username = NULL;
 	struct seapp_context *cur = NULL;
 	int i;
@@ -833,7 +779,6 @@ static int seapp_context_lookup(enum seapp_kind kind,
 	}
 
 	userid = uid / AID_USER;
-	isOwner = (userid == 0);
 	appid = uid % AID_USER;
 	if (appid < AID_APP) {
             /*
@@ -867,9 +812,6 @@ static int seapp_context_lookup(enum seapp_kind kind,
 			continue;
 
 		if (cur->isEphemeralAppSet && cur->isEphemeralApp != isEphemeralApp)
-			continue;
-
-		if (cur->isOwnerSet && cur->isOwner != isOwner)
 			continue;
 
 		if (cur->user.str) {
@@ -908,19 +850,6 @@ static int seapp_context_lookup(enum seapp_kind kind,
 
 		if (cur->fromRunAs != fromRunAs)
 			continue;
-
-		if (cur->path.str) {
-			if (!path)
-				continue;
-
-			if (cur->path.is_prefix) {
-				if (strncmp(path, cur->path.str, cur->path.len-1))
-					continue;
-			} else {
-				if (strcmp(path, cur->path.str))
-					continue;
-			}
-		}
 
 		if (kind == SEAPP_TYPE && !cur->type)
 			continue;
@@ -1045,7 +974,7 @@ int selinux_android_setcontext(uid_t uid,
 	if (!ctx)
 		goto oom;
 
-	rc = seapp_context_lookup(SEAPP_DOMAIN, uid, isSystemServer, seinfo, pkgname, NULL, ctx);
+	rc = seapp_context_lookup(SEAPP_DOMAIN, uid, isSystemServer, seinfo, pkgname, ctx);
 	if (rc == -1)
 		goto err;
 	else if (rc == -2)
@@ -1272,7 +1201,7 @@ static int pkgdir_selabel_lookup(const char *pathname,
         goto err;
 
     rc = seapp_context_lookup(SEAPP_TYPE, info ? info->uid : uid, 0,
-                              info ? info->seinfo : seinfo, info ? info->name : pkgname, pathname, ctx);
+                              info ? info->seinfo : seinfo, info ? info->name : pkgname, ctx);
     if (rc < 0)
         goto err;
 
