@@ -998,7 +998,6 @@ int selinux_android_setcontext(uid_t uid,
 out:
 	freecon(orig_ctx_str);
 	context_free(ctx);
-	avc_netlink_close();
 	return rc;
 err:
 	if (isSystemServer)
