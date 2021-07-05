@@ -20,7 +20,6 @@
 #include <selinux/context.h>
 #include <selinux/android.h>
 #include <selinux/label.h>
-#include <selinux/avc.h>
 #ifndef __ANDROID_VNDK__
 #include <private/android_filesystem_config.h>
 #endif
