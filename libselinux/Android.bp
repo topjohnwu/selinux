@@ -330,3 +330,16 @@ rust_bindgen {
     // This is mainly to run layout tests for generated bindings on the host.
     host_supported: true,
 }
+
+rust_test {
+    name: "libselinux_bindgen_test",
+    srcs: [
+        "rust/bindings_tests.rs",
+        ":libselinux_bindgen",
+    ],
+    crate_name: "selinux_bindgen_test",
+    test_suites: ["general-tests"],
+    auto_gen_config: true,
+    clippy_lints: "none",
+    lints: "none",
+}
