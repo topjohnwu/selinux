@@ -334,7 +334,6 @@ rust_bindgen {
 rust_test {
     name: "libselinux_bindgen_test",
     srcs: [
-        "rust/bindings_tests.rs",
         ":libselinux_bindgen",
     ],
     crate_name: "selinux_bindgen_test",
