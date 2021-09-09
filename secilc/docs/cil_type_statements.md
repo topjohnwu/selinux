@@ -8,7 +8,9 @@ Declares a type identifier in the current namespace.
 
 **Statement definition:**
 
+```secil
     (type type_id)
+```
 
 **Where:**
 
@@ -33,9 +35,11 @@ Declares a type identifier in the current namespace.
 
 This example declares a type identifier `bluetooth.process`:
 
+```secil
     (block bluetooth
         (type process)
     )
+```
 
 typealias
 ---------
@@ -44,7 +48,9 @@ Declares a type alias in the current namespace.
 
 **Statement definition:**
 
+```secil
     (typealias typealias_id)
+```
 
 **Where:**
 
@@ -76,7 +82,9 @@ Associates a previously declared [`typealias`](cil_type_statements.md#typealias)
 
 **Statement definition:**
 
+```secil
     (typealiasactual typealias_id type_id)
+```
 
 **Where:**
 
@@ -105,12 +113,14 @@ Associates a previously declared [`typealias`](cil_type_statements.md#typealias)
 
 This example will alias `unconfined.process` as `unconfined_t` in the global namespace:
 
+```secil
     (typealias unconfined_t)
     (typealiasactual unconfined_t unconfined.process)
 
     (block unconfined
         (type process)
     )
+```
 
 typeattribute
 -------------
@@ -119,7 +129,9 @@ Declares a type attribute identifier in the current namespace. The identifier ma
 
 **Statement definition:**
 
+```secil
     (typeattribute typeattribute_id)
+```
 
 **Where:**
 
@@ -144,7 +156,9 @@ Declares a type attribute identifier in the current namespace. The identifier ma
 
 This example declares a type attribute `domain` in global namespace that will have an empty set:
 
+```secil
     (typeattribute domain)
+```
 
 typeattributeset
 ----------------
@@ -153,7 +167,9 @@ Allows the association of one or more previously declared [`type`](cil_type_stat
 
 **Statement definition:**
 
+```secil
     (typeattributeset typeattribute_id (type_id ... | expr ...))
+```
 
 **Where:**
 
@@ -192,12 +208,15 @@ Allows the association of one or more previously declared [`type`](cil_type_stat
 
 This example will take all the policy types and exclude those in `appdomain`. It is equivalent to `~appdomain` in the kernel policy language.
 
+```secil
     (typeattribute not_in_appdomain)
 
     (typeattributeset not_in_appdomain (not (appdomain)))
+```
 
 This example is equivalent to `{ domain -kernel.process -ueventd.process -init.process }` in the kernel policy language:
 
+```secil
     (typeattribute na_kernel_or_ueventd_or_init_in_domain)
 
     (typeattributeset na_kernel_or_ueventd_or_init_in_domain
@@ -212,6 +231,64 @@ This example is equivalent to `{ domain -kernel.process -ueventd.process -init.p
             (not (init.process))
         )
     )
+```
+
+expandtypeattribute
+-------------------
+
+Overrides the compiler defaults for the expansion of one or more
+previously declared [`typeattribute`](cil_type_statements.md#typeattribute)
+identifiers.
+
+This rule gives more control over type attribute expansion and
+removal. When the value is true, all rules involving the type
+attribute will be expanded and the type attribute will be removed from
+the policy. When the value is false, the type attribute will not be
+removed from the policy, even if the default expand rules or "-X"
+option cause the rules involving the type attribute to be expanded.
+
+**Statement definition:**
+
+```secil
+    (expandtypeattribute typeattribute_id expand_value)
+```
+
+**Where:**
+
+<table>
+<colgroup>
+<col width="25%" />
+<col width="75%" />
+</colgroup>
+<tbody>
+<tr class="odd">
+<td align="left"><p><code>expandtypeattribute</code></p></td>
+<td align="left"><p>The <code>expandtypeattribute</code> keyword.</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><code>typeattribute_id</code></p></td>
+<td align="left"><p>One or more previously declared <code>typeattribute</code> identifiers. Multiple entries consist of a space separated list enclosed in parentheses '()'.</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><code>expand_value</code></p></td>
+<td align="left"><p>Either true or false.</p></td>
+</tr>
+</tbody>
+</table>
+
+**Examples:**
+
+This example uses the expandtypeattribute statement to forcibly expand a previously declared `domain` type attribute.
+
+```secil
+    (expandtypeattribute domain true)
+```
+
+This example uses the expandtypeattribute statement to not expand previously declared `file_type` and `port_type` type attributes regardless of compiler defaults.
+
+```secil
+    (expandtypeattribute (file_type port_type) false)
+```
 
 typebounds
 ----------
@@ -222,7 +299,9 @@ Requires kernel 2.6.28 and above to control the security context associated to t
 
 **Statement definition:**
 
+```secil
     (typebounds parent_type_id child_type_id)
+```
 
 **Where:**
 
@@ -251,6 +330,7 @@ Requires kernel 2.6.28 and above to control the security context associated to t
 
 In this example the `httpd.child.process` cannot have `file (write)` due to lack of permissions on `httpd.process` which is the parent. It means the child domain will always have equal or less privileges than the parent:
 
+```secil
     (class file (getattr read write))
 
     (block httpd
@@ -269,6 +349,7 @@ In this example the `httpd.child.process` cannot have `file (write)` due to lack
             (allow process httpd.object (file (read write)))
         )
     )
+```
 
 typechange
 ----------
@@ -277,7 +358,9 @@ The type change rule is used to define a different label of an object for usersp
 
 **Statement definition:**
 
+```secil
     (typechange source_type_id target_type_id class_id change_type_id)
+```
 
 **Where:**
 
@@ -320,6 +403,7 @@ the function will return a context of:
 
 `    unconfined.object:object_r:unconfined.change_label:s0`
 
+```secil
     (class file (getattr read write))
 
     (block unconfined
@@ -329,6 +413,7 @@ the function will return a context of:
 
         (typechange object object file change_label)
     )
+```
 
 typemember
 ----------
@@ -337,7 +422,9 @@ The type member rule is used to define a new polyinstantiated label of an object
 
 **Statement definition:**
 
+```secil
     (typemember source_type_id target_type_id class_id member_type_id)
+```
 
 **Where:**
 
@@ -380,6 +467,7 @@ the function will return a context of:
 
 `    unconfined.object:object_r:unconfined.member_label:s0`
 
+```secil
     (class file (getattr read write))
 
     (block unconfined
@@ -389,6 +477,7 @@ the function will return a context of:
 
         (typemember object object file member_label)
     )
+```
 
 typetransition
 --------------
@@ -397,7 +486,9 @@ The type transition rule specifies the labeling and object creation allowed betw
 
 **Statement definition:**
 
+```secil
     (typetransition source_type_id target_type_id class_id [object_name] default_type_id)
+```
 
 **Where:**
 
@@ -438,29 +529,35 @@ The type transition rule specifies the labeling and object creation allowed betw
 
 This example shows a process transition rule with its supporting [`allow`](cil_access_vector_rules.md#allow) rule:
 
+```secil
     (macro domain_auto_trans ((type ARG1) (type ARG2) (type ARG3))
         ; Allow the necessary permissions.
         (call domain_trans (ARG1 ARG2 ARG3))
         ; Make the transition occur by default.
         (typetransition ARG1 ARG2 process ARG3)
     )
+```
 
 This example shows a file object transition rule with its supporting [`allow`](cil_access_vector_rules.md#allow) rule:
 
+```secil
     (macro tmpfs_domain ((type ARG1))
         (type tmpfs)
         (typeattributeset file_type (tmpfs))
         (typetransition ARG1 file.tmpfs file tmpfs)
         (allow ARG1 tmpfs (file (read write execute execmod)))
     )
+```
 
 This example shows the 'name transition' rule with its supporting [`allow`](cil_access_vector_rules.md#allow) rule:
 
+```secil
     (macro write_klog ((type ARG1))
         (typetransition ARG1 device.device chr_file "__kmsg__" device.klog_device)
         (allow ARG1 device.klog_device (chr_file (create open write unlink)))
         (allow ARG1 device.device (dir (write add_name remove_name)))
     )
+```
 
 typepermissive
 --------------
@@ -469,7 +566,9 @@ Policy database version 23 introduced the permissive statement to allow the name
 
 **Statement definition:**
 
+```secil
     (typepermissive source_type_id)
+```
 
 **Where:**
 
@@ -494,9 +593,11 @@ Policy database version 23 introduced the permissive statement to allow the name
 
 This example will allow SELinux to run the `healthd.process` domain in permissive mode even when enforcing is enabled:
 
+```secil
     (block healthd
         (type process)
         (typepermissive process)
 
         (allow ...)
     )
+```

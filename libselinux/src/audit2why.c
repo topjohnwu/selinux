@@ -204,8 +204,8 @@ static int __policy_init(const char *init_path)
 		fp = fopen(path, "re");
 		if (!fp) {
 			snprintf(errormsg, sizeof(errormsg), 
-				 "unable to open %s:  %s\n",
-				 path, strerror(errno));
+				 "unable to open %s:  %m\n",
+				 path);
 			PyErr_SetString( PyExc_ValueError, errormsg);
 			return 1;
 		}
@@ -221,9 +221,8 @@ static int __policy_init(const char *init_path)
 		fp = fopen(curpolicy, "re");
 		if (!fp) {
 			snprintf(errormsg, sizeof(errormsg), 
-				 "unable to open %s:  %s\n",
-				 curpolicy,
-				 strerror(errno));
+				 "unable to open %s:  %m\n",
+				 curpolicy);
 			PyErr_SetString( PyExc_ValueError, errormsg);
 			return 1;
 		}
@@ -242,7 +241,7 @@ static int __policy_init(const char *init_path)
 	if (sepol_policy_file_create(&pf) ||
 	    sepol_policydb_create(&avc->policydb)) {
 		snprintf(errormsg, sizeof(errormsg), 
-			 "policydb_init failed: %s\n", strerror(errno));
+			 "policydb_init failed: %m\n");
 		PyErr_SetString( PyExc_RuntimeError, errormsg);
 		fclose(fp);
 		return 1;
@@ -275,7 +274,7 @@ static int __policy_init(const char *init_path)
 	}
 
 	sepol_bool_iterate(avc->handle, avc->policydb,
-			   load_booleans, (void *)NULL);
+			   load_booleans, NULL);
 
 	/* Initialize the sidtab for subsequent use by sepol_context_to_sid
 	   and sepol_compute_av_reason. */
