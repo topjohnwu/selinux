@@ -16,3 +16,4 @@ void freeconary(char ** con)
 	free(con);
 }
 
+hidden_def(freeconary)

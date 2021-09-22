@@ -37,7 +37,7 @@ context_t context_new(const char *str)
 	}
 	n->current_str = n->component[0] = n->component[1] = n->component[2] =
 	    n->component[3] = 0;
-	for (count = 0, p = str; *p; p++) {
+	for (i = count = 0, p = str; *p; p++) {
 		switch (*p) {
 		case ':':
 			count++;
@@ -82,6 +82,7 @@ context_t context_new(const char *str)
 	return 0;
 }
 
+hidden_def(context_new)
 
 static void conditional_free(char **v)
 {
@@ -112,6 +113,7 @@ void context_free(context_t context)
 	}
 }
 
+hidden_def(context_free)
 
 /*
  * Return a pointer to the string value of the context.
@@ -142,6 +144,7 @@ char *context_str(context_t context)
 	return n->current_str;
 }
 
+hidden_def(context_str)
 
 /* Returns nonzero iff failed */
 static int set_comp(context_private_t * n, int idx, const char *str)
@@ -151,14 +154,14 @@ static int set_comp(context_private_t * n, int idx, const char *str)
 	if (str) {
 		t = (char *)malloc(strlen(str) + 1);
 		if (!t) {
-			return -1;
+			return 1;
 		}
 		for (p = str; *p; p++) {
 			if (*p == '\t' || *p == '\n' || *p == '\r' ||
 			    ((*p == ':' || *p == ' ') && idx != COMP_RANGE)) {
 				free(t);
 				errno = EINVAL;
-				return -1;
+				return 1;
 			}
 		}
 		strcpy(t, str);
@@ -173,7 +176,8 @@ const char * context_ ## name ## _get(context_t context) \
 { \
         context_private_t *n = context->ptr; \
         return n->component[tag]; \
-}
+} \
+hidden_def(context_ ## name ## _get)
 
 def_get(type, COMP_TYPE)
     def_get(user, COMP_USER)
@@ -183,7 +187,8 @@ def_get(type, COMP_TYPE)
 int context_ ## name ## _set(context_t context, const char* str) \
 { \
         return set_comp(context->ptr,tag,str);\
-}
+} \
+hidden_def(context_ ## name ## _set)
     def_set(type, COMP_TYPE)
     def_set(role, COMP_ROLE)
     def_set(user, COMP_USER)

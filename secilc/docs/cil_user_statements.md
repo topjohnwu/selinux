@@ -8,9 +8,7 @@ Declares an SELinux user identifier in the current namespace.
 
 **Statement definition:**
 
-```secil
     (user user_id)
-```
 
 **Where:**
 
@@ -35,11 +33,9 @@ Declares an SELinux user identifier in the current namespace.
 
 This will declare an SELinux user as `unconfined.user`:
 
-```secil
     (block unconfined
         (user user)
     )
-```
 
 userrole
 --------
@@ -48,9 +44,7 @@ Associates a previously declared [`user`](cil_user_statements.md#user) identifie
 
 **Statement definition:**
 
-```secil
     (userrole user_id role_id)
-```
 
 **Where:**
 
@@ -79,13 +73,11 @@ Associates a previously declared [`user`](cil_user_statements.md#user) identifie
 
 This example will associate `unconfined.user` to `unconfined.role`:
 
-```secil
     (block unconfined
         (user user)
         (role role)
         (userrole user role)
     )
-```
 
 userattribute
 -------------
@@ -94,9 +86,7 @@ Declares a user attribute identifier in the current namespace. The identifier ma
 
 **Statement definition:**
 
-```secil
     (userattribute userattribute_id)
-```
 
 **Where:**
 
@@ -121,11 +111,9 @@ Declares a user attribute identifier in the current namespace. The identifier ma
 
 This example will declare a user attribute `users.user_holder` that will have an empty set:
 
-```secil
     (block users
         (userattribute user_holder)
     )
-```
 
 userattributeset
 ----------------
@@ -134,9 +122,7 @@ Allows the association of one or more previously declared [`user`](cil_user_stat
 
 **Statement definition:**
 
-```secil
     (userattributeset userattribute_id (user_id ... | expr ...))
-```
 
 **Where:**
 
@@ -175,7 +161,6 @@ Allows the association of one or more previously declared [`user`](cil_user_stat
 
 This example will declare three users and two user attributes, then associate all the users to them as shown:
 
-```secil
     (block users
         (user user_1)
         (user user_2)
@@ -187,7 +172,6 @@ This example will declare three users and two user attributes, then associate al
         (userattribute user_holder_all)
         (userattributeset user_holder_all (all))
     )
-```
 
 userlevel
 ---------
@@ -196,9 +180,7 @@ Associates a previously declared [`user`](cil_user_statements.md#user) identifie
 
 **Statement definition:**
 
-```secil
     (userlevel user_id level_id)
-```
 
 **Where:**
 
@@ -227,7 +209,6 @@ Associates a previously declared [`user`](cil_user_statements.md#user) identifie
 
 This example will associate `unconfined.user` with a named [`level`](cil_mls_labeling_statements.md#level) of `systemlow`:
 
-```secil
     (sensitivity s0)
     (level systemlow (s0))
 
@@ -237,7 +218,6 @@ This example will associate `unconfined.user` with a named [`level`](cil_mls_lab
         ; An anonymous example:
         ;(userlevel user (s0))
     )
-```
 
 userrange
 ---------
@@ -246,9 +226,7 @@ Associates a previously declared [`user`](cil_user_statements.md#user) identifie
 
 **Statement definition:**
 
-```secil
     (userrange user_id levelrange_id)
-```
 
 **Where:**
 
@@ -277,13 +255,12 @@ Associates a previously declared [`user`](cil_user_statements.md#user) identifie
 
 This example will associate `unconfined.user` with a named [`levelrange`](cil_mls_labeling_statements.md#levelrange) of `low_high`, other anonymous examples are also shown:
 
-```secil
     (category c0)
     (category c1)
     (categoryorder (c0 c1))
     (sensitivity s0)
     (sensitivity s1)
-    (sensitivityorder (s0 s1))
+    (dominance (s0 s1))
     (sensitivitycategory s0 (c0 c1))
     (level systemLow (s0))
     (level systemHigh (s0 (c0 c1)))
@@ -300,7 +277,6 @@ This example will associate `unconfined.user` with a named [`levelrange`](cil_ml
         ;(userrange user (systemLow (s0 (c0 c1))))
         ;(userrange user ((s0) (s0 (c0 c1))))
     )
-```
 
 userbounds
 ----------
@@ -315,9 +291,7 @@ Notes:
 
 **Statement definition:**
 
-```secil
     (userbounds parent_user_id child_user_id)
-```
 
 **Where:**
 
@@ -346,14 +320,12 @@ Notes:
 
 The user `test` cannot have greater privileges than `unconfined.user`:
 
-```secil
     (user test)
 
     (unconfined
         (user user)
         (userbounds user .test)
     )
-```
 
 userprefix
 ----------
@@ -362,9 +334,7 @@ Declare a user prefix that will be replaced by the file labeling utilities descr
 
 **Statement definition:**
 
-```secil
     (userprefix user_id prefix)
-```
 
 **Where:**
 
@@ -393,12 +363,10 @@ Declare a user prefix that will be replaced by the file labeling utilities descr
 
 This example will associate `unconfined.admin` user with a prefix of "[`user`](cil_user_statements.md#user)":
 
-```secil
     (block unconfined
-        (user admin)
+        (user admin
         (userprefix admin user)
     )
-```
 
 selinuxuser
 -----------
@@ -407,9 +375,7 @@ Associates a GNU/Linux user to a previously declared [`user`](cil_user_statement
 
 **Statement definition:**
 
-```secil
     (selinuxuser user_name user_id userrange_id)
-```
 
 **Where:**
 
@@ -442,12 +408,10 @@ Associates a GNU/Linux user to a previously declared [`user`](cil_user_statement
 
 This example will associate `unconfined.admin` user with a GNU / Linux user "`admin_1`":
 
-```secil
     (block unconfined
         (user admin)
         (selinuxuser admin_1 admin low_low)
     )
-```
 
 selinuxuserdefault
 ------------------
@@ -456,9 +420,7 @@ Declares the default SELinux user. Only one [`selinuxuserdefault`](cil_user_stat
 
 **Statement definition:**
 
-```secil
     (selinuxuserdefault user_id userrange_id)
-```
 
 **Where:**
 
@@ -487,9 +449,7 @@ Declares the default SELinux user. Only one [`selinuxuserdefault`](cil_user_stat
 
 This example will define the `unconfined.user` as the default SELinux user:
 
-```secil
     (block unconfined
         (user user)
         (selinuxuserdefault user low_low)
     )
-```

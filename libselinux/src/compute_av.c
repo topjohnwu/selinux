@@ -80,6 +80,7 @@ int security_compute_av_flags_raw(const char * scon,
 	return ret;
 }
 
+hidden_def(security_compute_av_flags_raw)
 
 int security_compute_av_raw(const char * scon,
 			    const char * tcon,
@@ -106,6 +107,7 @@ int security_compute_av_raw(const char * scon,
 	return ret;
 }
 
+hidden_def(security_compute_av_raw)
 
 int security_compute_av_flags(const char * scon,
 			      const char * tcon,
@@ -132,6 +134,7 @@ int security_compute_av_flags(const char * scon,
 	return ret;
 }
 
+hidden_def(security_compute_av_flags)
 
 int security_compute_av(const char * scon,
 			const char * tcon,
@@ -159,3 +162,4 @@ int security_compute_av(const char * scon,
 	return ret;
 }
 
+hidden_def(security_compute_av)

@@ -37,3 +37,4 @@ int security_getenforce(void)
 	return !!enforce;
 }
 
+hidden_def(security_getenforce)

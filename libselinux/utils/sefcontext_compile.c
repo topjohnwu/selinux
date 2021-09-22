@@ -14,7 +14,7 @@
 #include "../src/label_file.h"
 #include "../src/regex.h"
 
-static const char *policy_file;
+const char *policy_file;
 static int ctx_err;
 
 static int validate_context(char **ctxp)

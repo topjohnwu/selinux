@@ -37,3 +37,4 @@ int security_get_checkreqprot(void)
 	return checkreqprot;
 }
 
+hidden_def(security_get_checkreqprot);

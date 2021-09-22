@@ -78,30 +78,17 @@ static pthread_once_t once = PTHREAD_ONCE_INIT;
 static pthread_key_t destructor_key;
 static int destructor_key_initialized = 0;
 
-static void free_array_elts(void)
-{
-	int i;
-	for (i = 0; i < con_array_used; i++)
-		free(con_array[i]);
-	free(con_array);
-
-	con_array_size = con_array_used = 0;
-	con_array = NULL;
-}
-
 static int add_array_elt(char *con)
 {
-	char **tmp;
 	if (con_array_size) {
 		while (con_array_used >= con_array_size) {
 			con_array_size *= 2;
-			tmp = (char **)realloc(con_array, sizeof(char*) *
+			con_array = (char **)realloc(con_array, sizeof(char*) *
 						     con_array_size);
-			if (!tmp) {
-				free_array_elts();
+			if (!con_array) {
+				con_array_size = con_array_used = 0;
 				return -1;
 			}
-			con_array = tmp;
 		}
 	} else {
 		con_array_size = 1000;
@@ -116,6 +103,13 @@ static int add_array_elt(char *con)
 	if (!con_array[con_array_used])
 		return -1;
 	return con_array_used++;
+}
+
+static void free_array_elts(void)
+{
+	con_array_size = con_array_used = 0;
+	free(con_array);
+	con_array = NULL;
 }
 
 void set_matchpathcon_invalidcon(int (*f) (const char *p, unsigned l, char *c))
@@ -321,24 +315,14 @@ void matchpathcon_filespec_destroy(void)
 	fl_head = NULL;
 }
 
-static void matchpathcon_fini_internal(void)
-{
-	free_array_elts();
-
-	if (hnd) {
-		selabel_close(hnd);
-		hnd = NULL;
-	}
-}
-
 static void matchpathcon_thread_destructor(void __attribute__((unused)) *ptr)
 {
-	matchpathcon_fini_internal();
+	matchpathcon_fini();
 }
 
 void __attribute__((destructor)) matchpathcon_lib_destructor(void);
 
-void  __attribute__((destructor)) matchpathcon_lib_destructor(void)
+void hidden __attribute__((destructor)) matchpathcon_lib_destructor(void)
 {
 	if (destructor_key_initialized)
 		__selinux_key_delete(destructor_key);
@@ -367,6 +351,7 @@ int matchpathcon_init_prefix(const char *path, const char *subset)
 	return hnd ? 0 : -1;
 }
 
+hidden_def(matchpathcon_init_prefix)
 
 int matchpathcon_init(const char *path)
 {
@@ -375,7 +360,12 @@ int matchpathcon_init(const char *path)
 
 void matchpathcon_fini(void)
 {
-	matchpathcon_fini_internal();
+	free_array_elts();
+
+	if (hnd) {
+		selabel_close(hnd);
+		hnd = NULL;
+	}
 }
 
 /*
@@ -393,8 +383,8 @@ int realpath_not_final(const char *name, char *resolved_path)
 
 	tmp_path = strdup(name);
 	if (!tmp_path) {
-		myprintf("symlink_realpath(%s) strdup() failed: %m\n",
-			name);
+		myprintf("symlink_realpath(%s) strdup() failed: %s\n",
+			name, strerror(errno));
 		rc = -1;
 		goto out;
 	}
@@ -414,8 +404,8 @@ int realpath_not_final(const char *name, char *resolved_path)
 	}
 
 	if (!p) {
-		myprintf("symlink_realpath(%s) realpath() failed: %m\n",
-			name);
+		myprintf("symlink_realpath(%s) realpath() failed: %s\n",
+			name, strerror(errno));
 		rc = -1;
 		goto out;
 	}
@@ -438,7 +428,7 @@ out:
 	return rc;
 }
 
-static int matchpathcon_internal(const char *path, mode_t mode, char ** con)
+int matchpathcon(const char *path, mode_t mode, char ** con)
 {
 	char stackpath[PATH_MAX + 1];
 	char *p = NULL;
@@ -459,13 +449,9 @@ static int matchpathcon_internal(const char *path, mode_t mode, char ** con)
 		selabel_lookup(hnd, con, path, mode);
 }
 
-int matchpathcon(const char *path, mode_t mode, char ** con) {
-	return matchpathcon_internal(path, mode, con);
-}
-
 int matchpathcon_index(const char *name, mode_t mode, char ** con)
 {
-	int i = matchpathcon_internal(name, mode, con);
+	int i = matchpathcon(name, mode, con);
 
 	if (i < 0)
 		return -1;
@@ -483,15 +469,15 @@ void matchpathcon_checkmatches(char *str __attribute__((unused)))
 int selinux_file_context_cmp(const char * a,
 			     const char * b)
 {
-	const char *rest_a, *rest_b;	/* Rest of the context after the user */
+	char *rest_a, *rest_b;	/* Rest of the context after the user */
 	if (!a && !b)
 		return 0;
 	if (!a)
 		return -1;
 	if (!b)
 		return 1;
-	rest_a = strchr(a, ':');
-	rest_b = strchr(b, ':');
+	rest_a = strchr((char *)a, ':');
+	rest_b = strchr((char *)b, ':');
 	if (!rest_a && !rest_b)
 		return 0;
 	if (!rest_a)
