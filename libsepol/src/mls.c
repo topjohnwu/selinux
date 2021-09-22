@@ -27,9 +27,9 @@
  * Implementation of the multi-level security (MLS) policy.
  */
 
+#include <sepol/context.h>
 #include <sepol/policydb/policydb.h>
 #include <sepol/policydb/services.h>
-#include <sepol/policydb/flask.h>
 #include <sepol/policydb/context.h>
 
 #include <stdlib.h>
@@ -649,7 +649,7 @@ int mls_compute_sid(policydb_t * policydb,
 
 		/* Fallthrough */
 	case AVTAB_CHANGE:
-		if (tclass == SECCLASS_PROCESS)
+		if (tclass == policydb->process_class)
 			/* Use the process MLS attributes. */
 			return mls_copy_context(newcontext, scontext);
 		else
@@ -665,7 +665,7 @@ int mls_compute_sid(policydb_t * policydb,
 }
 
 int sepol_mls_contains(sepol_handle_t * handle,
-		       sepol_policydb_t * policydb,
+		       const sepol_policydb_t * policydb,
 		       const char *mls1, const char *mls2, int *response)
 {
 
@@ -704,7 +704,7 @@ int sepol_mls_contains(sepol_handle_t * handle,
 }
 
 int sepol_mls_check(sepol_handle_t * handle,
-		    sepol_policydb_t * policydb, const char *mls)
+		    const sepol_policydb_t * policydb, const char *mls)
 {
 
 	int ret;

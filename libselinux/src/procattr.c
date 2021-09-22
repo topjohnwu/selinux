@@ -59,7 +59,7 @@ static void procattr_thread_destructor(void __attribute__((unused)) *unused)
 
 void __attribute__((destructor)) procattr_destructor(void);
 
-void hidden __attribute__((destructor)) procattr_destructor(void)
+void  __attribute__((destructor)) procattr_destructor(void)
 {
 	if (destructor_key_initialized)
 		__selinux_key_delete(destructor_key);
@@ -146,7 +146,7 @@ static int getprocattrcon_raw(char ** context,
 		default:
 			errno = ENOENT;
 			return -1;
-	};
+	}
 
 	if (prev_context && prev_context != UNSET) {
 		*context = strdup(prev_context);
@@ -240,7 +240,7 @@ static int setprocattrcon_raw(const char * context,
 		default:
 			errno = ENOENT;
 			return -1;
-	};
+	}
 
 	if (!context && !*prev_context)
 		return 0;
@@ -347,22 +347,3 @@ all_selfattr_def(con, current)
     all_selfattr_def(sockcreatecon, sockcreate)
     all_selfattr_def(keycreatecon, keycreate)
 
-    hidden_def(getcon_raw)
-    hidden_def(getcon)
-    hidden_def(getexeccon_raw)
-    hidden_def(getfilecon_raw)
-    hidden_def(getfilecon)
-    hidden_def(getfscreatecon_raw)
-    hidden_def(getkeycreatecon_raw)
-    hidden_def(getpeercon_raw)
-    hidden_def(getpidcon_raw)
-    hidden_def(getprevcon_raw)
-    hidden_def(getprevcon)
-    hidden_def(getsockcreatecon_raw)
-    hidden_def(setcon_raw)
-    hidden_def(setexeccon_raw)
-    hidden_def(setexeccon)
-    hidden_def(setfilecon_raw)
-    hidden_def(setfscreatecon_raw)
-    hidden_def(setkeycreatecon_raw)
-    hidden_def(setsockcreatecon_raw)

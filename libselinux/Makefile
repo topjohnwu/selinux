@@ -1,9 +1,10 @@
-SUBDIRS = src include utils man
+SUBDIRS = include src utils man
 
 PKG_CONFIG ?= pkg-config
 DISABLE_SETRANS ?= n
 DISABLE_RPM ?= n
 ANDROID_HOST ?= n
+LABEL_BACKEND_ANDROID ?= n
 ifeq ($(ANDROID_HOST),y)
 	override DISABLE_SETRANS=y
 	override DISABLE_BOOL=y
@@ -17,7 +18,10 @@ endif
 ifeq ($(DISABLE_BOOL),y)
 	DISABLE_FLAGS+= -DDISABLE_BOOL
 endif
-export DISABLE_SETRANS DISABLE_RPM DISABLE_FLAGS ANDROID_HOST
+ifeq ($(DISABLE_X11),y)
+	DISABLE_FLAGS+= -DNO_X_BACKEND
+endif
+export DISABLE_SETRANS DISABLE_RPM DISABLE_FLAGS ANDROID_HOST DISABLE_X11 LABEL_BACKEND_ANDROID
 
 USE_PCRE2 ?= n
 ifeq ($(USE_PCRE2),y)
@@ -46,24 +50,24 @@ all install relabel clean distclean indent:
 	done
 
 swigify: all
-	$(MAKE) -C src swigify $@
+	$(MAKE) -C src $@
 
 pywrap: 
-	$(MAKE) -C src pywrap $@
+	$(MAKE) -C src $@
 
 rubywrap: 
-	$(MAKE) -C src rubywrap $@
+	$(MAKE) -C src $@
 
 install-pywrap: 
-	$(MAKE) -C src install-pywrap $@
+	$(MAKE) -C src $@
 
 install-rubywrap: 
-	$(MAKE) -C src install-rubywrap $@
+	$(MAKE) -C src $@
 
 clean-pywrap:
-	$(MAKE) -C src clean-pywrap $@
+	$(MAKE) -C src $@
 
 clean-rubywrap:
-	$(MAKE) -C src clean-rubywrap $@
+	$(MAKE) -C src $@
 
 test:

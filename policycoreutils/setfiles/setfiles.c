@@ -19,17 +19,8 @@ static int warn_no_match;
 static int null_terminated;
 static int request_digest;
 static struct restore_opts r_opts;
-static int nerr;
 
 #define STAT_BLOCK_SIZE 1
-
-/* setfiles will abort its operation after reaching the
- * following number of errors (e.g. invalid contexts),
- * unless it is used in "debug" mode (-d option).
- */
-#ifndef ABORT_ON_ERRORS
-#define ABORT_ON_ERRORS	10
-#endif
 
 #define SETFILES "setfiles"
 #define RESTORECON "restorecon"
@@ -43,27 +34,17 @@ static __attribute__((__noreturn__)) void usage(const char *const name)
 {
 	if (iamrestorecon) {
 		fprintf(stderr,
-			"usage:  %s [-iIDFmnprRv0] [-e excludedir] pathname...\n"
-			"usage:  %s [-iIDFmnprRv0] [-e excludedir] -f filename\n",
+			"usage:  %s [-iIDFmnprRv0x] [-e excludedir] pathname...\n"
+			"usage:  %s [-iIDFmnprRv0x] [-e excludedir] -f filename\n",
 			name, name);
 	} else {
 		fprintf(stderr,
-			"usage:  %s [-diIDlmnpqvFW] [-e excludedir] [-r alt_root_path] spec_file pathname...\n"
-			"usage:  %s [-diIDlmnpqvFW] [-e excludedir] [-r alt_root_path] spec_file -f filename\n"
-			"usage:  %s -s [-diIDlmnpqvFW] spec_file\n"
-			"usage:  %s -c policyfile spec_file\n",
-			name, name, name, name);
+			"usage:  %s [-diIDlmnpqvEFW] [-e excludedir] [-r alt_root_path] [-c policyfile] spec_file pathname...\n"
+			"usage:  %s [-diIDlmnpqvEFW] [-e excludedir] [-r alt_root_path] [-c policyfile] spec_file -f filename\n"
+			"usage:  %s -s [-diIDlmnpqvFW] spec_file\n",
+			name, name, name);
 	}
 	exit(-1);
-}
-
-void inc_err(void)
-{
-	nerr++;
-	if (nerr > ABORT_ON_ERRORS - 1 && !r_opts.debug) {
-		fprintf(stderr, "Exiting after %d errors.\n", ABORT_ON_ERRORS);
-		exit(-1);
-	}
 }
 
 void set_rootpath(const char *arg)
@@ -98,7 +79,6 @@ int canoncon(char **contextp)
 		*contextp = tmpcon;
 	} else if (errno != ENOENT) {
 		rc = -1;
-		inc_err();
 	}
 
 	return rc;
@@ -168,8 +148,8 @@ int main(int argc, char **argv)
 	size_t buf_len;
 	const char *base;
 	int errors = 0;
-	const char *ropts = "e:f:hiIDlmno:pqrsvFRW0";
-	const char *sopts = "c:de:f:hiIDlmno:pqr:svFR:W0";
+	const char *ropts = "e:f:hiIDlmno:pqrsvFRW0x";
+	const char *sopts = "c:de:f:hiIDlmno:pqr:svEFR:W0";
 	const char *opts;
 	union selinux_callback cb;
 
@@ -180,8 +160,8 @@ int main(int argc, char **argv)
 	warn_no_match = 0;
 	request_digest = 0;
 	policyfile = NULL;
-	nerr = 0;
 
+	r_opts.abort_on_error = 0;
 	r_opts.progname = strdup(argv[0]);
 	if (!r_opts.progname) {
 		fprintf(stderr, "%s:  Out of memory!\n", argv[0]);
@@ -194,7 +174,6 @@ int main(int argc, char **argv)
 		 * setfiles:
 		 * Recursive descent,
 		 * Does not expand paths via realpath,
-		 * Aborts on errors during the file tree walk,
 		 * Try to track inode associations for conflict detection,
 		 * Does not follow mounts (sets SELINUX_RESTORECON_XDEV),
 		 * Validates all file contexts at init time.
@@ -202,7 +181,6 @@ int main(int argc, char **argv)
 		iamrestorecon = 0;
 		r_opts.recurse = SELINUX_RESTORECON_RECURSE;
 		r_opts.userealpath = 0; /* SELINUX_RESTORECON_REALPATH */
-		r_opts.abort_on_error = SELINUX_RESTORECON_ABORT_ON_ERROR;
 		r_opts.add_assoc = SELINUX_RESTORECON_ADD_ASSOC;
 		/* FTS_PHYSICAL and FTS_NOCHDIR are always set by selinux_restorecon(3) */
 		r_opts.xdev = SELINUX_RESTORECON_XDEV;
@@ -226,7 +204,6 @@ int main(int argc, char **argv)
 		iamrestorecon = 1;
 		r_opts.recurse = 0;
 		r_opts.userealpath = SELINUX_RESTORECON_REALPATH;
-		r_opts.abort_on_error = 0;
 		r_opts.add_assoc = 0;
 		r_opts.xdev = 0;
 		r_opts.ignore_mounts = 0;
@@ -313,6 +290,10 @@ int main(int argc, char **argv)
 			r_opts.syslog_changes =
 					   SELINUX_RESTORECON_SYSLOG_CHANGES;
 			break;
+		case 'E':
+			r_opts.conflict_error =
+					   SELINUX_RESTORECON_CONFLICT_ERROR;
+			break;
 		case 'F':
 			r_opts.set_specctx =
 					   SELINUX_RESTORECON_SET_SPECFILE_CTX;
@@ -382,6 +363,13 @@ int main(int argc, char **argv)
 		case '0':
 			null_terminated = 1;
 			break;
+                case 'x':
+                        if (iamrestorecon) {
+				r_opts.xdev = SELINUX_RESTORECON_XDEV;
+                        } else {
+				usage(argv[0]);
+                        }
+                        break;
 		case 'h':
 		case '?':
 			usage(argv[0]);
@@ -398,7 +386,7 @@ int main(int argc, char **argv)
 
 	if (!iamrestorecon) {
 		if (policyfile) {
-			if (optind != (argc - 1))
+			if (optind > (argc - 1))
 				usage(argv[0]);
 		} else if (use_input_file) {
 			if (optind != (argc - 1)) {
@@ -436,9 +424,6 @@ int main(int argc, char **argv)
 	r_opts.selabel_opt_validate = (ctx_validate ? (char *)1 : NULL);
 	r_opts.selabel_opt_digest = (request_digest ? (char *)1 : NULL);
 	r_opts.selabel_opt_path = altpath;
-
-	if (nerr)
-		exit(-1);
 
 	restore_init(&r_opts);
 
