@@ -829,7 +829,6 @@ static int cil_build_mappings_tree(hashtab_key_t k, hashtab_datum_t d, void *arg
 	/* re)declare typeattribute. */
 	cil_typeattribute_init(&typeattr);
 	typeattr->datum.name = new_key;
-	typeattr->datum.fqn = new_key;
 	cil_tree_node_init(&ast_node);
 	ast_node->data = typeattr;
 	ast_node->flavor = CIL_TYPEATTRIBUTE;

@@ -23,28 +23,30 @@ int sepol_msg_get_level(sepol_handle_t * handle)
 	return handle->msg_level;
 }
 
+hidden_def(sepol_msg_get_level)
 
 const char *sepol_msg_get_channel(sepol_handle_t * handle)
 {
 	return handle->msg_channel;
 }
 
+hidden_def(sepol_msg_get_channel)
 
 const char *sepol_msg_get_fname(sepol_handle_t * handle)
 {
 	return handle->msg_fname;
 }
 
+hidden_def(sepol_msg_get_fname)
 #ifdef __GNUC__
     __attribute__ ((format(printf, 3, 4)))
 #endif
-void sepol_msg_default_handler(void *varg __attribute__ ((unused)),
+void hidden sepol_msg_default_handler(void *varg __attribute__ ((unused)),
 				      sepol_handle_t * handle,
 				      const char *fmt, ...)
 {
 
 	FILE *stream = NULL;
-	va_list ap;
 
 	switch (sepol_msg_get_level(handle)) {
 
@@ -61,6 +63,7 @@ void sepol_msg_default_handler(void *varg __attribute__ ((unused)),
 	fprintf(stream, "%s.%s: ",
 		sepol_msg_get_channel(handle), sepol_msg_get_fname(handle));
 
+	va_list ap;
 	va_start(ap, fmt);
 	vfprintf(stream, fmt, ap);
 	va_end(ap);

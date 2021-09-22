@@ -470,9 +470,11 @@ static int portcon_data_cmp(const void *a, const void *b)
 	rc = compare_ranges((*aa)->u.port.low_port, (*aa)->u.port.high_port,
 			    (*bb)->u.port.low_port, (*bb)->u.port.high_port);
 	if (rc == 0) {
-		if ((*aa)->u.port.protocol < (*bb)->u.port.protocol) {
+		if ((*aa)->u.port.protocol == (*bb)->u.port.protocol) {
+			rc = 0;
+		} else if ((*aa)->u.port.protocol == IPPROTO_TCP) {
 			rc = -1;
-		} else if ((*aa)->u.port.protocol > (*bb)->u.port.protocol) {
+		} else {
 			rc = 1;
 		}
 	}

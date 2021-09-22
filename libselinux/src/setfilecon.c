@@ -25,6 +25,7 @@ int setfilecon_raw(const char *path, const char * context)
 	return rc;
 }
 
+hidden_def(setfilecon_raw)
 
 int setfilecon(const char *path, const char *context)
 {

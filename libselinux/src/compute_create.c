@@ -105,6 +105,7 @@ int security_compute_create_name_raw(const char * scon,
 	close(fd);
 	return ret;
 }
+hidden_def(security_compute_create_name_raw)
 
 int security_compute_create_raw(const char * scon,
 				const char * tcon,
@@ -114,6 +115,7 @@ int security_compute_create_raw(const char * scon,
 	return security_compute_create_name_raw(scon, tcon, tclass,
 						NULL, newcon);
 }
+hidden_def(security_compute_create_raw)
 
 int security_compute_create_name(const char * scon,
 				 const char * tcon,
@@ -144,6 +146,7 @@ int security_compute_create_name(const char * scon,
 
 	return ret;
 }
+hidden_def(security_compute_create_name)
 
 int security_compute_create(const char * scon,
 				const char * tcon,
@@ -152,3 +155,4 @@ int security_compute_create(const char * scon,
 {
 	return security_compute_create_name(scon, tcon, tclass, NULL, newcon);
 }
+hidden_def(security_compute_create)

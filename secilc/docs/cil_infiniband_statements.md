@@ -10,9 +10,7 @@ Label IB partition keys. This may be a single key or a range.
 
 **Statement definition:**
 
-```secil
     (ibpkeycon subnet pkey|(pkey_low pkey_high)  context_id)
-```
 
 **Where:**
 
@@ -45,9 +43,8 @@ Label IB partition keys. This may be a single key or a range.
 
 An anonymous context for a partition key range of `0x0-0x10` assigned to an IPv6 subnet:
 
-```secil
     (ibpkeycon fe80:: (0 0x10) (system_u system_r kernel_t (low (s3 (cats01 cats02)))))
-```
+
 
 ibendportcon
 ------------
@@ -56,9 +53,7 @@ Label IB end ports.
 
 **Statement definition:**
 
-```secil
     (ibendportcon device_id port context_id)
-```
 
 **Where:**
 
@@ -91,6 +86,4 @@ Label IB end ports.
 
 A named context for device `mlx5_0` on port `1`:
 
-```secil
     (ibendportcon mlx5_0 1 system_u_bin_t_l2h)
-```

@@ -162,16 +162,15 @@ typedef struct role_allow {
 } role_allow_t;
 
 /* filename_trans rules */
-typedef struct filename_trans_key {
+typedef struct filename_trans {
+	uint32_t stype;
 	uint32_t ttype;
 	uint32_t tclass;
 	char *name;
-} filename_trans_key_t;
+} filename_trans_t;
 
 typedef struct filename_trans_datum {
-	ebitmap_t stypes;
-	uint32_t otype;
-	struct filename_trans_datum *next;
+	uint32_t otype;		/* expected of new object */
 } filename_trans_datum_t;
 
 /* Type attributes */
@@ -251,9 +250,9 @@ typedef struct class_perm_node {
 	struct class_perm_node *next;
 } class_perm_node_t;
 
-#define xperm_test(x, p) (UINT32_C(1) & (p[x >> 5] >> (x & 0x1f)))
-#define xperm_set(x, p) (p[x >> 5] |= (UINT32_C(1) << (x & 0x1f)))
-#define xperm_clear(x, p) (p[x >> 5] &= ~(UINT32_C(1) << (x & 0x1f)))
+#define xperm_test(x, p) (1 & (p[x >> 5] >> (x & 0x1f)))
+#define xperm_set(x, p) (p[x >> 5] |= (1 << (x & 0x1f)))
+#define xperm_clear(x, p) (p[x >> 5] &= ~(1 << (x & 0x1f)))
 #define EXTENDED_PERMS_LEN 8
 
 typedef struct av_extended_perms {
@@ -592,7 +591,6 @@ typedef struct policydb {
 
 	/* file transitions with the last path component */
 	hashtab_t filename_trans;
-	uint32_t filename_trans_count;
 
 	ebitmap_t *type_attr_map;
 
@@ -607,11 +605,6 @@ typedef struct policydb {
 	unsigned policyvers;
 
 	unsigned handle_unknown;
-
-	sepol_security_class_t process_class;
-	sepol_security_class_t dir_class;
-	sepol_access_vector_t process_trans;
-	sepol_access_vector_t process_trans_dyntrans;
 } policydb_t;
 
 struct sepol_policydb {
@@ -652,11 +645,6 @@ extern int policydb_load_isids(policydb_t * p, sidtab_t * s);
 
 extern int policydb_sort_ocontexts(policydb_t *p);
 
-extern int policydb_filetrans_insert(policydb_t *p, uint32_t stype,
-				     uint32_t ttype, uint32_t tclass,
-				     const char *name, char **name_alloc,
-				     uint32_t otype, uint32_t *present_otype);
-
 /* Deprecated */
 extern int policydb_context_isvalid(const policydb_t * p,
 				    const context_struct_t * c);
@@ -667,8 +655,8 @@ extern int scope_destroy(hashtab_key_t key, hashtab_datum_t datum, void *p);
 extern void class_perm_node_init(class_perm_node_t * x);
 extern void type_set_init(type_set_t * x);
 extern void type_set_destroy(type_set_t * x);
-extern int type_set_cpy(type_set_t * dst, const type_set_t * src);
-extern int type_set_or_eq(type_set_t * dst, const type_set_t * other);
+extern int type_set_cpy(type_set_t * dst, type_set_t * src);
+extern int type_set_or_eq(type_set_t * dst, type_set_t * other);
 extern void role_set_init(role_set_t * x);
 extern void role_set_destroy(role_set_t * x);
 extern void avrule_init(avrule_t * x);
@@ -755,11 +743,10 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 #define POLICYDB_VERSION_XPERMS_IOCTL	30 /* Linux-specific */
 #define POLICYDB_VERSION_INFINIBAND		31 /* Linux-specific */
 #define POLICYDB_VERSION_GLBLUB		32
-#define POLICYDB_VERSION_COMP_FTRANS	33 /* compressed filename transitions */
 
 /* Range of policy versions we understand*/
 #define POLICYDB_VERSION_MIN	POLICYDB_VERSION_BASE
-#define POLICYDB_VERSION_MAX	POLICYDB_VERSION_COMP_FTRANS
+#define POLICYDB_VERSION_MAX	POLICYDB_VERSION_GLBLUB
 
 /* Module versions and specific changes*/
 #define MOD_POLICYDB_VERSION_BASE		4

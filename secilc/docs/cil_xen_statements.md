@@ -12,9 +12,7 @@ Label i/o memory. This may be a single memory location or a range.
 
 **Statement definition:**
 
-```secil
     (iomemcon mem_addr|(mem_low mem_high) context_id)
-```
 
 **Where:**
 
@@ -45,9 +43,7 @@ Label i/o memory. This may be a single memory location or a range.
 
 An anonymous context for a memory address range of `0xfebe0-0xfebff`:
 
-```secil
     (iomemcon (1043424 1043455) (unconfined.user object_r unconfined.object low_low))
-```
 
 ioportcon
 ---------
@@ -56,9 +52,7 @@ Label i/o ports. This may be a single port or a range.
 
 **Statement definition:**
 
-```secil
     (ioportcon port|(port_low port_high) context_id)
-```
 
 **Where:**
 
@@ -89,9 +83,7 @@ Label i/o ports. This may be a single port or a range.
 
 An anonymous context for a single port of :`0xecc0`:
 
-```secil
     (ioportcon 60608 (unconfined.user object_r unconfined.object low_low))
-```
 
 pcidevicecon
 ------------
@@ -100,9 +92,7 @@ Label a PCI device.
 
 **Statement definition:**
 
-```secil
     (pcidevicecon device context_id)
-```
 
 **Where:**
 
@@ -131,9 +121,7 @@ Label a PCI device.
 
 An anonymous context for a pci device address of `0xc800`:
 
-```secil
     (pcidevicecon 51200 (unconfined.user object_r unconfined.object low_low))
-```
 
 pirqcon
 -------
@@ -142,9 +130,7 @@ Label an interrupt level.
 
 **Statement definition:**
 
-```secil
     (pirqcon irq_level context_id)
-```
 
 **Where:**
 
@@ -173,9 +159,7 @@ Label an interrupt level.
 
 An anonymous context for IRQ 33:
 
-```secil
     (pirqcon 33 (unconfined.user object_r unconfined.object low_low))
-```
 
 devicetreecon
 -------------
@@ -184,9 +168,7 @@ Label device tree nodes.
 
 **Statement definition:**
 
-```secil
     (devicetreecon path context_id)
-```
 
 **Where:**
 
@@ -215,6 +197,4 @@ Label device tree nodes.
 
 An anonymous context for the specified path:
 
-```secil
     (devicetreecon "/this is/a/path" (unconfined.user object_r unconfined.object low_low))
-```

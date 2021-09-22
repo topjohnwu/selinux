@@ -7,6 +7,7 @@ typedef struct semanage_fcontext_key record_key_t;
 #include <stdlib.h>
 #include <string.h>
 #include "fcontext_internal.h"
+#include "context_internal.h"
 #include "debug.h"
 
 struct semanage_fcontext {
@@ -56,6 +57,7 @@ int semanage_fcontext_key_create(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_fcontext_key_create)
 
 int semanage_fcontext_key_extract(semanage_handle_t * handle,
 				  const semanage_fcontext_t * fcontext,
@@ -73,6 +75,7 @@ int semanage_fcontext_key_extract(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_fcontext_key_extract)
 
 void semanage_fcontext_key_free(semanage_fcontext_key_t * key)
 {
@@ -80,6 +83,7 @@ void semanage_fcontext_key_free(semanage_fcontext_key_t * key)
 	free(key);
 }
 
+hidden_def(semanage_fcontext_key_free)
 
 int semanage_fcontext_compare(const semanage_fcontext_t * fcontext,
 			      const semanage_fcontext_key_t * key)
@@ -100,6 +104,7 @@ int semanage_fcontext_compare(const semanage_fcontext_t * fcontext,
 	}
 }
 
+hidden_def(semanage_fcontext_compare)
 
 int semanage_fcontext_compare2(const semanage_fcontext_t * fcontext,
 			       const semanage_fcontext_t * fcontext2)
@@ -120,6 +125,7 @@ int semanage_fcontext_compare2(const semanage_fcontext_t * fcontext,
 	}
 }
 
+hidden_def(semanage_fcontext_compare2)
 
 static int semanage_fcontext_compare2_qsort(const semanage_fcontext_t **
 					    fcontext,
@@ -152,6 +158,7 @@ int semanage_fcontext_create(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_fcontext_create)
 
 /* Regexp */
 const char *semanage_fcontext_get_expr(const semanage_fcontext_t * fcontext)
@@ -160,6 +167,7 @@ const char *semanage_fcontext_get_expr(const semanage_fcontext_t * fcontext)
 	return fcontext->expr;
 }
 
+hidden_def(semanage_fcontext_get_expr)
 
 int semanage_fcontext_set_expr(semanage_handle_t * handle,
 			       semanage_fcontext_t * fcontext, const char *expr)
@@ -175,6 +183,7 @@ int semanage_fcontext_set_expr(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_fcontext_set_expr)
 
 /* Type */
 int semanage_fcontext_get_type(const semanage_fcontext_t * fcontext)
@@ -183,6 +192,7 @@ int semanage_fcontext_get_type(const semanage_fcontext_t * fcontext)
 	return fcontext->type;
 }
 
+hidden_def(semanage_fcontext_get_type)
 
 const char *semanage_fcontext_get_type_str(int type)
 {
@@ -209,6 +219,7 @@ const char *semanage_fcontext_get_type_str(int type)
 	}
 }
 
+hidden_def(semanage_fcontext_get_type_str)
 
 void semanage_fcontext_set_type(semanage_fcontext_t * fcontext, int type)
 {
@@ -216,6 +227,7 @@ void semanage_fcontext_set_type(semanage_fcontext_t * fcontext, int type)
 	fcontext->type = type;
 }
 
+hidden_def(semanage_fcontext_set_type)
 
 /* Context */
 semanage_context_t *semanage_fcontext_get_con(const semanage_fcontext_t *
@@ -225,6 +237,7 @@ semanage_context_t *semanage_fcontext_get_con(const semanage_fcontext_t *
 	return fcontext->con;
 }
 
+hidden_def(semanage_fcontext_get_con)
 
 int semanage_fcontext_set_con(semanage_handle_t * handle,
 			      semanage_fcontext_t * fcontext,
@@ -243,6 +256,7 @@ int semanage_fcontext_set_con(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_fcontext_set_con)
 
 /* Deep copy clone */
 int semanage_fcontext_clone(semanage_handle_t * handle,
@@ -274,6 +288,7 @@ int semanage_fcontext_clone(semanage_handle_t * handle,
 	return STATUS_ERR;
 }
 
+hidden_def(semanage_fcontext_clone)
 
 /* Destroy */
 void semanage_fcontext_free(semanage_fcontext_t * fcontext)
@@ -287,6 +302,7 @@ void semanage_fcontext_free(semanage_fcontext_t * fcontext)
 	free(fcontext);
 }
 
+hidden_def(semanage_fcontext_free)
 
 /* Record base functions */
 record_table_t SEMANAGE_FCONTEXT_RTABLE = {

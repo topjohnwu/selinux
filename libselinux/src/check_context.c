@@ -31,6 +31,7 @@ int security_check_context_raw(const char * con)
 	return 0;
 }
 
+hidden_def(security_check_context_raw)
 
 int security_check_context(const char * con)
 {
@@ -47,3 +48,4 @@ int security_check_context(const char * con)
 	return ret;
 }
 
+hidden_def(security_check_context)

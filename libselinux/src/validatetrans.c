@@ -57,6 +57,7 @@ out:
 	return ret;
 }
 
+hidden_def(security_validatetrans_raw)
 
 int security_validatetrans(const char *scon,
 			   const char *tcon,
@@ -90,3 +91,4 @@ out:
 	return ret;
 }
 
+hidden_def(security_validatetrans)

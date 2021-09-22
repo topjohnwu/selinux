@@ -6,13 +6,9 @@ boolean
 
 Declares a run time boolean as true or false in the current namespace. The [`booleanif`](cil_conditional_statements.md#booleanif) statement contains the CIL code that will be in the binary policy file.
 
-[`boolean`](cil_conditional_statements.md#boolean) are not allowed in [`booleanif`](cil_conditional_statements.md#booleanif) blocks.
-
 **Statement definition:**
 
-```secil
     (boolean boolean_id true|false)
-```
 
 **Where:**
 
@@ -50,8 +46,7 @@ Contains the run time conditional statements that are instantiated in the binary
 
 **Statement definition:**
 
-```secil
-    (booleanif boolean_id | expr ...
+    (booleanif boolean_id | expr ...)
         (true
             cil_statements
             ...)
@@ -59,7 +54,6 @@ Contains the run time conditional statements that are instantiated in the binary
             cil_statements
             ...)
     )
-```
 
 **Where:**
 
@@ -80,12 +74,12 @@ Contains the run time conditional statements that are instantiated in the binary
 <tr class="odd">
 <td align="left"><p><code>expr</code></p></td>
 <td align="left"><p>Zero or more <code>expr</code>'s, the valid operators and syntax are:</p>
-<p><code>    (and boolean_id boolean_id)</code></p>
-<p><code>    (or  boolean_id boolean_id)</code></p>
-<p><code>    (xor boolean_id boolean_id)</code></p>
-<p><code>    (eq  boolean_id boolean_id)</code></p>
-<p><code>    (neq boolean_id boolean_id)</code></p>
-<p><code>    (not boolean_id)</code></p></td>
+<p><code>    (and (boolean_id boolean_id))</code></p>
+<p><code>    (or  (boolean_id boolean_id))</code></p>
+<p><code>    (xor (boolean_id boolean_id))</code></p>
+<p><code>    (eq  (boolean_id boolean_id))</code></p>
+<p><code>    (neq (boolean_id boolean_id))</code></p>
+<p><code>    (not (boolean_id))</code></p></td>
 </tr>
 <tr class="even">
 <td align="left"><p><code>true</code></p></td>
@@ -102,7 +96,6 @@ Contains the run time conditional statements that are instantiated in the binary
 
 The second example also shows the kernel policy language equivalent:
 
-```secil
     (boolean disableAudio false)
 
     (booleanif disableAudio
@@ -119,7 +112,6 @@ The second example also shows the kernel policy language equivalent:
             (allow process mediaserver.audio_capture_device (chr_file_set (rw_file_perms)))
         )
     )
-```
 
 tunable
 -------
@@ -128,13 +120,9 @@ Tunables are similar to booleans, however they are used to manage areas of CIL s
 
 Note that tunables can be treated as booleans by the CIL compiler command line parameter `-P` or `--preserve-tunables` flags.
 
-Since [`tunableif`](cil_conditional_statements.md#tunableif) statements are resolved first, [`tunable`](cil_conditional_statements.md#tunable) statements are not allowed in [`in`](cil_container_statements.md#in), [`macro`](cil_call_macro_statements.md#macro), [`optional`](cil_container_statements.md#optional), and [`booleanif`](cil_conditional_statements.md#booleanif) blocks. To simplify processing, they are also not allowed in [`tunableif`](cil_conditional_statements.md#tunableif) blocks.
-
 **Statement definition:**
 
-```secil
     (tunable tunable_id true|false)
-```
 
 **Where:**
 
@@ -168,12 +156,9 @@ tunableif
 
 Compile time conditional statement that may or may not add CIL statements to be compiled.
 
-If tunables are being treated as booleans (by using the CIL compiler command line parameter `-P` or `--preserve-tunables` flag), then only the statements allowed in a [`booleanif`](cil_conditional_statements.md#booleanif) block are allowed in a [`tunableif`](cil_conditional_statements.md#tunableif) block. Otherwise, [`tunable`](cil_conditional_statements.md#tunable) statements are not allowed in a [`tunableif`](cil_conditional_statements.md#tunableif) block.
-
 **Statement definition:**
 
-```secil
-    (tunableif tunable_id | expr ...
+    (tunableif tunable_id | expr ...)
         (true
             cil_statements
             ...)
@@ -181,7 +166,6 @@ If tunables are being treated as booleans (by using the CIL compiler command lin
             cil_statements
             ...)
     )
-```
 
 **Where:**
 
@@ -202,12 +186,12 @@ If tunables are being treated as booleans (by using the CIL compiler command lin
 <tr class="odd">
 <td align="left"><p><code>expr</code></p></td>
 <td align="left"><p>Zero or more <code>expr</code>'s, the valid operators and syntax are:</p>
-<p><code>    (and tunable_id tunable_id)</code></p>
-<p><code>    (or  tunable_id tunable_id)</code></p>
-<p><code>    (xor tunable_id tunable_id)</code></p>
-<p><code>    (eq  tunable_id tunable_id)</code></p>
-<p><code>    (neq tunable_id tunable_id)</code></p>
-<p><code>    (not tunable_id)</code></p></td>
+<p><code>    (and (tunable_id tunable_id))</code></p>
+<p><code>    (or  (tunable_id tunable_id))</code></p>
+<p><code>    (xor (tunable_id tunable_id))</code></p>
+<p><code>    (eq  (tunable_id tunable_id))</code></p>
+<p><code>    (neq (tunable_id tunable_id))</code></p>
+<p><code>    (not (tunable_id))</code></p></td>
 </tr>
 <tr class="even">
 <td align="left"><p><code>true</code></p></td>
@@ -224,7 +208,6 @@ If tunables are being treated as booleans (by using the CIL compiler command lin
 
 This example will not add the range transition rule to the binary policy:
 
-```secil
     (tunable range_trans_rule false)
 
     (block init
@@ -237,4 +220,3 @@ This example will not add the range transition rule to the binary policy:
             )
         ) ; End tunableif
     ) ; End block
-```
