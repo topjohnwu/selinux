@@ -63,9 +63,6 @@ static __attribute__((__noreturn__)) void usage(const char *prog)
 	printf("                                 statement if present in the policy\n");
 	printf("  -D, --disable-dontaudit        do not add dontaudit rules to the binary policy\n");
 	printf("  -P, --preserve-tunables        treat tunables as booleans\n");
-	printf("  -Q, --qualified-names          Allow names containing dots (qualified names).\n");
-	printf("                                 Blocks, blockinherits, blockabstracts, and\n");
-	printf("                                 in-statements will not be allowed.\n");
 	printf("  -m, --multiple-decls           allow some statements to be re-declared\n");
 	printf("  -N, --disable-neverallow       do not check neverallow rules\n");
 	printf("  -G, --expand-generated         Expand and remove auto-generated attributes\n");
@@ -97,7 +94,6 @@ int main(int argc, char *argv[])
 	int multiple_decls = 0;
 	int disable_neverallow = 0;
 	int preserve_tunables = 0;
-	int qualified_names = 0;
 	int handle_unknown = -1;
 	int policyvers = POLICYDB_VERSION_MAX;
 	int attrs_expand_generated = 0;
@@ -119,7 +115,6 @@ int main(int argc, char *argv[])
 		{"multiple-decls", no_argument, 0, 'm'},
 		{"disable-neverallow", no_argument, 0, 'N'},
 		{"preserve-tunables", no_argument, 0, 'P'},
-		{"qualified-names", no_argument, 0, 'Q'},
 		{"output", required_argument, 0, 'o'},
 		{"filecontexts", required_argument, 0, 'f'},
 		{"expand-generated", no_argument, 0, 'G'},
@@ -130,7 +125,7 @@ int main(int argc, char *argv[])
 	int i;
 
 	while (1) {
-		opt_char = getopt_long(argc, argv, "o:f:U:hvt:M:PQDmNOc:GX:n", long_opts, &opt_index);
+		opt_char = getopt_long(argc, argv, "o:f:U:hvt:M:PDmNOc:GX:n", long_opts, &opt_index);
 		if (opt_char == -1) {
 			break;
 		}
@@ -195,15 +190,10 @@ int main(int argc, char *argv[])
 			case 'P':
 				preserve_tunables = 1;
 				break;
-			case 'Q':
-				qualified_names = 1;
-				break;
 			case 'o':
-				free(output);
 				output = strdup(optarg);
 				break;
 			case 'f':
-				free(filecontexts);
 				filecontexts = strdup(optarg);
 				break;
 			case 'G':
@@ -248,7 +238,6 @@ int main(int argc, char *argv[])
 	cil_set_multiple_decls(db, multiple_decls);
 	cil_set_disable_neverallow(db, disable_neverallow);
 	cil_set_preserve_tunables(db, preserve_tunables);
-	cil_set_qualified_names(db, qualified_names);
 	if (handle_unknown != -1) {
 		rc = cil_set_handle_unknown(db, handle_unknown);
 		if (rc != SEPOL_OK) {

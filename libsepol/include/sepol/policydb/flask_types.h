@@ -33,13 +33,17 @@ typedef char *sepol_security_context_t;
  * for a pair of SIDs.  The bits within an access vector
  * are interpreted differently depending on the class of
  * the object.  The access vector interpretations are specified
- * in policy.
+ * in flask/access_vectors, and the corresponding constants
+ * for permissions are defined in the automatically generated
+ * header file av_permissions.h.
  */
 typedef uint32_t sepol_access_vector_t;
 
 /*
  * Each object class is identified by a fixed-size value.
- * The set of security classes is specified in policy.
+ * The set of security classes is specified in flask/security_classes, 
+ * with the corresponding constants defined in the automatically 
+ * generated header file flask.h.
  */
 typedef uint16_t sepol_security_class_t;
 #define SEPOL_SECCLASS_NULL			0x0000	/* no class */

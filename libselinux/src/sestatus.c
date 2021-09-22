@@ -37,14 +37,12 @@ struct selinux_status_t
  * Valid Pointer : opened and mapped correctly
  */
 static struct selinux_status_t *selinux_status = NULL;
+static int			selinux_status_fd;
 static uint32_t			last_seqno;
-static uint32_t			last_policyload;
 
 static uint32_t			fallback_sequence;
 static int			fallback_enforcing;
 static int			fallback_policyload;
-
-static void			*fallback_netlink_thread = NULL;
 
 /*
  * read_sequence
@@ -90,9 +88,7 @@ static inline uint32_t read_sequence(struct selinux_status_t *status)
 int selinux_status_updated(void)
 {
 	uint32_t	curr_seqno;
-	uint32_t	tmp_seqno;
-	uint32_t	enforcing;
-	uint32_t	policyload;
+	int		result = 0;
 
 	if (selinux_status == NULL) {
 		errno = EINVAL;
@@ -118,29 +114,12 @@ int selinux_status_updated(void)
 	if (last_seqno & 0x0001)
 		last_seqno = curr_seqno;
 
-	if (last_seqno == curr_seqno)
-		return 0;
-
-	/* sequence must not be changed during references */
-	do {
-		enforcing = selinux_status->enforcing;
-		policyload = selinux_status->policyload;
-		tmp_seqno = curr_seqno;
-		curr_seqno = read_sequence(selinux_status);
-	} while (tmp_seqno != curr_seqno);
-
-	if (avc_enforcing != (int) enforcing) {
-		if (avc_process_setenforce(enforcing) < 0)
-			return -1;
+	if (last_seqno != curr_seqno)
+	{
+		last_seqno = curr_seqno;
+		result = 1;
 	}
-	if (last_policyload != policyload) {
-		if (avc_process_policyload(policyload) < 0)
-			return -1;
-		last_policyload = policyload;
-	}
-	last_seqno = curr_seqno;
-
-	return 1;
+	return result;
 }
 
 /*
@@ -271,20 +250,13 @@ static int fallback_cb_policyload(int policyload)
  * Since Linux 2.6.37 or later supports this feature, we may run
  * fallback routine using a netlink socket on older kernels, if
  * the supplied `fallback' is not zero.
- * It returns 0 on success, -1 on error or 1 when we are ready to
- * use these interfaces, but netlink socket was opened as fallback
- * instead of the kernel status page.
+ * It returns 0 on success, or -1 on error.
  */
 int selinux_status_open(int fallback)
 {
-	int		fd;
-	char		path[PATH_MAX];
-	long		pagesize;
-	uint32_t	seqno;
-
-	if (selinux_status != NULL) {
-		return (selinux_status == MAP_FAILED) ? 1 : 0;
-	}
+	int	fd;
+	char	path[PATH_MAX];
+	long	pagesize;
 
 	if (!selinux_mnt) {
 		errno = ENOENT;
@@ -301,22 +273,12 @@ int selinux_status_open(int fallback)
 		goto error;
 
 	selinux_status = mmap(NULL, pagesize, PROT_READ, MAP_SHARED, fd, 0);
-	close(fd);
 	if (selinux_status == MAP_FAILED) {
+		close(fd);
 		goto error;
 	}
+	selinux_status_fd = fd;
 	last_seqno = (uint32_t)(-1);
-
-	/* sequence must not be changed during references */
-	do {
-		seqno = read_sequence(selinux_status);
-
-		last_policyload = selinux_status->policyload;
-
-	} while (seqno != read_sequence(selinux_status));
-
-	/* No need to use avc threads if the kernel status page is available */
-	avc_using_threads = 0;
 
 	return 0;
 
@@ -338,13 +300,8 @@ error:
 
 		/* mark as fallback mode */
 		selinux_status = MAP_FAILED;
+		selinux_status_fd = avc_netlink_acquire_fd();
 		last_seqno = (uint32_t)(-1);
-
-		if (avc_using_threads)
-		{
-			fallback_netlink_thread = avc_create_thread(&avc_netlink_loop);
-			avc_netlink_trouble = 0;
-		}
 
 		fallback_sequence = 0;
 		fallback_enforcing = security_getenforce();
@@ -374,9 +331,6 @@ void selinux_status_close(void)
 	/* fallback-mode */
 	if (selinux_status == MAP_FAILED)
 	{
-		if (avc_using_threads)
-			avc_stop_thread(fallback_netlink_thread);
-
 		avc_netlink_release_fd();
 		avc_netlink_close();
 		selinux_status = NULL;
@@ -389,5 +343,7 @@ void selinux_status_close(void)
 		munmap(selinux_status, pagesize);
 	selinux_status = NULL;
 
+	close(selinux_status_fd);
+	selinux_status_fd = -1;
 	last_seqno = (uint32_t)(-1);
 }

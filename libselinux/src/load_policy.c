@@ -45,6 +45,7 @@ int security_load_policy(void *data, size_t len)
 	return 0;
 }
 
+hidden_def(security_load_policy)
 
 #ifndef ANDROID
 #undef max
@@ -76,11 +77,11 @@ int selinux_mkload_policy(int preservebools __attribute__((unused)))
 #ifdef SHARED
 	char *errormsg = NULL;
 	void *libsepolh = NULL;
-	libsepolh = dlopen("libsepol.so.2", RTLD_NOW);
+	libsepolh = dlopen("libsepol.so.1", RTLD_NOW);
 	if (libsepolh) {
 		usesepol = 1;
 		dlerror();
-#define DLERR() do { if ((errormsg = dlerror())) goto dlclose; } while (0)
+#define DLERR() if ((errormsg = dlerror())) goto dlclose;
 		vers_max = dlsym(libsepolh, "sepol_policy_kern_vers_max");
 		DLERR();
 		vers_min = dlsym(libsepolh, "sepol_policy_kern_vers_min");
@@ -137,15 +138,15 @@ int selinux_mkload_policy(int preservebools __attribute__((unused)))
 	}
 	if (fd < 0) {
 		fprintf(stderr,
-			"SELinux:  Could not open policy file <= %s.%d:  %m\n",
-			selinux_binary_policy_path(), maxvers);
+			"SELinux:  Could not open policy file <= %s.%d:  %s\n",
+			selinux_binary_policy_path(), maxvers, strerror(errno));
 		goto dlclose;
 	}
 
 	if (fstat(fd, &sb) < 0) {
 		fprintf(stderr,
-			"SELinux:  Could not stat policy file %s:  %m\n",
-			path);
+			"SELinux:  Could not stat policy file %s:  %s\n",
+			path, strerror(errno));
 		goto close;
 	}
 
@@ -153,8 +154,8 @@ int selinux_mkload_policy(int preservebools __attribute__((unused)))
 	data = map = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (map == MAP_FAILED) {
 		fprintf(stderr,
-			"SELinux:  Could not map policy file %s:  %m\n",
-			path);
+			"SELinux:  Could not map policy file %s:  %s\n",
+			path, strerror(errno));
 		goto close;
 	}
 
@@ -193,8 +194,8 @@ int selinux_mkload_policy(int preservebools __attribute__((unused)))
 	
 	if (rc)
 		fprintf(stderr,
-			"SELinux:  Could not load policy file %s:  %m\n",
-			path);
+			"SELinux:  Could not load policy file %s:  %s\n",
+			path, strerror(errno));
 
       unmap:
 	if (data != map)
@@ -212,6 +213,7 @@ int selinux_mkload_policy(int preservebools __attribute__((unused)))
 	return rc;
 }
 
+hidden_def(selinux_mkload_policy)
 
 /*
  * Mount point for selinuxfs. 
@@ -279,8 +281,7 @@ int selinux_init_load_policy(int *enforce)
 	const char *mntpoint = NULL;
 	/* First make sure /sys is mounted */
 	if (mount("sysfs", "/sys", "sysfs", 0, 0) == 0 || errno == EBUSY) {
-		/* MS_NODEV can't be set because of /sys/fs/selinux/null device, used by Android */
-		if (mount(SELINUXFS, SELINUXMNT, SELINUXFS, MS_NOEXEC | MS_NOSUID, 0) == 0 || errno == EBUSY) {
+		if (mount(SELINUXFS, SELINUXMNT, SELINUXFS, 0, 0) == 0 || errno == EBUSY) {
 			mntpoint = SELINUXMNT;
 		} else {
 			/* check old mountpoint */
@@ -306,7 +307,7 @@ int selinux_init_load_policy(int *enforce)
 			*enforce = 0;
 		} else {
 			/* Only emit this error if selinux was not disabled */
-			fprintf(stderr, "Mount failed for selinuxfs on %s:  %m\n", SELINUXMNT);
+			fprintf(stderr, "Mount failed for selinuxfs on %s:  %s\n", SELINUXMNT, strerror(errno));
 		}
 
 		if (rc == 0)
@@ -352,7 +353,7 @@ int selinux_init_load_policy(int *enforce)
 	if (orig_enforce != *enforce) {
 		rc = security_setenforce(*enforce);
 		if (rc < 0) {
-			fprintf(stderr, "SELinux:  Unable to switch to %s mode:  %m\n", (*enforce ? "enforcing" : "permissive"));
+			fprintf(stderr, "SELinux:  Unable to switch to %s mode:  %s\n", (*enforce ? "enforcing" : "permissive"), strerror(errno));
 			if (*enforce)
 				goto noload;
 		}

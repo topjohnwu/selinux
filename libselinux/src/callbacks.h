@@ -9,21 +9,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <selinux/selinux.h>
+#include "dso.h"
 
 /* callback pointers */
 extern int __attribute__ ((format(printf, 2, 3)))
-(*selinux_log) (int type, const char *, ...) ;
+(*selinux_log) (int type, const char *, ...) hidden;
 
 extern int
-(*selinux_audit) (void *, security_class_t, char *, size_t) ;
+(*selinux_audit) (void *, security_class_t, char *, size_t) hidden;
 
 extern int
-(*selinux_validate)(char **ctx) ;
+(*selinux_validate)(char **ctx) hidden;
 
 extern int
-(*selinux_netlink_setenforce) (int enforcing) ;
+(*selinux_netlink_setenforce) (int enforcing) hidden;
 
 extern int
-(*selinux_netlink_policyload) (int seqno) ;
+(*selinux_netlink_policyload) (int seqno) hidden;
 
 #endif				/* _SELINUX_CALLBACKS_H_ */

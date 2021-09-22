@@ -14,6 +14,7 @@
 #endif
 
 #include <errno.h>
+#include <dso.h>
 
 #ifdef __APPLE__
 #define __BYTE_ORDER  BYTE_ORDER
@@ -47,19 +48,6 @@
 #define is_saturated(x) (x == (typeof(x))-1)
 #define zero_or_saturated(x) ((x == 0) || is_saturated(x))
 
-#define spaceship_cmp(a, b) (((a) > (b)) - ((a) < (b)))
-
-/* Use to ignore intentional unsigned under- and overflows while running under UBSAN. */
-#if defined(__clang__) && defined(__clang_major__) && (__clang_major__ >= 4)
-#if (__clang_major__ >= 12)
-#define ignore_unsigned_overflow_        __attribute__((no_sanitize("unsigned-integer-overflow", "unsigned-shift-base")))
-#else
-#define ignore_unsigned_overflow_        __attribute__((no_sanitize("unsigned-integer-overflow")))
-#endif
-#else
-#define ignore_unsigned_overflow_
-#endif
-
 /* Policy compatibility information. */
 struct policydb_compat_info {
 	unsigned int type;
@@ -69,12 +57,12 @@ struct policydb_compat_info {
 	unsigned int target_platform;
 };
 
-extern const struct policydb_compat_info *policydb_lookup_compat(unsigned int version,
-								 unsigned int type,
-								 unsigned int target_platform);
+extern struct policydb_compat_info *policydb_lookup_compat(unsigned int version,
+							   unsigned int type,
+						unsigned int target_platform);
 
 /* Reading from a policy "file". */
-extern int next_entry(void *buf, struct policy_file *fp, size_t bytes);
+extern int next_entry(void *buf, struct policy_file *fp, size_t bytes) hidden;
 extern size_t put_entry(const void *ptr, size_t size, size_t n,
-		        struct policy_file *fp);
-extern int str_read(char **strp, struct policy_file *fp, size_t len);
+		        struct policy_file *fp) hidden;
+extern int str_read(char **strp, struct policy_file *fp, size_t len) hidden;

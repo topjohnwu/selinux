@@ -7,6 +7,7 @@
 #include "selinux_internal.h"
 #include <stdio.h>
 #include "policy.h"
+#include "dso.h"
 #include <limits.h>
 
 int security_policyvers(void)
@@ -41,3 +42,4 @@ int security_policyvers(void)
 	return vers;
 }
 
+hidden_def(security_policyvers)

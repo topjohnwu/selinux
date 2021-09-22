@@ -233,7 +233,7 @@ def semanage_custom_suite(test_list):
 
 
 def semanage_run_test(suite):
-    return unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful()
+    unittest.TextTestRunner(verbosity=2).run(suite)
 
 
 class CheckTest(argparse.Action):
@@ -255,9 +255,9 @@ def semanage_args(args):
         for i in semanage_test_list:
             print(i)
     if args.all:
-        return semanage_run_test(semanage_suite())
+        semanage_run_test(semanage_suite())
     if args.test:
-        return semanage_run_test(semanage_custom_suite(args.test))
+        semanage_run_test(semanage_custom_suite(args.test))
 
 
 def gen_semanage_test_args(parser):
@@ -281,10 +281,8 @@ if __name__ == "__main__":
         gen_semanage_test_args(parser)
         try:
             args = parser.parse_args()
-            if args.func(args):
-                sys.exit(0)
-            else:
-                sys.exit(1)
+            args.func(args)
+            sys.exit(0)
         except ValueError as e:
             sys.stderr.write("%s: %s\n" % (e.__class__.__name__, str(e)))
             sys.exit(1)

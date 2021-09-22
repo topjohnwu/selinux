@@ -7,7 +7,7 @@ RANLIB ?= ranlib
 CILDIR ?= ../cil
 
 VERSION = $(shell cat ../VERSION)
-LIBVERSION = 2
+LIBVERSION = 1
 
 LEX = flex
 CIL_GENERATED = $(CILDIR)/src/cil_lexer.c
@@ -19,7 +19,7 @@ LIBMAP=libsepol.map
 LIBSO=$(TARGET).$(LIBVERSION)
 OBJS= $(patsubst %.c,%.o,$(sort $(wildcard *.c)))
 LOBJS= $(patsubst %.c,%.lo,$(sort $(wildcard *.c)))
-CFLAGS ?= -Werror -Wall -W -Wundef -Wshadow -Wmissing-format-attribute -O2 -fno-semantic-interposition
+CFLAGS ?= -Werror -Wall -W -Wundef -Wshadow -Wmissing-format-attribute -O2
 
 override CFLAGS += -I. -I../include -D_GNU_SOURCE
 

@@ -15,9 +15,9 @@
 #define IPPROTO_SCTP 132
 #endif
 
-#include <sepol/kernel_to_conf.h>
 #include <sepol/policydb/avtab.h>
 #include <sepol/policydb/conditional.h>
+#include <sepol/policydb/flask.h>
 #include <sepol/policydb/hashtab.h>
 #include <sepol/policydb/polcaps.h>
 #include <sepol/policydb/policydb.h>
@@ -186,13 +186,9 @@ static char *constraint_expr_to_str(struct policydb *pdb, struct constraint_expr
 					names = ebitmap_to_str(&curr->names, pdb->p_role_val_to_name, 1);
 				}
 				if (!names) {
-					names = strdup("NO_IDENTIFIER");
+					goto exit;
 				}
-				if (strchr(names, ' ')) {
-					new_val = create_str("%s %s { %s }", 3, attr1, op, names);
-				} else {
-					new_val = create_str("%s %s %s", 3, attr1, op, names);
-				}
+				new_val = create_str("%s %s %s", 3, attr1, op, names);
 				free(names);
 			}
 		} else {
@@ -1025,15 +1021,12 @@ static char *cats_ebitmap_to_str(struct ebitmap *cats, char **val_to_name)
 {
 	struct ebitmap_node *node;
 	uint32_t i, start, range, first;
-	char *catsbuf = NULL, *p;
+	char *catsbuf, *p;
 	const char *fmt;
 	char sep;
 	int len, remaining;
 
 	remaining = (int)cats_ebitmap_len(cats, val_to_name);
-	if (remaining == 0) {
-		goto exit;
-	}
 	catsbuf = malloc(remaining);
 	if (!catsbuf) {
 		goto exit;
@@ -1097,7 +1090,7 @@ static int write_level_rules_to_conf(FILE *out, struct policydb *pdb)
 		}
 		if (level->isalias) continue;
 
-		if (!ebitmap_is_empty(&level->level->cat)) {
+		if (ebitmap_cardinality(&level->level->cat) > 0) {
 			cats = cats_ebitmap_to_str(&level->level->cat, pdb->p_cat_val_to_name);
 			sepol_printf(out, "level %s:%s;\n", name, cats);
 			free(cats);
@@ -1361,54 +1354,33 @@ exit:
 	return rc;
 }
 
-static int map_count_type_aliases(__attribute__((unused)) char *key, void *data, void *args)
-{
-	type_datum_t *datum = data;
-	unsigned *count = args;
-
-	if (datum->primary == 0 && datum->flavor == TYPE_TYPE)
-		(*count)++;
-
-	return SEPOL_OK;
-}
-
-static int map_type_aliases_to_strs(char *key, void *data, void *args)
-{
-	type_datum_t *datum = data;
-	struct strs *strs = args;
-	int rc = 0;
-
-	if (datum->primary == 0 && datum->flavor == TYPE_TYPE)
-		rc = strs_add(strs, key);
-
-	return rc;
-}
-
 static int write_type_alias_rules_to_conf(FILE *out, struct policydb *pdb)
 {
 	type_datum_t *alias;
 	struct strs *strs;
 	char *name;
 	char *type;
-	unsigned i, num = 0;
+	unsigned i, num;
 	int rc = 0;
 
-	rc = hashtab_map(pdb->p_types.table, map_count_type_aliases, &num);
+	rc = strs_init(&strs, pdb->p_types.nprim);
 	if (rc != 0) {
 		goto exit;
 	}
 
-	rc = strs_init(&strs, num);
-	if (rc != 0) {
-		goto exit;
-	}
-
-	rc = hashtab_map(pdb->p_types.table, map_type_aliases_to_strs, strs);
-	if (rc != 0) {
-		goto exit;
+	for (i=0; i < pdb->p_types.nprim; i++) {
+		alias = pdb->type_val_to_struct[i];
+		if (!alias->primary) {
+			rc = strs_add(strs, pdb->p_type_val_to_name[i]);
+			if (rc != 0) {
+				goto exit;
+			}
+		}
 	}
 
 	strs_sort(strs);
+
+	num = strs_num_items(strs);
 
 	for (i=0; i<num; i++) {
 		name = strs_read_at_index(strs, i);
@@ -1422,7 +1394,7 @@ static int write_type_alias_rules_to_conf(FILE *out, struct policydb *pdb)
 			goto exit;
 		}
 		type = pdb->p_type_val_to_name[alias->s.value - 1];
-		sepol_printf(out, "typealias %s alias %s;\n", type, name);
+		sepol_printf(out, "typealias %s %s;\n", type, name);
 	}
 
 exit:
@@ -1830,35 +1802,21 @@ struct map_filename_trans_args {
 
 static int map_filename_trans_to_str(hashtab_key_t key, void *data, void *arg)
 {
-	filename_trans_key_t *ft = (filename_trans_key_t *)key;
+	filename_trans_t *ft = (filename_trans_t *)key;
 	filename_trans_datum_t *datum = data;
 	struct map_filename_trans_args *map_args = arg;
 	struct policydb *pdb = map_args->pdb;
 	struct strs *strs = map_args->strs;
 	char *src, *tgt, *class, *filename, *new;
-	struct ebitmap_node *node;
-	uint32_t bit;
-	int rc;
 
+	src = pdb->p_type_val_to_name[ft->stype - 1];
 	tgt = pdb->p_type_val_to_name[ft->ttype - 1];
 	class = pdb->p_class_val_to_name[ft->tclass - 1];
 	filename = ft->name;
-	do {
-		new = pdb->p_type_val_to_name[datum->otype - 1];
+	new =  pdb->p_type_val_to_name[datum->otype - 1];
 
-		ebitmap_for_each_positive_bit(&datum->stypes, node, bit) {
-			src = pdb->p_type_val_to_name[bit];
-			rc = strs_create_and_add(strs,
-						 "type_transition %s %s:%s %s \"%s\";",
-						 5, src, tgt, class, new, filename);
-			if (rc)
-				return rc;
-		}
-
-		datum = datum->next;
-	} while (datum);
-
-	return 0;
+	return strs_create_and_add(strs, "type_transition %s %s:%s %s \"%s\";", 5,
+				   src, tgt, class, new, filename);
 }
 
 static int write_filename_trans_rules_to_conf(FILE *out, struct policydb *pdb)
@@ -1901,7 +1859,7 @@ static char *level_to_str(struct policydb *pdb, struct mls_level *level)
 	char *sens_str = pdb->p_sens_val_to_name[level->sens - 1];
 	char *cats_str;
 
-	if (!ebitmap_is_empty(cats)) {
+	if (ebitmap_cardinality(cats) > 0) {
 		cats_str = cats_ebitmap_to_str(cats, pdb->p_cat_val_to_name);
 		level_str = create_str("%s:%s", 2, sens_str, cats_str);
 		free(cats_str);
@@ -2187,7 +2145,7 @@ static int write_role_decl_rules_to_conf(FILE *out, struct policydb *pdb)
 			rc = -1;
 			goto exit;
 		}
-		if (ebitmap_is_empty(&role->types.types)) continue;
+		if (ebitmap_cardinality(&role->types.types) == 0) continue;
 		types = ebitmap_to_str(&role->types.types, pdb->p_type_val_to_name, 1);
 		if (!types) {
 			rc = -1;
@@ -2340,7 +2298,7 @@ static int write_user_decl_rules_to_conf(FILE *out, struct policydb *pdb)
 		}
 		sepol_printf(out, "user %s", name);
 
-		if (!ebitmap_is_empty(&user->roles.roles)) {
+		if (ebitmap_cardinality(&user->roles.roles) > 0) {
 			roles = ebitmap_to_str(&user->roles.roles,
 					       pdb->p_role_val_to_name, 1);
 			if (!roles) {
@@ -2375,10 +2333,9 @@ static int write_user_decl_rules_to_conf(FILE *out, struct policydb *pdb)
 		sepol_printf(out, ";\n");
 	}
 
-exit:
-	if (strs)
-		strs_destroy(&strs);
+	strs_destroy(&strs);
 
+exit:
 	if (rc != 0) {
 		sepol_log_err("Error writing user declarations to policy.conf\n");
 	}
@@ -2531,7 +2488,7 @@ static int write_genfscon_rules_to_conf(FILE *out, struct policydb *pdb)
 				goto exit;
 			}
 
-			rc = strs_create_and_add(strs, "genfscon %s \"%s\" %s", 3,
+			rc = strs_create_and_add(strs, "genfscon %s %s %s", 3,
 						 fstype, name, ctx);
 			free(ctx);
 			if (rc != 0) {
@@ -2653,13 +2610,13 @@ static int write_selinux_node_rules_to_conf(FILE *out, struct policydb *pdb)
 
 	for (node = pdb->ocontexts[4]; node != NULL; node = node->next) {
 		if (inet_ntop(AF_INET, &node->u.node.addr, addr, INET_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon address is invalid: %m");
+			sepol_log_err("Nodecon address is invalid: %s", strerror(errno));
 			rc = -1;
 			goto exit;
 		}
 
 		if (inet_ntop(AF_INET, &node->u.node.mask, mask, INET_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon mask is invalid: %m");
+			sepol_log_err("Nodecon mask is invalid: %s", strerror(errno));
 			rc = -1;
 			goto exit;
 		}
@@ -2694,13 +2651,13 @@ static int write_selinux_node6_rules_to_conf(FILE *out, struct policydb *pdb)
 
 	for (node6 = pdb->ocontexts[6]; node6 != NULL; node6 = node6->next) {
 		if (inet_ntop(AF_INET6, &node6->u.node6.addr, addr, INET6_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon address is invalid: %m");
+			sepol_log_err("Nodecon address is invalid: %s", strerror(errno));
 			rc = -1;
 			goto exit;
 		}
 
 		if (inet_ntop(AF_INET6, &node6->u.node6.mask, mask, INET6_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon mask is invalid: %m");
+			sepol_log_err("Nodecon mask is invalid: %s", strerror(errno));
 			rc = -1;
 			goto exit;
 		}
@@ -2742,7 +2699,8 @@ static int write_selinux_ibpkey_rules_to_conf(FILE *out, struct policydb *pdb)
 
 		if (inet_ntop(AF_INET6, &subnet_prefix.s6_addr,
 			      subnet_prefix_str, INET6_ADDRSTRLEN) == NULL) {
-			sepol_log_err("ibpkeycon address is invalid: %m");
+			sepol_log_err("ibpkeycon address is invalid: %s",
+				      strerror(errno));
 			rc = -1;
 			goto exit;
 		}
@@ -2995,7 +2953,7 @@ static int write_xen_devicetree_rules_to_conf(FILE *out, struct policydb *pdb)
 			goto exit;
 		}
 
-		sepol_printf(out, "devicetreecon \"%s\" %s\n", name, ctx);
+		sepol_printf(out, "devicetreecon %s %s\n", name, ctx);
 
 		free(ctx);
 	}
@@ -3044,18 +3002,6 @@ int sepol_kernel_policydb_to_conf(FILE *out, struct policydb *pdb)
 
 	if (pdb->policy_type != SEPOL_POLICY_KERN) {
 		sepol_log_err("Policy is not a kernel policy");
-		rc = -1;
-		goto exit;
-	}
-
-	if (pdb->policyvers >= POLICYDB_VERSION_AVTAB && pdb->policyvers <= POLICYDB_VERSION_PERMISSIVE) {
-		/*
-		 * For policy versions between 20 and 23, attributes exist in the policy,
-		 * but only in the type_attr_map. This means that there are gaps in both
-		 * the type_val_to_struct and p_type_val_to_name arrays and policy rules
-		 * can refer to those gaps.
-		 */
-		sepol_log_err("Writing policy versions between 20 and 23 as a policy.conf is not supported");
 		rc = -1;
 		goto exit;
 	}

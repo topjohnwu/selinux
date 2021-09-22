@@ -14,27 +14,24 @@
 #include <string.h>
 #include <selinux/avc.h>
 #include "callbacks.h"
+#include "dso.h"
 
 /* callback pointers */
-extern void *(*avc_func_malloc) (size_t) ;
-extern void (*avc_func_free) (void *);
+extern void *(*avc_func_malloc) (size_t) hidden;
+extern void (*avc_func_free) (void *)hidden;
 
-extern void (*avc_func_log) (const char *, ...) __attribute__((__format__(printf,1,2))) ;
-extern void (*avc_func_audit) (void *, security_class_t, char *, size_t);
+extern void (*avc_func_log) (const char *, ...) __attribute__((__format__(printf,1,2))) hidden;
+extern void (*avc_func_audit) (void *, security_class_t, char *, size_t)hidden;
 
-extern int avc_using_threads ;
-extern int avc_app_main_loop ;
-extern void *(*avc_func_create_thread) (void (*)(void));
-extern void (*avc_func_stop_thread) (void *);
+extern int avc_using_threads hidden;
+extern int avc_app_main_loop hidden;
+extern void *(*avc_func_create_thread) (void (*)(void))hidden;
+extern void (*avc_func_stop_thread) (void *)hidden;
 
-extern void *(*avc_func_alloc_lock) (void);
-extern void (*avc_func_get_lock) (void *);
-extern void (*avc_func_release_lock) (void *);
-extern void (*avc_func_free_lock) (void *);
-
-/* selinux status processing for netlink and sestatus */
-extern int avc_process_setenforce(int enforcing);
-extern int avc_process_policyload(uint32_t seqno);
+extern void *(*avc_func_alloc_lock) (void)hidden;
+extern void (*avc_func_get_lock) (void *)hidden;
+extern void (*avc_func_release_lock) (void *)hidden;
+extern void (*avc_func_free_lock) (void *)hidden;
 
 static inline void set_callbacks(const struct avc_memory_callback *mem_cb,
 				 const struct avc_log_callback *log_cb,
@@ -64,10 +61,10 @@ static inline void set_callbacks(const struct avc_memory_callback *mem_cb,
 
 /* message prefix and enforcing mode*/
 #define AVC_PREFIX_SIZE 16
-extern char avc_prefix[AVC_PREFIX_SIZE] ;
-extern int avc_running ;
-extern int avc_enforcing ;
-extern int avc_setenforce ;
+extern char avc_prefix[AVC_PREFIX_SIZE] hidden;
+extern int avc_running hidden;
+extern int avc_enforcing hidden;
+extern int avc_setenforce hidden;
 
 /* user-supplied callback interface for avc */
 static inline void *avc_malloc(size_t size)
@@ -85,12 +82,10 @@ static inline void avc_free(void *ptr)
 
 /* this is a macro in order to use the variadic capability. */
 #define avc_log(type, format...) \
-  do { \
-    if (avc_func_log) \
-      avc_func_log(format); \
-    else \
-      selinux_log(type, format); \
-  } while (0)
+  if (avc_func_log) \
+    avc_func_log(format); \
+  else \
+    selinux_log(type, format);
 
 static inline void avc_suppl_audit(void *ptr, security_class_t class,
 				   char *buf, size_t len)
@@ -139,18 +134,14 @@ static inline void avc_free_lock(void *lock)
 #ifdef AVC_CACHE_STATS
 
 #define avc_cache_stats_incr(field) \
-  do { \
-    cache_stats.field ++; \
-  } while (0)
+  cache_stats.field ++;
 #define avc_cache_stats_add(field, num) \
-  do { \
-    cache_stats.field += num; \
-  } while (0)
+  cache_stats.field += num;
 
 #else
 
-#define avc_cache_stats_incr(field) do {} while (0)
-#define avc_cache_stats_add(field, num) do {} while (0)
+#define avc_cache_stats_incr(field)
+#define avc_cache_stats_add(field, num)
 
 #endif
 
@@ -164,23 +155,28 @@ static inline void avc_free_lock(void *lock)
 /* internal callbacks */
 int avc_ss_grant(security_id_t ssid, security_id_t tsid,
 		 security_class_t tclass, access_vector_t perms,
-		 uint32_t seqno) ;
+		 uint32_t seqno) hidden;
 int avc_ss_try_revoke(security_id_t ssid, security_id_t tsid,
 		      security_class_t tclass,
 		      access_vector_t perms, uint32_t seqno,
-		      access_vector_t * out_retained) ;
+		      access_vector_t * out_retained) hidden;
 int avc_ss_revoke(security_id_t ssid, security_id_t tsid,
 		  security_class_t tclass, access_vector_t perms,
-		  uint32_t seqno) ;
-int avc_ss_reset(uint32_t seqno) ;
+		  uint32_t seqno) hidden;
+int avc_ss_reset(uint32_t seqno) hidden;
 int avc_ss_set_auditallow(security_id_t ssid, security_id_t tsid,
 			  security_class_t tclass, access_vector_t perms,
-			  uint32_t seqno, uint32_t enable) ;
+			  uint32_t seqno, uint32_t enable) hidden;
 int avc_ss_set_auditdeny(security_id_t ssid, security_id_t tsid,
 			 security_class_t tclass, access_vector_t perms,
-			 uint32_t seqno, uint32_t enable) ;
+			 uint32_t seqno, uint32_t enable) hidden;
 
 /* netlink kernel message code */
-extern int avc_netlink_trouble ;
+extern int avc_netlink_trouble hidden;
 
+hidden_proto(avc_av_stats)
+    hidden_proto(avc_cleanup)
+    hidden_proto(avc_reset)
+    hidden_proto(avc_audit)
+    hidden_proto(avc_has_perm_noaudit)
 #endif				/* _SELINUX_AVC_INTERNAL_H_ */
