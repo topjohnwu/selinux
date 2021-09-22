@@ -39,8 +39,6 @@ typealias_types = {
 equiv_dict = {"smbd": ["samba"], "httpd": ["apache"], "virtd": ["virt", "libvirt"], "named": ["bind"], "fsdaemon": ["smartmon"], "mdadm": ["raid"]}
 
 equiv_dirs = ["/var"]
-man_date = time.strftime("%y-%m-%d", time.gmtime(
-        int(os.environ.get('SOURCE_DATE_EPOCH', time.time()))))
 modules_dict = None
 
 
@@ -571,7 +569,7 @@ class ManPage:
 
     def _typealias(self,typealias):
         self.fd.write('.TH  "%(typealias)s_selinux"  "8"  "%(date)s" "%(typealias)s" "SELinux Policy %(typealias)s"'
-                 % {'typealias':typealias, 'date': man_date})
+                 % {'typealias':typealias, 'date': time.strftime("%y-%m-%d")})
         self.fd.write(r"""
 .SH "NAME"
 %(typealias)s_selinux \- Security Enhanced Linux Policy for the %(typealias)s processes
@@ -590,7 +588,7 @@ man page for more details.
 
     def _header(self):
         self.fd.write('.TH  "%(domainname)s_selinux"  "8"  "%(date)s" "%(domainname)s" "SELinux Policy %(domainname)s"'
-                      % {'domainname': self.domainname, 'date': man_date})
+                      % {'domainname': self.domainname, 'date': time.strftime("%y-%m-%d")})
         self.fd.write(r"""
 .SH "NAME"
 %(domainname)s_selinux \- Security Enhanced Linux Policy for the %(domainname)s processes
@@ -1076,7 +1074,7 @@ If you wanted to change the default user mapping to use the %(user)s_u user, you
 
 .B semanage login -m -s %(user)s_u __default__
 
-""" % {'desc': self.desc, 'user': self.domainname, 'range': self._get_users_range()})
+""" % {'desc': self.desc, 'type': self.type, 'user': self.domainname, 'range': self._get_users_range()})
 
         if "login_userdomain" in self.attributes and "login_userdomain" in self.all_attributes:
             self.fd.write("""
@@ -1247,7 +1245,7 @@ Execute the following to see the types that the SELinux user %(type)s can execut
 
 .B $ sesearch -A -s %(type)s -c process -p transition
 
-""" % {'type': self.type})
+""" % {'user': self.domainname, 'type': self.type})
 
     def _role_header(self):
         self.fd.write('.TH  "%(user)s_selinux"  "8"  "%(user)s" "mgrepl@redhat.com" "%(user)s SELinux Policy documentation"'

@@ -1,3 +1,4 @@
+
 /*
  * Author : Stephen Smalley, <sds@tycho.nsa.gov>
  */
@@ -58,16 +59,18 @@
 #include <sepol/policydb/sidtab.h>
 #include <sepol/policydb/services.h>
 #include <sepol/policydb/conditional.h>
+#include <sepol/policydb/flask.h>
 #include <sepol/policydb/util.h>
-#include <sepol/sepol.h>
 
 #include "debug.h"
 #include "private.h"
 #include "context.h"
+#include "av_permissions.h"
+#include "dso.h"
 #include "mls.h"
-#include "flask.h"
 
 #define BUG() do { ERR(NULL, "Badness at %s:%d", __FILE__, __LINE__); } while (0)
+#define BUG_ON(x) do { if (x) ERR(NULL, "Badness at %s:%d", __FILE__, __LINE__); } while (0)
 
 static int selinux_enforcing = 1;
 
@@ -86,7 +89,7 @@ static int next_stack_entry;
 static void push(char *expr_ptr)
 {
 	if (next_stack_entry >= stack_len) {
-		char **new_stack;
+		char **new_stack = stack;
 		int new_stack_len;
 
 		if (stack_len == 0)
@@ -118,13 +121,13 @@ static char *pop(void)
 }
 /* End Stack services */
 
-int sepol_set_sidtab(sidtab_t * s)
+int hidden sepol_set_sidtab(sidtab_t * s)
 {
 	sidtab = s;
 	return 0;
 }
 
-int sepol_set_policydb(policydb_t * p)
+int hidden sepol_set_policydb(policydb_t * p)
 {
 	policydb = p;
 	return 0;
@@ -145,7 +148,7 @@ int sepol_set_policydb_from_file(FILE * fp)
 	}
 	if (policydb_read(&mypolicydb, &pf, 0)) {
 		policydb_destroy(&mypolicydb);
-		ERR(NULL, "can't read binary policy: %m");
+		ERR(NULL, "can't read binary policy: %s", strerror(errno));
 		return -1;
 	}
 	policydb = &mypolicydb;
@@ -175,7 +178,7 @@ static int expr_buf_len;
 static void cat_expr_buf(char *e_buf, const char *string)
 {
 	int len, new_buf_len;
-	char *p, *new_buf;
+	char *p, *new_buf = e_buf;
 
 	while (1) {
 		p = e_buf + expr_buf_used;
@@ -290,19 +293,6 @@ static char *get_class_info(sepol_security_class_t tclass,
 {
 	constraint_expr_t *e;
 	int mls, state_num;
-	/* Determine statement type */
-	const char *statements[] = {
-		"constrain ",			/* 0 */
-		"mlsconstrain ",		/* 1 */
-		"validatetrans ",		/* 2 */
-		"mlsvalidatetrans ",	/* 3 */
-		0 };
-	size_t class_buf_len = 0;
-	size_t new_class_buf_len;
-	size_t buf_used;
-	int len;
-	char *class_buf = NULL, *p;
-	char *new_class_buf = NULL;
 
 	/* Find if MLS statement or not */
 	mls = 0;
@@ -313,18 +303,30 @@ static char *get_class_info(sepol_security_class_t tclass,
 		}
 	}
 
+	/* Determine statement type */
+	const char *statements[] = {
+		"constrain ",			/* 0 */
+		"mlsconstrain ",		/* 1 */
+		"validatetrans ",		/* 2 */
+		"mlsvalidatetrans ",	/* 3 */
+		0 };
+
 	if (xcontext == NULL)
 		state_num = mls + 0;
 	else
 		state_num = mls + 2;
 
+	int class_buf_len = 0;
+	int new_class_buf_len;
+	int len, buf_used;
+	char *class_buf = NULL, *p;
+	char *new_class_buf = NULL;
+
 	while (1) {
 		new_class_buf_len = class_buf_len + EXPR_BUF_SIZE;
 		new_class_buf = realloc(class_buf, new_class_buf_len);
-		if (!new_class_buf) {
-			free(class_buf);
-			return NULL;
-		}
+			if (!new_class_buf)
+				return NULL;
 		class_buf_len = new_class_buf_len;
 		class_buf = new_class_buf;
 		buf_used = 0;
@@ -332,7 +334,7 @@ static char *get_class_info(sepol_security_class_t tclass,
 
 		/* Add statement type */
 		len = snprintf(p, class_buf_len - buf_used, "%s", statements[state_num]);
-		if (len < 0 || (size_t)len >= class_buf_len - buf_used)
+		if (len < 0 || len >= class_buf_len - buf_used)
 			continue;
 
 		/* Add class entry */
@@ -340,7 +342,7 @@ static char *get_class_info(sepol_security_class_t tclass,
 		buf_used += len;
 		len = snprintf(p, class_buf_len - buf_used, "%s ",
 				policydb->p_class_val_to_name[tclass - 1]);
-		if (len < 0 || (size_t)len >= class_buf_len - buf_used)
+		if (len < 0 || len >= class_buf_len - buf_used)
 			continue;
 
 		/* Add permission entries (validatetrans does not have perms) */
@@ -353,7 +355,7 @@ static char *get_class_info(sepol_security_class_t tclass,
 		} else {
 			len = snprintf(p, class_buf_len - buf_used, "(");
 		}
-		if (len < 0 || (size_t)len >= class_buf_len - buf_used)
+		if (len < 0 || len >= class_buf_len - buf_used)
 			continue;
 		break;
 	}
@@ -406,7 +408,7 @@ static int constraint_expr_eval_reason(context_struct_t *scontext,
 #define TARGET  2
 #define XTARGET 3
 
-	int s_t_x_num;
+	int s_t_x_num = SOURCE;
 
 	/* Set 0 = fail, u = CEXPR_USER, r = CEXPR_ROLE, t = CEXPR_TYPE */
 	int u_r_t = 0;
@@ -415,19 +417,12 @@ static int constraint_expr_eval_reason(context_struct_t *scontext,
 	char *tgt = NULL;
 	int rc = 0, x;
 	char *class_buf = NULL;
-	int expr_list_len = 0;
-	int expr_count;
 
 	/*
 	 * The array of expression answer buffer pointers and counter.
 	 */
 	char **answer_list = NULL;
 	int answer_counter = 0;
-
-	/* The pop operands */
-	char *a;
-	char *b;
-	int a_len, b_len;
 
 	class_buf = get_class_info(tclass, constraint, xcontext);
 	if (!class_buf) {
@@ -436,12 +431,13 @@ static int constraint_expr_eval_reason(context_struct_t *scontext,
 	}
 
 	/* Original function but with buffer support */
+	int expr_list_len = 0;
 	expr_counter = 0;
 	expr_list = NULL;
 	for (e = constraint->expr; e; e = e->next) {
 		/* Allocate a stack to hold expression buffer entries */
 		if (expr_counter >= expr_list_len) {
-			char **new_expr_list;
+			char **new_expr_list = expr_list;
 			int new_expr_list_len;
 
 			if (expr_list_len == 0)
@@ -476,30 +472,18 @@ static int constraint_expr_eval_reason(context_struct_t *scontext,
 		/* Now process each expression of the constraint */
 		switch (e->expr_type) {
 		case CEXPR_NOT:
-			if (sp < 0) {
-				BUG();
-				rc = -EINVAL;
-				goto out;
-			}
+			BUG_ON(sp < 0);
 			s[sp] = !s[sp];
 			cat_expr_buf(expr_list[expr_counter], "not");
 			break;
 		case CEXPR_AND:
-			if (sp < 1) {
-				BUG();
-				rc = -EINVAL;
-				goto out;
-			}
+			BUG_ON(sp < 1);
 			sp--;
 			s[sp] &= s[sp + 1];
 			cat_expr_buf(expr_list[expr_counter], "and");
 			break;
 		case CEXPR_OR:
-			if (sp < 1) {
-				BUG();
-				rc = -EINVAL;
-				goto out;
-			}
+			BUG_ON(sp < 1);
 			sp--;
 			s[sp] |= s[sp + 1];
 			cat_expr_buf(expr_list[expr_counter], "or");
@@ -705,7 +689,7 @@ mls_ops:
 	 * expr_list malloc's. Normally they are released by the RPN to
 	 * infix code.
 	 */
-	expr_count = expr_counter;
+	int expr_count = expr_counter;
 	expr_counter = 0;
 
 	/*
@@ -718,6 +702,11 @@ mls_ops:
 		rc = -ENOMEM;
 		goto out;
 	}
+
+	/* The pop operands */
+	char *a;
+	char *b;
+	int a_len, b_len;
 
 	/* Convert constraint from RPN to infix notation. */
 	for (x = 0; x != expr_count; x++) {
@@ -777,6 +766,14 @@ mls_ops:
 			xcontext ? "Validatetrans" : "Constraint",
 			s[0] ? "GRANTED" : "DENIED");
 
+	int len, new_buf_len;
+	char *p, **new_buf = r_buf;
+	/*
+	 * These contain the constraint components that are added to the
+	 * callers reason buffer.
+	 */
+	const char *buffers[] = { class_buf, a, "); ", tmp_buf, 0 };
+
 	/*
 	 * This will add the constraints to the callers reason buffer (who is
 	 * responsible for freeing the memory). It will handle any realloc's
@@ -787,14 +784,6 @@ mls_ops:
 
 	if (r_buf && ((s[0] == 0) || ((s[0] == 1 &&
 				(flags & SHOW_GRANTED) == SHOW_GRANTED)))) {
-		int len, new_buf_len;
-		char *p, **new_buf = r_buf;
-		/*
-		* These contain the constraint components that are added to the
-		* callers reason buffer.
-		*/
-		const char *buffers[] = { class_buf, a, "); ", tmp_buf, 0 };
-
 		for (x = 0; buffers[x] != NULL; x++) {
 			while (1) {
 				p = *r_buf + reason_buf_used;
@@ -1000,8 +989,8 @@ static int context_struct_compute_av(context_struct_t * scontext,
 	 * role is changing, then check the (current_role, new_role) 
 	 * pair.
 	 */
-	if (tclass == policydb->process_class &&
-	    (avd->allowed & policydb->process_trans_dyntrans) &&
+	if (tclass == SECCLASS_PROCESS &&
+	    (avd->allowed & (PROCESS__TRANSITION | PROCESS__DYNTRANSITION)) &&
 	    scontext->role != tcontext->role) {
 		for (ra = policydb->role_allow; ra; ra = ra->next) {
 			if (scontext->role == ra->role &&
@@ -1009,7 +998,8 @@ static int context_struct_compute_av(context_struct_t * scontext,
 				break;
 		}
 		if (!ra)
-			avd->allowed &= ~policydb->process_trans_dyntrans;
+			avd->allowed = (avd->allowed) & ~(PROCESS__TRANSITION |
+							  PROCESS__DYNTRANSITION);
 	}
 
 	if (requested & ~avd->allowed) {
@@ -1023,11 +1013,58 @@ static int context_struct_compute_av(context_struct_t * scontext,
 	return 0;
 }
 
+int hidden sepol_validate_transition(sepol_security_id_t oldsid,
+				     sepol_security_id_t newsid,
+				     sepol_security_id_t tasksid,
+				     sepol_security_class_t tclass)
+{
+	context_struct_t *ocontext;
+	context_struct_t *ncontext;
+	context_struct_t *tcontext;
+	class_datum_t *tclass_datum;
+	constraint_node_t *constraint;
+
+	if (!tclass || tclass > policydb->p_classes.nprim) {
+		ERR(NULL, "unrecognized class %d", tclass);
+		return -EINVAL;
+	}
+	tclass_datum = policydb->class_val_to_struct[tclass - 1];
+
+	ocontext = sepol_sidtab_search(sidtab, oldsid);
+	if (!ocontext) {
+		ERR(NULL, "unrecognized SID %d", oldsid);
+		return -EINVAL;
+	}
+
+	ncontext = sepol_sidtab_search(sidtab, newsid);
+	if (!ncontext) {
+		ERR(NULL, "unrecognized SID %d", newsid);
+		return -EINVAL;
+	}
+
+	tcontext = sepol_sidtab_search(sidtab, tasksid);
+	if (!tcontext) {
+		ERR(NULL, "unrecognized SID %d", tasksid);
+		return -EINVAL;
+	}
+
+	constraint = tclass_datum->validatetrans;
+	while (constraint) {
+		if (!constraint_expr_eval_reason(ocontext, ncontext, tcontext,
+					  0, constraint, NULL, 0)) {
+			return -EPERM;
+		}
+		constraint = constraint->next;
+	}
+
+	return 0;
+}
+
 /*
  * sepol_validate_transition_reason_buffer - the reason buffer is realloc'd
  * in the constraint_expr_eval_reason() function.
  */
-int sepol_validate_transition_reason_buffer(sepol_security_id_t oldsid,
+int hidden sepol_validate_transition_reason_buffer(sepol_security_id_t oldsid,
 				     sepol_security_id_t newsid,
 				     sepol_security_id_t tasksid,
 				     sepol_security_class_t tclass,
@@ -1085,7 +1122,7 @@ int sepol_validate_transition_reason_buffer(sepol_security_id_t oldsid,
 	return 0;
 }
 
-int sepol_compute_av_reason(sepol_security_id_t ssid,
+int hidden sepol_compute_av_reason(sepol_security_id_t ssid,
 				   sepol_security_id_t tsid,
 				   sepol_security_class_t tclass,
 				   sepol_access_vector_t requested,
@@ -1119,7 +1156,7 @@ int sepol_compute_av_reason(sepol_security_id_t ssid,
  * REASON_BUF_SIZE. If the buffer size is exceeded, then it is realloc'd
  * in the constraint_expr_eval_reason() function.
  */
-int sepol_compute_av_reason_buffer(sepol_security_id_t ssid,
+int hidden sepol_compute_av_reason_buffer(sepol_security_id_t ssid,
 				   sepol_security_id_t tsid,
 				   sepol_security_class_t tclass,
 				   sepol_access_vector_t requested,
@@ -1161,7 +1198,7 @@ out:
 	return rc;
 }
 
-int sepol_compute_av(sepol_security_id_t ssid,
+int hidden sepol_compute_av(sepol_security_id_t ssid,
 			    sepol_security_id_t tsid,
 			    sepol_security_class_t tclass,
 			    sepol_access_vector_t requested,
@@ -1176,13 +1213,13 @@ int sepol_compute_av(sepol_security_id_t ssid,
  * Return a class ID associated with the class string specified by
  * class_name.
  */
-int sepol_string_to_security_class(const char *class_name,
+int hidden sepol_string_to_security_class(const char *class_name,
 			sepol_security_class_t *tclass)
 {
 	class_datum_t *tclass_datum;
 
 	tclass_datum = hashtab_search(policydb->p_classes.table,
-				      class_name);
+				      (hashtab_key_t) class_name);
 	if (!tclass_datum) {
 		ERR(NULL, "unrecognized class %s", class_name);
 		return STATUS_ERR;
@@ -1195,7 +1232,7 @@ int sepol_string_to_security_class(const char *class_name,
  * Return access vector bit associated with the class ID and permission
  * string.
  */
-int sepol_string_to_av_perm(sepol_security_class_t tclass,
+int hidden sepol_string_to_av_perm(sepol_security_class_t tclass,
 					const char *perm_name,
 					sepol_access_vector_t *av)
 {
@@ -1211,7 +1248,7 @@ int sepol_string_to_av_perm(sepol_security_class_t tclass,
 	/* Check for unique perms then the common ones (if any) */
 	perm_datum = (perm_datum_t *)
 			hashtab_search(tclass_datum->permissions.table,
-			perm_name);
+			(hashtab_key_t)perm_name);
 	if (perm_datum != NULL) {
 		*av = 0x1 << (perm_datum->s.value - 1);
 		return STATUS_SUCCESS;
@@ -1222,7 +1259,7 @@ int sepol_string_to_av_perm(sepol_security_class_t tclass,
 
 	perm_datum = (perm_datum_t *)
 			hashtab_search(tclass_datum->comdatum->permissions.table,
-			perm_name);
+			(hashtab_key_t)perm_name);
 
 	if (perm_datum != NULL) {
 		*av = 0x1 << (perm_datum->s.value - 1);
@@ -1240,7 +1277,7 @@ out:
  * to point to this string and set `*scontext_len' to
  * the length of the string.
  */
-int sepol_sid_to_context(sepol_security_id_t sid,
+int hidden sepol_sid_to_context(sepol_security_id_t sid,
 				sepol_security_context_t * scontext,
 				size_t * scontext_len)
 {
@@ -1263,7 +1300,7 @@ int sepol_sid_to_context(sepol_security_id_t sid,
  * Return a SID associated with the security context that
  * has the string representation specified by `scontext'.
  */
-int sepol_context_to_sid(const sepol_security_context_t scontext,
+int hidden sepol_context_to_sid(const sepol_security_context_t scontext,
 				size_t scontext_len, sepol_security_id_t * sid)
 {
 
@@ -1324,7 +1361,6 @@ static int sepol_compute_sid(sepol_security_id_t ssid,
 			     sepol_security_class_t tclass,
 			     uint32_t specified, sepol_security_id_t * out_sid)
 {
-	struct class_datum *cladatum = NULL;
 	context_struct_t *scontext = 0, *tcontext = 0, newcontext;
 	struct role_trans *roletr = 0;
 	avtab_key_t avkey;
@@ -1345,22 +1381,14 @@ static int sepol_compute_sid(sepol_security_id_t ssid,
 		goto out;
 	}
 
-	if (tclass && tclass <= policydb->p_classes.nprim)
-		cladatum = policydb->class_val_to_struct[tclass - 1];
-
 	context_init(&newcontext);
 
 	/* Set the user identity. */
 	switch (specified) {
 	case AVTAB_TRANSITION:
 	case AVTAB_CHANGE:
-		if (cladatum && cladatum->default_user == DEFAULT_TARGET) {
-			newcontext.user = tcontext->user;
-		} else {
-			/* notice this gets both DEFAULT_SOURCE and unset */
-			/* Use the process user identity. */
-			newcontext.user = scontext->user;
-		}
+		/* Use the process user identity. */
+		newcontext.user = scontext->user;
 		break;
 	case AVTAB_MEMBER:
 		/* Use the related object owner. */
@@ -1368,31 +1396,18 @@ static int sepol_compute_sid(sepol_security_id_t ssid,
 		break;
 	}
 
-	/* Set the role to default values. */
-	if (cladatum && cladatum->default_role == DEFAULT_SOURCE) {
+	/* Set the role and type to default values. */
+	switch (tclass) {
+	case SECCLASS_PROCESS:
+		/* Use the current role and type of process. */
 		newcontext.role = scontext->role;
-	} else if (cladatum && cladatum->default_role == DEFAULT_TARGET) {
-		newcontext.role = tcontext->role;
-	} else {
-		if (tclass == policydb->process_class)
-			newcontext.role = scontext->role;
-		else
-			newcontext.role = OBJECT_R_VAL;
-	}
-
-	/* Set the type to default values. */
-	if (cladatum && cladatum->default_type == DEFAULT_SOURCE) {
 		newcontext.type = scontext->type;
-	} else if (cladatum && cladatum->default_type == DEFAULT_TARGET) {
+		break;
+	default:
+		/* Use the well-defined object role. */
+		newcontext.role = OBJECT_R_VAL;
+		/* Use the type of the related object. */
 		newcontext.type = tcontext->type;
-	} else {
-		if (tclass == policydb->process_class) {
-			/* Use the type of process. */
-			newcontext.type = scontext->type;
-		} else {
-			/* Use the type of the related object. */
-			newcontext.type = tcontext->type;
-		}
 	}
 
 	/* Look for a type transition/member/change rule. */
@@ -1420,18 +1435,23 @@ static int sepol_compute_sid(sepol_security_id_t ssid,
 	}
 
 	/* Check for class-specific changes. */
-	if (specified & AVTAB_TRANSITION) {
-		/* Look for a role transition rule. */
-		for (roletr = policydb->role_tr; roletr;
-		     roletr = roletr->next) {
-			if (roletr->role == scontext->role &&
-			    roletr->type == tcontext->type &&
-			    roletr->tclass == tclass) {
-				/* Use the role transition rule. */
-				newcontext.role = roletr->new_role;
-				break;
+	switch (tclass) {
+	case SECCLASS_PROCESS:
+		if (specified & AVTAB_TRANSITION) {
+			/* Look for a role transition rule. */
+			for (roletr = policydb->role_tr; roletr;
+			     roletr = roletr->next) {
+				if (roletr->role == scontext->role &&
+				    roletr->type == tcontext->type) {
+					/* Use the role transition rule. */
+					newcontext.role = roletr->new_role;
+					break;
+				}
 			}
 		}
+		break;
+	default:
+		break;
 	}
 
 	/* Set the MLS attributes.
@@ -1460,7 +1480,7 @@ static int sepol_compute_sid(sepol_security_id_t ssid,
  * Compute a SID to use for labeling a new object in the 
  * class `tclass' based on a SID pair.  
  */
-int sepol_transition_sid(sepol_security_id_t ssid,
+int hidden sepol_transition_sid(sepol_security_id_t ssid,
 				sepol_security_id_t tsid,
 				sepol_security_class_t tclass,
 				sepol_security_id_t * out_sid)
@@ -1473,7 +1493,7 @@ int sepol_transition_sid(sepol_security_id_t ssid,
  * polyinstantiated object of class `tclass' based on 
  * a SID pair.
  */
-int sepol_member_sid(sepol_security_id_t ssid,
+int hidden sepol_member_sid(sepol_security_id_t ssid,
 			    sepol_security_id_t tsid,
 			    sepol_security_class_t tclass,
 			    sepol_security_id_t * out_sid)
@@ -1485,7 +1505,7 @@ int sepol_member_sid(sepol_security_id_t ssid,
  * Compute a SID to use for relabeling an object in the 
  * class `tclass' based on a SID pair.  
  */
-int sepol_change_sid(sepol_security_id_t ssid,
+int hidden sepol_change_sid(sepol_security_id_t ssid,
 			    sepol_security_id_t tsid,
 			    sepol_security_class_t tclass,
 			    sepol_security_id_t * out_sid)
@@ -1671,7 +1691,7 @@ static int convert_context(sepol_security_id_t key __attribute__ ((unused)),
 }
 
 /* Reading from a policy "file". */
-int next_entry(void *buf, struct policy_file *fp, size_t bytes)
+int hidden next_entry(void *buf, struct policy_file *fp, size_t bytes)
 {
 	size_t nread;
 
@@ -1698,7 +1718,7 @@ int next_entry(void *buf, struct policy_file *fp, size_t bytes)
 	return 0;
 }
 
-size_t put_entry(const void *ptr, size_t size, size_t n,
+size_t hidden put_entry(const void *ptr, size_t size, size_t n,
 			struct policy_file *fp)
 {
 	size_t bytes = size * n;
@@ -1733,7 +1753,7 @@ size_t put_entry(const void *ptr, size_t size, size_t n,
  *   0 - Success
  *  -1 - Failure with errno set
  */
-int str_read(char **strp, struct policy_file *fp, size_t len)
+int hidden str_read(char **strp, struct policy_file *fp, size_t len)
 {
 	int rc;
 	char *str;
@@ -1776,7 +1796,7 @@ int str_read(char **strp, struct policy_file *fp, size_t len)
  *
  * Reset the access vector cache.
  */
-int sepol_load_policy(void *data, size_t len)
+int hidden sepol_load_policy(void *data, size_t len)
 {
 	policydb_t oldpolicydb, newpolicydb;
 	sidtab_t oldsidtab, newsidtab;
@@ -1849,7 +1869,7 @@ int sepol_load_policy(void *data, size_t len)
  * the file system and the `file_sid' SID is returned
  * for all files within that file system.
  */
-int sepol_fs_sid(char *name,
+int hidden sepol_fs_sid(char *name,
 			sepol_security_id_t * fs_sid,
 			sepol_security_id_t * file_sid)
 {
@@ -1891,7 +1911,7 @@ int sepol_fs_sid(char *name,
  * Return the SID of the ibpkey specified by
  * `subnet prefix', and `pkey number'.
  */
-int sepol_ibpkey_sid(uint64_t subnet_prefix,
+int hidden sepol_ibpkey_sid(uint64_t subnet_prefix,
 			    uint16_t pkey, sepol_security_id_t *out_sid)
 {
 	ocontext_t *c;
@@ -1927,7 +1947,7 @@ out:
  * Return the SID of the subnet management interface specified by
  * `device name', and `port'.
  */
-int sepol_ibendport_sid(char *dev_name,
+int hidden sepol_ibendport_sid(char *dev_name,
 			       uint8_t port,
 			       sepol_security_id_t *out_sid)
 {
@@ -1964,7 +1984,7 @@ out:
  * Return the SID of the port specified by
  * `domain', `type', `protocol', and `port'.
  */
-int sepol_port_sid(uint16_t domain __attribute__ ((unused)),
+int hidden sepol_port_sid(uint16_t domain __attribute__ ((unused)),
 			  uint16_t type __attribute__ ((unused)),
 			  uint8_t protocol,
 			  uint16_t port, sepol_security_id_t * out_sid)
@@ -2004,7 +2024,7 @@ int sepol_port_sid(uint16_t domain __attribute__ ((unused)),
  * the default SID for messages received on the
  * interface.
  */
-int sepol_netif_sid(char *name,
+int hidden sepol_netif_sid(char *name,
 			   sepol_security_id_t * if_sid,
 			   sepol_security_id_t * msg_sid)
 {
@@ -2062,7 +2082,7 @@ static int match_ipv6_addrmask(uint32_t * input, uint32_t * addr,
  * in bytes and `domain' is the communications domain or
  * address family in which the address should be interpreted.
  */
-int sepol_node_sid(uint16_t domain,
+int hidden sepol_node_sid(uint16_t domain,
 			  void *addrp,
 			  size_t addrlen, sepol_security_id_t * out_sid)
 {
@@ -2135,7 +2155,7 @@ int sepol_node_sid(uint16_t domain,
  */
 #define SIDS_NEL 25
 
-int sepol_get_user_sids(sepol_security_id_t fromsid,
+int hidden sepol_get_user_sids(sepol_security_id_t fromsid,
 			       char *username,
 			       sepol_security_id_t ** sids, uint32_t * nel)
 {
@@ -2183,10 +2203,10 @@ int sepol_get_user_sids(sepol_security_id_t fromsid,
 				continue;
 
 			rc = context_struct_compute_av(fromcon, &usercon,
-						       policydb->process_class,
-						       policydb->process_trans,
+						       SECCLASS_PROCESS,
+						       PROCESS__TRANSITION,
 						       &avd, &reason, NULL, 0);
-			if (rc || !(avd.allowed & policydb->process_trans))
+			if (rc || !(avd.allowed & PROCESS__TRANSITION))
 				continue;
 			rc = sepol_sidtab_context_to_sid(sidtab, &usercon,
 							 &sid);
@@ -2230,7 +2250,7 @@ int sepol_get_user_sids(sepol_security_id_t fromsid,
  * that cannot support a persistent label mapping or use another
  * fixed labeling behavior like transition SIDs or task SIDs.
  */
-int sepol_genfs_sid(const char *fstype,
+int hidden sepol_genfs_sid(const char *fstype,
 			   const char *path,
 			   sepol_security_class_t sclass,
 			   sepol_security_id_t * sid)
@@ -2277,7 +2297,7 @@ int sepol_genfs_sid(const char *fstype,
 	return rc;
 }
 
-int sepol_fs_use(const char *fstype,
+int hidden sepol_fs_use(const char *fstype,
 			unsigned int *behavior, sepol_security_id_t * sid)
 {
 	int rc = 0;
@@ -2301,7 +2321,7 @@ int sepol_fs_use(const char *fstype,
 		}
 		*sid = c->sid[0];
 	} else {
-		rc = sepol_genfs_sid(fstype, "/", policydb->dir_class, sid);
+		rc = sepol_genfs_sid(fstype, "/", SECCLASS_DIR, sid);
 		if (rc) {
 			*behavior = SECURITY_FS_USE_NONE;
 			rc = 0;

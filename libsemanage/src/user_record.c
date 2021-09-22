@@ -37,6 +37,7 @@ int semanage_user_key_create(semanage_handle_t * handle,
 	return sepol_user_key_create(handle->sepolh, name, key);
 }
 
+hidden_def(semanage_user_key_create)
 
 int semanage_user_key_extract(semanage_handle_t * handle,
 			      const semanage_user_t * user,
@@ -46,6 +47,7 @@ int semanage_user_key_extract(semanage_handle_t * handle,
 	return semanage_user_base_key_extract(handle, user->base, key);
 }
 
+hidden_def(semanage_user_key_extract)
 
 void semanage_user_key_free(semanage_user_key_t * key)
 {
@@ -53,8 +55,9 @@ void semanage_user_key_free(semanage_user_key_t * key)
 	sepol_user_key_free(key);
 }
 
+hidden_def(semanage_user_key_free)
 
- void semanage_user_key_unpack(const semanage_user_key_t * key,
+hidden void semanage_user_key_unpack(const semanage_user_key_t * key,
 				     const char **name)
 {
 
@@ -70,6 +73,7 @@ int semanage_user_compare(const semanage_user_t * user,
 	return strcmp(user->name, name);
 }
 
+hidden_def(semanage_user_compare)
 
 int semanage_user_compare2(const semanage_user_t * user,
 			   const semanage_user_t * user2)
@@ -78,6 +82,7 @@ int semanage_user_compare2(const semanage_user_t * user,
 	return strcmp(user->name, user2->name);
 }
 
+hidden_def(semanage_user_compare2)
 
 static int semanage_user_compare2_qsort(const semanage_user_t ** user,
 					const semanage_user_t ** user2)
@@ -92,6 +97,7 @@ const char *semanage_user_get_name(const semanage_user_t * user)
 	return user->name;
 }
 
+hidden_def(semanage_user_get_name)
 
 int semanage_user_set_name(semanage_handle_t * handle,
 			   semanage_user_t * user, const char *name)
@@ -120,6 +126,7 @@ int semanage_user_set_name(semanage_handle_t * handle,
 	return STATUS_ERR;
 }
 
+hidden_def(semanage_user_set_name)
 
 /* Labeling prefix */
 const char *semanage_user_get_prefix(const semanage_user_t * user)
@@ -142,6 +149,7 @@ const char *semanage_user_get_mlslevel(const semanage_user_t * user)
 	return semanage_user_base_get_mlslevel(user->base);
 }
 
+hidden_def(semanage_user_get_mlslevel)
 
 int semanage_user_set_mlslevel(semanage_handle_t * handle,
 			       semanage_user_t * user, const char *mls_level)
@@ -150,6 +158,7 @@ int semanage_user_set_mlslevel(semanage_handle_t * handle,
 	return semanage_user_base_set_mlslevel(handle, user->base, mls_level);
 }
 
+hidden_def(semanage_user_set_mlslevel)
 
 const char *semanage_user_get_mlsrange(const semanage_user_t * user)
 {
@@ -157,6 +166,7 @@ const char *semanage_user_get_mlsrange(const semanage_user_t * user)
 	return semanage_user_base_get_mlsrange(user->base);
 }
 
+hidden_def(semanage_user_get_mlsrange)
 
 int semanage_user_set_mlsrange(semanage_handle_t * handle,
 			       semanage_user_t * user, const char *mls_range)
@@ -165,6 +175,7 @@ int semanage_user_set_mlsrange(semanage_handle_t * handle,
 	return semanage_user_base_set_mlsrange(handle, user->base, mls_range);
 }
 
+hidden_def(semanage_user_set_mlsrange)
 
 /* Role management */
 int semanage_user_get_num_roles(const semanage_user_t * user)
@@ -180,6 +191,7 @@ int semanage_user_add_role(semanage_handle_t * handle,
 	return semanage_user_base_add_role(handle, user->base, role);
 }
 
+hidden_def(semanage_user_add_role)
 
 void semanage_user_del_role(semanage_user_t * user, const char *role)
 {
@@ -202,6 +214,7 @@ int semanage_user_get_roles(semanage_handle_t * handle,
 					    num_roles);
 }
 
+hidden_def(semanage_user_get_roles)
 
 int semanage_user_set_roles(semanage_handle_t * handle,
 			    semanage_user_t * user,
@@ -242,6 +255,7 @@ int semanage_user_create(semanage_handle_t * handle,
 	return STATUS_ERR;
 }
 
+hidden_def(semanage_user_create)
 
 int semanage_user_clone(semanage_handle_t * handle,
 			const semanage_user_t * user,
@@ -275,6 +289,7 @@ int semanage_user_clone(semanage_handle_t * handle,
 	return STATUS_ERR;
 }
 
+hidden_def(semanage_user_clone)
 
 void semanage_user_free(semanage_user_t * user)
 {
@@ -288,9 +303,10 @@ void semanage_user_free(semanage_user_t * user)
 	free(user);
 }
 
+hidden_def(semanage_user_free)
 
 /* Join properties */
- int semanage_user_join(semanage_handle_t * handle,
+hidden int semanage_user_join(semanage_handle_t * handle,
 			      const semanage_user_base_t * record1,
 			      const semanage_user_extra_t * record2,
 			      semanage_user_t ** result)
@@ -353,7 +369,7 @@ void semanage_user_free(semanage_user_t * user)
 	return STATUS_ERR;
 }
 
- int semanage_user_split(semanage_handle_t * handle,
+hidden int semanage_user_split(semanage_handle_t * handle,
 			       const semanage_user_t * record,
 			       semanage_user_base_t ** split1,
 			       semanage_user_extra_t ** split2)

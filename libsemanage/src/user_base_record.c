@@ -25,7 +25,7 @@ typedef semanage_user_key_t record_key_t;
 #include "debug.h"
 
 /* Key */
- int semanage_user_base_key_extract(semanage_handle_t * handle,
+hidden int semanage_user_base_key_extract(semanage_handle_t * handle,
 					  const semanage_user_base_t * user,
 					  semanage_user_key_t ** key)
 {
@@ -56,14 +56,14 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 }
 
 /* Name */
- const char *semanage_user_base_get_name(const semanage_user_base_t *
+hidden const char *semanage_user_base_get_name(const semanage_user_base_t *
 					       user)
 {
 
 	return sepol_user_get_name(user);
 }
 
- int semanage_user_base_set_name(semanage_handle_t * handle,
+hidden int semanage_user_base_set_name(semanage_handle_t * handle,
 				       semanage_user_base_t * user,
 				       const char *name)
 {
@@ -72,14 +72,14 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 }
 
 /* MLS */
- const char *semanage_user_base_get_mlslevel(const semanage_user_base_t *
+hidden const char *semanage_user_base_get_mlslevel(const semanage_user_base_t *
 						   user)
 {
 
 	return sepol_user_get_mlslevel(user);
 }
 
- int semanage_user_base_set_mlslevel(semanage_handle_t * handle,
+hidden int semanage_user_base_set_mlslevel(semanage_handle_t * handle,
 					   semanage_user_base_t * user,
 					   const char *mls_level)
 {
@@ -87,14 +87,14 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 	return sepol_user_set_mlslevel(handle->sepolh, user, mls_level);
 }
 
- const char *semanage_user_base_get_mlsrange(const semanage_user_base_t *
+hidden const char *semanage_user_base_get_mlsrange(const semanage_user_base_t *
 						   user)
 {
 
 	return sepol_user_get_mlsrange(user);
 }
 
- int semanage_user_base_set_mlsrange(semanage_handle_t * handle,
+hidden int semanage_user_base_set_mlsrange(semanage_handle_t * handle,
 					   semanage_user_base_t * user,
 					   const char *mls_range)
 {
@@ -103,13 +103,13 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 }
 
 /* Role management */
- int semanage_user_base_get_num_roles(const semanage_user_base_t * user)
+hidden int semanage_user_base_get_num_roles(const semanage_user_base_t * user)
 {
 
 	return sepol_user_get_num_roles(user);
 }
 
- int semanage_user_base_add_role(semanage_handle_t * handle,
+hidden int semanage_user_base_add_role(semanage_handle_t * handle,
 				       semanage_user_base_t * user,
 				       const char *role)
 {
@@ -117,21 +117,21 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 	return sepol_user_add_role(handle->sepolh, user, role);
 }
 
- void semanage_user_base_del_role(semanage_user_base_t * user,
+hidden void semanage_user_base_del_role(semanage_user_base_t * user,
 					const char *role)
 {
 
 	sepol_user_del_role(user, role);
 }
 
- int semanage_user_base_has_role(const semanage_user_base_t * user,
+hidden int semanage_user_base_has_role(const semanage_user_base_t * user,
 				       const char *role)
 {
 
 	return sepol_user_has_role(user, role);
 }
 
- int semanage_user_base_get_roles(semanage_handle_t * handle,
+hidden int semanage_user_base_get_roles(semanage_handle_t * handle,
 					const semanage_user_base_t * user,
 					const char ***roles_arr,
 					unsigned int *num_roles)
@@ -140,7 +140,7 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 	return sepol_user_get_roles(handle->sepolh, user, roles_arr, num_roles);
 }
 
- int semanage_user_base_set_roles(semanage_handle_t * handle,
+hidden int semanage_user_base_set_roles(semanage_handle_t * handle,
 					semanage_user_base_t * user,
 					const char **roles_arr,
 					unsigned int num_roles)
@@ -150,14 +150,14 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 }
 
 /* Create/Clone/Destroy */
- int semanage_user_base_create(semanage_handle_t * handle,
+hidden int semanage_user_base_create(semanage_handle_t * handle,
 				     semanage_user_base_t ** user_ptr)
 {
 
 	return sepol_user_create(handle->sepolh, user_ptr);
 }
 
- int semanage_user_base_clone(semanage_handle_t * handle,
+hidden int semanage_user_base_clone(semanage_handle_t * handle,
 				    const semanage_user_base_t * user,
 				    semanage_user_base_t ** user_ptr)
 {
@@ -165,7 +165,7 @@ static int semanage_user_base_compare2_qsort(const semanage_user_base_t ** user,
 	return sepol_user_clone(handle->sepolh, user, user_ptr);
 }
 
- void semanage_user_base_free(semanage_user_base_t * user)
+hidden void semanage_user_base_free(semanage_user_base_t * user)
 {
 
 	sepol_user_free(user);

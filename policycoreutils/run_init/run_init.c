@@ -303,7 +303,7 @@ int authenticate_user(void)
  * out:		The CONTEXT associated with the context.
  * return:	0 on success, -1 on failure.
  */
-int get_init_context(char **context)
+int get_init_context(security_context_t * context)
 {
 
 	FILE *fp;
@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
 
 	extern char *optarg;	/* used by getopt() for arg strings */
 	extern int opterr;	/* controls getopt() error messages */
-	char *new_context;	/* context for the init script context  */
+	security_context_t new_context;	/* context for the init script context  */
 
 #ifdef USE_NLS
 	setlocale(LC_ALL, "");
@@ -406,19 +406,14 @@ int main(int argc, char *argv[])
 
 	if (chdir("/")) {
 		perror("chdir");
-		free(new_context);
 		exit(-1);
 	}
 
 	if (setexeccon(new_context) < 0) {
 		fprintf(stderr, _("Could not set exec context to %s.\n"),
 			new_context);
-		free(new_context);
 		exit(-1);
 	}
-
-	free(new_context);
-
 	if (access("/usr/sbin/open_init_pty", X_OK) != 0) {
 		if (execvp(argv[1], argv + 1)) {
 			perror("execvp");

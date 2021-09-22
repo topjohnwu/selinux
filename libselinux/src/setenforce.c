@@ -34,3 +34,4 @@ int security_setenforce(int value)
 	return 0;
 }
 
+hidden_def(security_setenforce)

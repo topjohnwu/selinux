@@ -30,6 +30,7 @@
 #include <sepol/policydb/policydb.h>
 #include <sepol/policydb/services.h>
 #include <sepol/policydb/conditional.h>
+#include <sepol/policydb/flask.h>
 #include <sepol/policydb/link.h>
 #include <sepol/policydb/module.h>
 #include <sepol/policydb/util.h>
@@ -111,7 +112,7 @@ static void display_id(policydb_t * p, FILE * fp, uint32_t symbol_type,
 	}
 }
 
-static int display_type_set(type_set_t * set, uint32_t flags, policydb_t * policy,
+int display_type_set(type_set_t * set, uint32_t flags, policydb_t * policy,
 		     FILE * fp)
 {
 	unsigned int i, num_types;
@@ -175,7 +176,7 @@ static int display_type_set(type_set_t * set, uint32_t flags, policydb_t * polic
 	return 0;
 }
 
-static int display_mod_role_set(role_set_t * roles, policydb_t * p, FILE * fp)
+int display_mod_role_set(role_set_t * roles, policydb_t * p, FILE * fp)
 {
 	unsigned int i, num = 0;
 
@@ -210,7 +211,7 @@ static int display_mod_role_set(role_set_t * roles, policydb_t * p, FILE * fp)
 
 }
 
-static int display_avrule(avrule_t * avrule, policydb_t * policy,
+int display_avrule(avrule_t * avrule, policydb_t * policy,
 		   FILE * fp)
 {
 	class_perm_node_t *cur;
@@ -313,7 +314,7 @@ static int display_avrule(avrule_t * avrule, policydb_t * policy,
 	return 0;
 }
 
-static int display_type_callback(hashtab_key_t key, hashtab_datum_t datum, void *data)
+int display_type_callback(hashtab_key_t key, hashtab_datum_t datum, void *data)
 {
 	type_datum_t *type;
 	FILE *fp;
@@ -355,14 +356,14 @@ static int display_type_callback(hashtab_key_t key, hashtab_datum_t datum, void 
 	return 0;
 }
 
-static int display_types(policydb_t * p, FILE * fp)
+int display_types(policydb_t * p, FILE * fp)
 {
 	if (hashtab_map(p->p_types.table, display_type_callback, fp))
 		return -1;
 	return 0;
 }
 
-static int display_users(policydb_t * p, FILE * fp)
+int display_users(policydb_t * p, FILE * fp)
 {
 	unsigned int i, j;
 	ebitmap_t *bitmap;
@@ -381,7 +382,7 @@ static int display_users(policydb_t * p, FILE * fp)
 	return 0;
 }
 
-static int display_bools(policydb_t * p, FILE * fp)
+int display_bools(policydb_t * p, FILE * fp)
 {
 	unsigned int i;
 
@@ -392,7 +393,7 @@ static int display_bools(policydb_t * p, FILE * fp)
 	return 0;
 }
 
-static void display_expr(policydb_t * p, cond_expr_t * exp, FILE * fp)
+void display_expr(policydb_t * p, cond_expr_t * exp, FILE * fp)
 {
 
 	cond_expr_t *cur;
@@ -427,14 +428,14 @@ static void display_expr(policydb_t * p, cond_expr_t * exp, FILE * fp)
 	}
 }
 
-static void display_policycon(FILE * fp)
+void display_policycon(FILE * fp)
 {
 	/* There was an attempt to implement this at one time.  Look through
 	 * git history to find it. */
 	fprintf(fp, "Sorry, not implemented\n");
 }
 
-static void display_initial_sids(policydb_t * p, FILE * fp)
+void display_initial_sids(policydb_t * p, FILE * fp)
 {
 	ocontext_t *cur;
 	char *user, *role, *type;
@@ -459,7 +460,7 @@ static void display_initial_sids(policydb_t * p, FILE * fp)
 #endif
 }
 
-static void display_class_set(ebitmap_t *classes, policydb_t *p, FILE *fp)
+void display_class_set(ebitmap_t *classes, policydb_t *p, FILE *fp)
 {
 	unsigned int i, num = 0;
 
@@ -482,7 +483,7 @@ static void display_class_set(ebitmap_t *classes, policydb_t *p, FILE *fp)
 		fprintf(fp, " }");
 }
 
-static void display_role_trans(role_trans_rule_t * tr, policydb_t * p, FILE * fp)
+void display_role_trans(role_trans_rule_t * tr, policydb_t * p, FILE * fp)
 {
 	for (; tr; tr = tr->next) {
 		fprintf(fp, "role transition ");
@@ -495,7 +496,7 @@ static void display_role_trans(role_trans_rule_t * tr, policydb_t * p, FILE * fp
 	}
 }
 
-static void display_role_allow(role_allow_rule_t * ra, policydb_t * p, FILE * fp)
+void display_role_allow(role_allow_rule_t * ra, policydb_t * p, FILE * fp)
 {
 	for (; ra; ra = ra->next) {
 		fprintf(fp, "role allow ");
@@ -517,7 +518,7 @@ static void display_filename_trans(filename_trans_rule_t * tr, policydb_t * p, F
 	}
 }
 
-static int role_display_callback(hashtab_key_t key __attribute__((unused)),
+int role_display_callback(hashtab_key_t key __attribute__((unused)),
 			  hashtab_datum_t datum, void *data)
 {
 	role_datum_t *role;
@@ -611,7 +612,7 @@ int change_bool(char *name, int state, policydb_t * p, FILE * fp)
 }
 #endif
 
-static int display_avdecl(avrule_decl_t * decl, int field,
+int display_avdecl(avrule_decl_t * decl, int field,
 		   policydb_t * policy, FILE * out_fp)
 {
 	fprintf(out_fp, "decl %u:%s\n", decl->decl_id,
@@ -692,13 +693,13 @@ static int display_avdecl(avrule_decl_t * decl, int field,
 	return 0;		/* should never get here */
 }
 
-static int display_avblock(int field, policydb_t * policy,
+int display_avblock(int field, policydb_t * policy,
 		    FILE * out_fp)
 {
 	avrule_block_t *block = policydb.global;
 	while (block != NULL) {
-		avrule_decl_t *decl = block->branch_list;
 		fprintf(out_fp, "--- begin avrule block ---\n");
+		avrule_decl_t *decl = block->branch_list;
 		while (decl != NULL) {
 			if (display_avdecl(decl, field, policy, out_fp)) {
 				return -1;
@@ -710,7 +711,7 @@ static int display_avblock(int field, policydb_t * policy,
 	return 0;
 }
 
-static int display_handle_unknown(policydb_t * p, FILE * out_fp)
+int display_handle_unknown(policydb_t * p, FILE * out_fp)
 {
 	if (p->handle_unknown == ALLOW_UNKNOWN)
 		fprintf(out_fp, "Allow unknown classes and perms\n");
@@ -827,14 +828,14 @@ static void display_policycaps(policydb_t * p, FILE * fp)
 	ebitmap_for_each_positive_bit(&p->policycaps, node, i) {
 		capname = sepol_polcap_getname(i);
 		if (capname == NULL) {
-			snprintf(buf, sizeof(buf), "unknown (%u)", i);
+			snprintf(buf, sizeof(buf), "unknown (%d)", i);
 			capname = buf;
 		}
 		fprintf(fp, "\t%s\n", capname);
 	}
 }
 
-static int menu(void)
+int menu(void)
 {
 	printf("\nSelect a command:\n");
 	printf("1)  display unconditional AVTAB\n");
