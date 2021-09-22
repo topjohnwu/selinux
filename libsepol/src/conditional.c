@@ -388,6 +388,7 @@ int cond_normalize_expr(policydb_t * p, cond_node_t * cn)
 	for (e = cn->expr; e != NULL; e = e->next) {
 		switch (e->expr_type) {
 		case COND_BOOL:
+			i = 0;
 			/* see if we've already seen this bool */
 			if (!bool_present(e->bool, cn->bool_ids, cn->nbools)) {
 				/* count em all but only record up to COND_MAX_BOOLS */
@@ -714,6 +715,7 @@ static int cond_read_av_list(policydb_t * p, void *fp,
 
 	*ret_list = NULL;
 
+	len = 0;
 	rc = next_entry(buf, fp, sizeof(uint32_t));
 	if (rc < 0)
 		return -1;
@@ -767,6 +769,7 @@ static int cond_read_node(policydb_t * p, cond_node_t * node, void *fp)
 
 	node->cur_state = le32_to_cpu(buf[0]);
 
+	len = 0;
 	rc = next_entry(buf, fp, sizeof(uint32_t));
 	if (rc < 0)
 		goto err;

@@ -431,13 +431,13 @@ static int cleanup_tmpdir(const char *tmpdir, const char *src,
  * to clean it up.
  */
 static char *create_tmpdir(const char *src, struct stat *src_st,
-	struct stat *out_st, struct passwd *pwd, const char *execcon)
+	struct stat *out_st, struct passwd *pwd, security_context_t execcon)
 {
 	char *tmpdir = NULL;
 	char *cmdbuf = NULL;
 	int fd_t = -1, fd_s = -1;
 	struct stat tmp_st;
-	char *con = NULL;
+	security_context_t con = NULL;
 
 	/* get selinux context */
 	if (execcon) {
@@ -549,10 +549,10 @@ good:
 #define PROC_BASE "/proc"
 
 static int
-killall (const char *execcon)
+killall (security_context_t execcon)
 {
 	DIR *dir;
-	char *scon;
+	security_context_t scon;
 	struct dirent *de;
 	pid_t *pid_table, pid, self;
 	int i;
@@ -615,7 +615,7 @@ killall (const char *execcon)
 
 int main(int argc, char **argv) {
 	int status = -1;
-	const char *execcon = NULL;
+	security_context_t execcon = NULL;
 
 	int clflag;		/* holds codes for command line flags */
 	int kill_all = 0;

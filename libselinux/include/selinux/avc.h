@@ -64,11 +64,7 @@ extern int avc_context_to_sid_raw(const char * ctx, security_id_t * sid);
  * reference count).  Note that avc_context_to_sid() also
  * increments reference counts.
  */
-extern int sidget(security_id_t sid)
-#ifdef __GNUC__
-__attribute__ ((deprecated))
-#endif
-;
+extern int sidget(security_id_t sid);
 
 /**
  * sidput - decrement SID reference counter.
@@ -80,11 +76,7 @@ __attribute__ ((deprecated))
  * zero, the SID is invalid, and avc_context_to_sid() must
  * be called to obtain a new SID for the security context.
  */
-extern int sidput(security_id_t sid)
-#ifdef __GNUC__
-__attribute__ ((deprecated))
-#endif
-;
+extern int sidput(security_id_t sid);
 
 /**
  * avc_get_initial_sid - get SID for an initial kernel security identifier
@@ -200,11 +192,7 @@ extern int avc_init(const char *msgprefix,
 		    const struct avc_memory_callback *mem_callbacks,
 		    const struct avc_log_callback *log_callbacks,
 		    const struct avc_thread_callback *thread_callbacks,
-		    const struct avc_lock_callback *lock_callbacks)
-#ifdef __GNUC__
-	__attribute__ ((deprecated("Use avc_open and selinux_set_callback")))
-#endif
-;
+		    const struct avc_lock_callback *lock_callbacks);
 
 /**
  * avc_open - Initialize the AVC.

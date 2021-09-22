@@ -48,6 +48,7 @@ int semanage_set_root(const char *root)
 	return 0;
 }
 
+hidden_def(semanage_set_root);
 
 const char * semanage_root(void)
 {
@@ -57,6 +58,7 @@ const char * semanage_root(void)
 	return private_semanage_root;
 }
 
+hidden_def(semanage_root);
 
 semanage_handle_t *semanage_handle_create(void)
 {
@@ -362,6 +364,7 @@ int semanage_access_check(semanage_handle_t * sh)
 	return -1;		/* unreachable */
 }
 
+hidden_def(semanage_access_check)
 
 int semanage_disconnect(semanage_handle_t * sh)
 {
@@ -391,6 +394,7 @@ void semanage_handle_destroy(semanage_handle_t * sh)
 	free(sh);
 }
 
+hidden_def(semanage_handle_destroy)
 
 /********************* public transaction functions *********************/
 int semanage_begin_transaction(semanage_handle_t * sh)
@@ -412,6 +416,7 @@ int semanage_begin_transaction(semanage_handle_t * sh)
 	return 0;
 }
 
+hidden_def(semanage_begin_transaction)
 
 int semanage_commit(semanage_handle_t * sh)
 {

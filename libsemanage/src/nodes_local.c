@@ -69,3 +69,4 @@ int semanage_node_list_local(semanage_handle_t * handle,
 	return dbase_list(handle, dconfig, records, count);
 }
 
+hidden_def(semanage_node_list_local)

@@ -707,8 +707,7 @@ static int semanage_filename_select(const struct dirent *d)
 
 /* Copies a file from src to dst.  If dst already exists then
  * overwrite it.  Returns 0 on success, -1 on error. */
-int semanage_copy_file(const char *src, const char *dst, mode_t mode,
-		bool syncrequired)
+int semanage_copy_file(const char *src, const char *dst, mode_t mode)
 {
 	int in, out, retval = 0, amount_read, n, errsv = errno;
 	char tmp[PATH_MAX];
@@ -736,11 +735,8 @@ int semanage_copy_file(const char *src, const char *dst, mode_t mode,
 	}
 	umask(mask);
 	while (retval == 0 && (amount_read = read(in, buf, sizeof(buf))) > 0) {
-		if (write(out, buf, amount_read) != amount_read) {
-			if (errno)
-				errsv = errno;
-			else
-				errsv = EIO;
+		if (write(out, buf, amount_read) < 0) {
+			errsv = errno;
 			retval = -1;
 		}
 	}
@@ -749,10 +745,6 @@ int semanage_copy_file(const char *src, const char *dst, mode_t mode,
 		retval = -1;
 	}
 	close(in);
-	if (syncrequired && fsync(out) < 0) {
-		errsv = errno;
-		retval = -1;
-	}
 	if (close(out) < 0) {
 		errsv = errno;
 		retval = -1;
@@ -819,8 +811,7 @@ static int semanage_copy_dir_flags(const char *src, const char *dst, int flag)
 			umask(mask);
 		} else if (S_ISREG(sb.st_mode) && flag == 1) {
 			mask = umask(0077);
-			if (semanage_copy_file(path, path2, sb.st_mode,
-						false) < 0) {
+			if (semanage_copy_file(path, path2, sb.st_mode) < 0) {
 				umask(mask);
 				goto cleanup;
 			}
@@ -1485,6 +1476,7 @@ int semanage_reload_policy(semanage_handle_t * sh)
 	return r;
 }
 
+hidden_def(semanage_reload_policy)
 
 /* This expands the file_context.tmpl file to file_context and homedirs.template */
 int semanage_split_fc(semanage_handle_t * sh)
@@ -1648,8 +1640,7 @@ static int semanage_install_final_tmp(semanage_handle_t * sh)
 			goto cleanup;
 		}
 
-		ret = semanage_copy_file(src, dst, sh->conf->file_mode,
-					true);
+		ret = semanage_copy_file(src, dst, sh->conf->file_mode);
 		if (ret < 0) {
 			ERR(sh, "Could not copy %s to %s.", src, dst);
 			goto cleanup;
@@ -1731,19 +1722,6 @@ static int semanage_commit_sandbox(semanage_handle_t * sh)
 	if (amount_written == -1) {
 		ERR(sh, "Error while writing commit number to %s.",
 		    commit_filename);
-		close(fd);
-		return -1;
-	}
-	close(fd);
-
-	/* sync changes in sandbox to filesystem */
-	fd = open(sandbox, O_DIRECTORY);
-	if (fd == -1) {
-		ERR(sh, "Error while opening %s for syncfs(): %d", sandbox, errno);
-		return -1;
-	}
-	if (syncfs(fd) == -1) {
-		ERR(sh, "Error while syncing %s to filesystem: %d", sandbox, errno);
 		close(fd);
 		return -1;
 	}

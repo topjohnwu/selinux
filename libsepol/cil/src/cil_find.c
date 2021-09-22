@@ -30,7 +30,6 @@
 #include <sepol/policydb/ebitmap.h>
 
 #include "cil_internal.h"
-#include "cil_find.h"
 #include "cil_flavor.h"
 #include "cil_list.h"
 #include "cil_log.h"
@@ -45,8 +44,8 @@ struct cil_args_find {
 
 static int cil_type_match_any(struct cil_symtab_datum *d1, struct cil_symtab_datum *d2)
 {
-	enum cil_flavor f1 = FLAVOR(d1);
-	enum cil_flavor f2 = FLAVOR(d2);
+	enum cil_flavor f1 = ((struct cil_tree_node*)d1->nodes->head->data)->flavor;
+	enum cil_flavor f2 = ((struct cil_tree_node*)d2->nodes->head->data)->flavor;
 
 	if (f1 != CIL_TYPEATTRIBUTE && f2 != CIL_TYPEATTRIBUTE) {
 		struct cil_type *t1 = (struct cil_type *)d1;
@@ -82,8 +81,8 @@ static int cil_type_match_any(struct cil_symtab_datum *d1, struct cil_symtab_dat
 static int cil_type_matches(ebitmap_t *matches, struct cil_symtab_datum *d1, struct cil_symtab_datum *d2)
 {
 	int rc = SEPOL_OK;
-	enum cil_flavor f1 = FLAVOR(d1);
-	enum cil_flavor f2 = FLAVOR(d2);
+	enum cil_flavor f1 = ((struct cil_tree_node*)d1->nodes->head->data)->flavor;
+	enum cil_flavor f2 = ((struct cil_tree_node*)d2->nodes->head->data)->flavor;
 
 	if (f1 != CIL_TYPEATTRIBUTE && f2 != CIL_TYPEATTRIBUTE) {
 		struct cil_type *t1 = (struct cil_type *)d1;
@@ -119,7 +118,7 @@ static int cil_type_matches(ebitmap_t *matches, struct cil_symtab_datum *d1, str
 static int cil_self_match_any(struct cil_symtab_datum *s1, struct cil_symtab_datum *s2, struct cil_symtab_datum *t2)
 {
 	int rc;
-	struct cil_tree_node *n1 = NODE(s1);
+	struct cil_tree_node *n1 = s1->nodes->head->data;
 	if (n1->flavor != CIL_TYPEATTRIBUTE) {
 		rc = cil_type_match_any(s1, t2);
 	} else {

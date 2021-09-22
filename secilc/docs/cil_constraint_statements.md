@@ -8,9 +8,7 @@ Enable constraints to be placed on the specified permissions of the object class
 
 **Statement definition:**
 
-```secil
     (constrain classpermissionset_id ... expression | expr ...)
-```
 
 **Where:**
 
@@ -34,12 +32,12 @@ Enable constraints to be placed on the specified permissions of the object class
 <p><code>    (op u1 u2)</code></p>
 <p><code>    (role_op r1 r2)</code></p>
 <p><code>    (op t1 t2)</code></p>
-<p><code>    (op u1 user_id | (user_id ...))</code></p>
-<p><code>    (op u2 user_id | (user_id ...))</code></p>
-<p><code>    (op r1 role_id | (role_id ...))</code></p>
-<p><code>    (op r2 role_id | (role_id ...))</code></p>
-<p><code>    (op t1 type_id | (type_id ...))</code></p>
-<p><code>    (op t2 type_id | (type_id ...))</code></p>
+<p><code>    (op u1 user_id)</code></p>
+<p><code>    (op u2 user_id)</code></p>
+<p><code>    (op r1 role_id)</code></p>
+<p><code>    (op r2 role_id)</code></p>
+<p><code>    (op t1 type_id)</code></p>
+<p><code>    (op t2 type_id)</code></p>
 <p>where:</p>
 <p><code>  u1, r1, t1 = Source context: user, role or type</code></p>
 <p><code>  u2, r2, t2 = Target context: user, role or type</code></p>
@@ -64,7 +62,6 @@ Enable constraints to be placed on the specified permissions of the object class
 
 Two constrain statements are shown with their equivalent kernel policy language statements:
 
-```secil
     ;; constrain { file } { write }
     ;;    (( t1 == unconfined.process  ) and ( t2 == unconfined.object  ) or ( r1 eq r2 ));
     (constrain (file (write))
@@ -90,7 +87,6 @@ Two constrain statements are shown with their equivalent kernel policy language 
             )
         )
     )
-```
 
 validatetrans
 -------------
@@ -99,9 +95,7 @@ The [`validatetrans`](cil_constraint_statements.md#validatetrans) statement is o
 
 **Statement definition:**
 
-```secil
     (validatetrans class_id expression | expr ...)
-```
 
 **Where:**
 
@@ -159,11 +153,9 @@ The [`validatetrans`](cil_constraint_statements.md#validatetrans) statement is o
 
 A validate transition statement with the equivalent kernel policy language statement:
 
-```secil
     ; validatetrans { file } ( t1 == unconfined.process  );
 
     (validatetrans file (eq t1 unconfined.process))
-```
 
 mlsconstrain
 ------------
@@ -172,9 +164,7 @@ Enable MLS constraints to be placed on the specified permissions of the object c
 
 **Statement definition:**
 
-```secil
     (mlsconstrain classpermissionset_id ... expression | expr ...)
-```
 
 **Where:**
 
@@ -234,7 +224,6 @@ Enable MLS constraints to be placed on the specified permissions of the object c
 
 An MLS constrain statement with the equivalent kernel policy language statement:
 
-```secil
     ;; mlsconstrain { file } { open }
     ;;     (( l1 eq l2 ) and ( u1 == u2 ) or ( r1 != r2 ));
 
@@ -247,7 +236,6 @@ An MLS constrain statement with the equivalent kernel policy language statement:
             (neq r1 r2)
         )
     )
-```
 
 mlsvalidatetrans
 ----------------
@@ -256,9 +244,7 @@ The [`mlsvalidatetrans`](cil_constraint_statements.md#mlsvalidatetrans) statemen
 
 **Statement definition:**
 
-```secil
     (mlsvalidatetrans class_id expression | expr ...)
-```
 
 **Where:**
 
@@ -322,8 +308,6 @@ The [`mlsvalidatetrans`](cil_constraint_statements.md#mlsvalidatetrans) statemen
 
 An MLS validate transition statement with the equivalent kernel policy language statement:
 
-```secil
     ;; mlsvalidatetrans { file } ( l1 domby h2 );
 
     (mlsvalidatetrans file (domby l1 h2))
-```

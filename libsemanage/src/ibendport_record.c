@@ -29,6 +29,7 @@ int semanage_ibendport_compare(const semanage_ibendport_t *ibendport,
 	return sepol_ibendport_compare(ibendport, key);
 }
 
+hidden_def(semanage_ibendport_compare)
 
 int semanage_ibendport_compare2(const semanage_ibendport_t *ibendport,
 				const semanage_ibendport_t *ibendport2)
@@ -36,8 +37,9 @@ int semanage_ibendport_compare2(const semanage_ibendport_t *ibendport,
 	return sepol_ibendport_compare2(ibendport, ibendport2);
 }
 
+hidden_def(semanage_ibendport_compare2)
 
- int semanage_ibendport_compare2_qsort(const semanage_ibendport_t **ibendport,
+hidden int semanage_ibendport_compare2_qsort(const semanage_ibendport_t **ibendport,
 					     const semanage_ibendport_t **ibendport2)
 {
 	return sepol_ibendport_compare2(*ibendport, *ibendport2);
@@ -58,12 +60,14 @@ int semanage_ibendport_key_extract(semanage_handle_t *handle,
 	return sepol_ibendport_key_extract(handle->sepolh, ibendport, key_ptr);
 }
 
+hidden_def(semanage_ibendport_key_extract)
 
 void semanage_ibendport_key_free(semanage_ibendport_key_t *key)
 {
 	sepol_ibendport_key_free(key);
 }
 
+hidden_def(semanage_ibendport_key_free)
 
 int semanage_ibendport_get_ibdev_name(semanage_handle_t *handle,
 				      const semanage_ibendport_t *ibendport,
@@ -72,6 +76,7 @@ int semanage_ibendport_get_ibdev_name(semanage_handle_t *handle,
 	return sepol_ibendport_get_ibdev_name(handle->sepolh, ibendport, ibdev_name_ptr);
 }
 
+hidden_def(semanage_ibendport_get_ibdev_name)
 
 int semanage_ibendport_set_ibdev_name(semanage_handle_t *handle,
 				      semanage_ibendport_t *ibendport,
@@ -80,24 +85,28 @@ int semanage_ibendport_set_ibdev_name(semanage_handle_t *handle,
 	return sepol_ibendport_set_ibdev_name(handle->sepolh, ibendport, ibdev_name);
 }
 
+hidden_def(semanage_ibendport_set_ibdev_name)
 
 int semanage_ibendport_get_port(const semanage_ibendport_t *ibendport)
 {
 	return sepol_ibendport_get_port(ibendport);
 }
 
+hidden_def(semanage_ibendport_get_port)
 
 void semanage_ibendport_set_port(semanage_ibendport_t *ibendport, int port)
 {
 	sepol_ibendport_set_port(ibendport, port);
 }
 
+hidden_def(semanage_ibendport_set_port)
 
 semanage_context_t *semanage_ibendport_get_con(const semanage_ibendport_t *ibendport)
 {
 	return sepol_ibendport_get_con(ibendport);
 }
 
+hidden_def(semanage_ibendport_get_con)
 
 int semanage_ibendport_set_con(semanage_handle_t *handle,
 			       semanage_ibendport_t *ibendport,
@@ -106,6 +115,7 @@ int semanage_ibendport_set_con(semanage_handle_t *handle,
 	return sepol_ibendport_set_con(handle->sepolh, ibendport, con);
 }
 
+hidden_def(semanage_ibendport_set_con)
 
 int semanage_ibendport_create(semanage_handle_t *handle,
 			      semanage_ibendport_t **ibendport_ptr)
@@ -113,6 +123,7 @@ int semanage_ibendport_create(semanage_handle_t *handle,
 	return sepol_ibendport_create(handle->sepolh, ibendport_ptr);
 }
 
+hidden_def(semanage_ibendport_create)
 
 int semanage_ibendport_clone(semanage_handle_t *handle,
 			     const semanage_ibendport_t *ibendport,
@@ -121,12 +132,14 @@ int semanage_ibendport_clone(semanage_handle_t *handle,
 	return sepol_ibendport_clone(handle->sepolh, ibendport, ibendport_ptr);
 }
 
+hidden_def(semanage_ibendport_clone)
 
 void semanage_ibendport_free(semanage_ibendport_t *ibendport)
 {
 	sepol_ibendport_free(ibendport);
 }
 
+hidden_def(semanage_ibendport_free)
 
 /*key base functions */
 record_table_t SEMANAGE_IBENDPORT_RTABLE = {

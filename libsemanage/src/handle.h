@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "handle_internal.h"
 #include <sepol/handle.h>
 #include "modules.h"
 #include "semanage_conf.h"

@@ -47,6 +47,7 @@ int semanage_seuser_iterate(semanage_handle_t * handle,
 	return dbase_iterate(handle, dconfig, handler, handler_arg);
 }
 
+hidden_def(semanage_seuser_iterate)
 
 int semanage_seuser_list(semanage_handle_t * handle,
 			 semanage_seuser_t *** records, unsigned int *count)

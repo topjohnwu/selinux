@@ -55,16 +55,15 @@ void cil_list_init(struct cil_list **list, enum cil_flavor flavor)
 
 void cil_list_destroy(struct cil_list **list, unsigned destroy_data)
 {
-	struct cil_list_item *item;
-
 	if (*list == NULL) {
 		return;
 	}
 
-	item = (*list)->head;
+	struct cil_list_item *item = (*list)->head;
+	struct cil_list_item *next = NULL;
 	while (item != NULL)
 	{
-		struct cil_list_item *next = item->next;
+		next = item->next;
 		if (item->flavor == CIL_LIST) {
 			cil_list_destroy((struct cil_list**)&(item->data), destroy_data);
 			free(item);

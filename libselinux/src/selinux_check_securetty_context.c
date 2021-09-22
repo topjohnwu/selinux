@@ -50,3 +50,4 @@ int selinux_check_securetty_context(const char * tty_context)
 	return found;
 }
 
+hidden_def(selinux_check_securetty_context)
