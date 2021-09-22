@@ -14,9 +14,7 @@ Notes:
 
 **Statement definition:**
 
-```secil
     (ipaddr ipaddr_id ip_address)
-```
 
 **Where:**
 
@@ -45,15 +43,13 @@ Notes:
 
 This example declares a named IP address and also passes an 'explicit anonymously declared' IP address to a macro:
 
-```secil
     (ipaddr netmask_1 255.255.255.0)
-    (context netlabel_1 (system.user object_r unconfined.object low_low))
+    (context netlabel_1 (system.user object_r unconfined.object low_low)
 
     (call build_nodecon ((192.168.1.64) netmask_1))
 
     (macro build_nodecon ((ipaddr ARG1) (ipaddr ARG2))
         (nodecon ARG1 ARG2  netlabel_1))
-```
 
 netifcon
 --------
@@ -62,9 +58,7 @@ Label network interface objects (e.g. `eth0`).
 
 **Statement definition:**
 
-```secil
     (netifcon netif_name netif_context_id packet_context_id)
-```
 
 **Where:**
 
@@ -99,14 +93,12 @@ Label network interface objects (e.g. `eth0`).
 
 These examples show named and anonymous [`netifcon`](cil_network_labeling_statements.md#netifcon) statements:
 
-```secil
     (context context_1 (unconfined.user object_r unconfined.object low_low))
     (context context_2 (unconfined.user object_r unconfined.object (systemlow level_2)))
 
     (netifcon eth0 context_1 (unconfined.user object_r unconfined.object levelrange_1))
     (netifcon eth1 context_1 (unconfined.user object_r unconfined.object ((s0) level_1)))
     (netifcon eth3 context_1 context_2)
-```
 
 nodecon
 -------
@@ -117,9 +109,7 @@ IP Addresses may be declared without a previous declaration by enclosing within 
 
 **Statement definition:**
 
-```secil
     (nodecon subnet_id netmask_id context_id)
-```
 
 **Where:**
 
@@ -152,26 +142,15 @@ IP Addresses may be declared without a previous declaration by enclosing within 
 
 These examples show named and anonymous [`nodecon`](cil_network_labeling_statements.md#nodecon) statements:
 
-```secil
     (context context_1 (unconfined.user object_r unconfined.object low_low))
     (context context_2 (unconfined.user object_r unconfined.object (systemlow level_2)))
 
-    (ipaddr netmask_1 255.255.255.255)
-    (ipaddr ipv4_1 192.0.2.64)
+    (ipaddr netmask_1 255.255.255.0)
+    (ipaddr ipv4_1 192.168.1.64)
 
-    (nodecon ipv4_1 netmask_1 context_2)
-    (nodecon (192.0.2.64) (255.255.255.255) context_1)
-    (nodecon (192.0.2.64) netmask_1 (unconfined.user object_r unconfined.object ((s0) (s0 (c0)))))
-
-    (context context_3 (sys.id sys.role my48prefix.node ((s0)(s0))))
-
-    (ipaddr netmask_2 ffff:ffff:ffff:0:0:0:0:0)
-    (ipaddr ipv6_2  2001:db8:1:0:0:0:0:0)
-
-    (nodecon ipv6_2 netmask_2 context_3)
-    (nodecon (2001:db8:1:0:0:0:0:0) (ffff:ffff:ffff:0:0:0:0:0) context_3)
-    (nodecon (2001:db8:1:0:0:0:0:0) netmask_2 (sys.id sys.role my48prefix.node ((s0)(s0))))
-```
+    (nodecon netmask_1 ipv4_1 context_2)
+    (nodecon (255.255.255.0) (192.168.1.64) context_1)
+    (nodecon netmask_1 (192.168.1.64) (unconfined.user object_r unconfined.object ((s0) (s0 (c0)))))
 
 portcon
 -------
@@ -180,9 +159,7 @@ Label a udp, tcp, dccp or sctp port.
 
 **Statement definition:**
 
-```secil
     (portcon protocol port|(port_low port_high) context_id)
-```
 
 **Where:**
 
@@ -217,7 +194,6 @@ Label a udp, tcp, dccp or sctp port.
 
 These examples show named and anonymous [`portcon`](cil_network_labeling_statements.md#portcon) statements:
 
-```secil
     (portcon tcp 1111 (unconfined.user object_r unconfined.object ((s0) (s0 (c0)))))
     (portcon tcp 2222 (unconfined.user object_r unconfined.object levelrange_2))
     (portcon tcp 3333 (unconfined.user object_r unconfined.object levelrange_1))
@@ -225,4 +201,3 @@ These examples show named and anonymous [`portcon`](cil_network_labeling_stateme
     (portcon tcp (2000 20000) (unconfined.user object_r unconfined.object (systemlow level_3)))
     (portcon dccp (6840 6880) (unconfined.user object_r unconfined.object ((s0) level_2)))
     (portcon sctp (1024 1035) (unconfined.user object_r unconfined.object ((s0) level_2)))
-```

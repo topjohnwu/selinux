@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <selinux/selinux.h>
 #include <selinux/label.h>
+#include "dso.h"
 #include "sha1.h"
 
 #if defined(ANDROID) || defined(__APPLE__)
@@ -25,22 +26,22 @@
  */
 int selabel_file_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
-			    unsigned nopts) ;
+			    unsigned nopts) hidden;
 int selabel_media_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
-			    unsigned nopts) ;
+			    unsigned nopts) hidden;
 int selabel_x_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
-			    unsigned nopts) ;
+			    unsigned nopts) hidden;
 int selabel_db_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
-			    unsigned nopts) ;
+			    unsigned nopts) hidden;
 int selabel_property_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
-			    unsigned nopts) ;
+			    unsigned nopts) hidden;
 int selabel_exact_match_init(struct selabel_handle *rec,
 			    const struct selinux_opt *opts,
-			    unsigned nopts) ;
+			    unsigned nopts) hidden;
 
 /*
  * Labeling internal structures
@@ -121,26 +122,24 @@ struct selabel_handle {
  */
 extern int
 selabel_validate(struct selabel_handle *rec,
-		 struct selabel_lookup_rec *contexts) ;
+		 struct selabel_lookup_rec *contexts) hidden;
 
 /*
  * Compatibility support
  */
 extern int myprintf_compat;
 extern void __attribute__ ((format(printf, 1, 2)))
-(*myprintf) (const char *fmt, ...) ;
+(*myprintf) (const char *fmt, ...) hidden;
 
-#define COMPAT_LOG(type, fmt...) do {			\
-	if (myprintf_compat)				\
-		myprintf(fmt);				\
-	else						\
-		selinux_log(type, fmt);			\
-	} while (0)
+#define COMPAT_LOG(type, fmt...) if (myprintf_compat)	  \
+		myprintf(fmt);				  \
+	else						  \
+		selinux_log(type, fmt);
 
 extern int
 compat_validate(struct selabel_handle *rec,
 		struct selabel_lookup_rec *contexts,
-		const char *path, unsigned lineno) ;
+		const char *path, unsigned lineno) hidden;
 
 /*
  * The read_spec_entries function may be used to

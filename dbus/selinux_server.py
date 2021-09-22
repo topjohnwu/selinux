@@ -2,36 +2,28 @@
 
 import dbus
 import dbus.service
-from dbus.mainloop.glib import DBusGMainLoop
+import dbus.mainloop.glib
 from gi.repository import GObject
-from gi.repository import GLib
+import slip.dbus.service
+from slip.dbus import polkit
 import os
 import selinux
 from subprocess import Popen, PIPE, STDOUT
 
 
-class selinux_server(dbus.service.Object):
+class selinux_server(slip.dbus.service.Object):
     default_polkit_auth_required = "org.selinux.semanage"
 
     def __init__(self, *p, **k):
         super(selinux_server, self).__init__(*p, **k)
 
-    def is_authorized(self, sender, action_id):
-        bus = dbus.SystemBus()
-        proxy = bus.get_object('org.freedesktop.PolicyKit1', '/org/freedesktop/PolicyKit1/Authority')
-        authority = dbus.Interface(proxy, dbus_interface='org.freedesktop.PolicyKit1.Authority')
-        subject = ('system-bus-name', {'name': sender})
-        result = authority.CheckAuthorization(subject, action_id, {}, 1, '')
-        return result[0]
-
     #
     # The semanage method runs a transaction on a series of semanage commands,
     # these commands can take the output of customized
     #
-    @dbus.service.method("org.selinux", in_signature='s', sender_keyword="sender")
-    def semanage(self, buf, sender):
-        if not self.is_authorized(sender, "org.selinux.semanage"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.semanage")
+    @dbus.service.method("org.selinux", in_signature='s')
+    def semanage(self, buf):
         p = Popen(["/usr/sbin/semanage", "import"], stdout=PIPE, stderr=PIPE, stdin=PIPE, universal_newlines=True)
         p.stdin.write(buf)
         output = p.communicate()
@@ -43,10 +35,9 @@ class selinux_server(dbus.service.Object):
     # on the server.  This output can be used with the semanage method on
     # another server to make the two systems have duplicate policy.
     #
-    @dbus.service.method("org.selinux", in_signature='', out_signature='s', sender_keyword="sender")
-    def customized(self, sender):
-        if not self.is_authorized(sender, "org.selinux.customized"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.customized")
+    @dbus.service.method("org.selinux", in_signature='', out_signature='s')
+    def customized(self):
         p = Popen(["/usr/sbin/semanage", "export"], stdout=PIPE, stderr=PIPE, universal_newlines=True)
         buf = p.stdout.read()
         output = p.communicate()
@@ -58,10 +49,9 @@ class selinux_server(dbus.service.Object):
     # The semodule_list method will return the output of semodule --list=full, using the customized polkit,
     # since this is a readonly behaviour
     #
-    @dbus.service.method("org.selinux", in_signature='', out_signature='s', sender_keyword="sender")
-    def semodule_list(self, sender):
-        if not self.is_authorized(sender, "org.selinux.semodule_list"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.semodule_list")
+    @dbus.service.method("org.selinux", in_signature='', out_signature='s')
+    def semodule_list(self):
         p = Popen(["/usr/sbin/semodule", "--list=full"], stdout=PIPE, stderr=PIPE, universal_newlines=True)
         buf = p.stdout.read()
         output = p.communicate()
@@ -72,28 +62,25 @@ class selinux_server(dbus.service.Object):
     #
     # The restorecon method modifies any file path to the default system label
     #
-    @dbus.service.method("org.selinux", in_signature='s', sender_keyword="sender")
-    def restorecon(self, path, sender):
-        if not self.is_authorized(sender, "org.selinux.restorecon"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.restorecon")
+    @dbus.service.method("org.selinux", in_signature='s')
+    def restorecon(self, path):
         selinux.restorecon(str(path), recursive=1)
 
     #
     # The setenforce method turns off the current enforcement of SELinux
     #
-    @dbus.service.method("org.selinux", in_signature='i', sender_keyword="sender")
-    def setenforce(self, value, sender):
-        if not self.is_authorized(sender, "org.selinux.setenforce"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.setenforce")
+    @dbus.service.method("org.selinux", in_signature='i')
+    def setenforce(self, value):
         selinux.security_setenforce(value)
 
     #
     # The setenforce method turns off the current enforcement of SELinux
     #
-    @dbus.service.method("org.selinux", in_signature='i', sender_keyword="sender")
-    def relabel_on_boot(self, value, sender):
-        if not self.is_authorized(sender, "org.selinux.relabel_on_boot"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.relabel_on_boot")
+    @dbus.service.method("org.selinux", in_signature='i')
+    def relabel_on_boot(self, value):
         if value == 1:
             fd = open("/.autorelabel", "w")
             fd.close()
@@ -124,10 +111,9 @@ class selinux_server(dbus.service.Object):
     #
     # The change_default_enforcement modifies the current enforcement mode
     #
-    @dbus.service.method("org.selinux", in_signature='s', sender_keyword="sender")
-    def change_default_mode(self, value, sender):
-        if not self.is_authorized(sender, "org.selinux.change_default_mode"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.change_default_mode")
+    @dbus.service.method("org.selinux", in_signature='s')
+    def change_default_mode(self, value):
         values = ["enforcing", "permissive", "disabled"]
         if value not in values:
             raise ValueError("Enforcement mode must be %s" % ", ".join(values))
@@ -136,20 +122,19 @@ class selinux_server(dbus.service.Object):
     #
     # The change_default_policy method modifies the policy type
     #
-    @dbus.service.method("org.selinux", in_signature='s', sender_keyword="sender")
-    def change_default_policy(self, value, sender):
-        if not self.is_authorized(sender, "org.selinux.change_default_policy"):
-            raise dbus.exceptions.DBusException("Not authorized")
+    @slip.dbus.polkit.require_auth("org.selinux.change_default_policy")
+    @dbus.service.method("org.selinux", in_signature='s')
+    def change_default_policy(self, value):
         path = selinux.selinux_path() + value
         if os.path.isdir(path):
             return self.write_selinux_config(policy=value)
         raise ValueError("%s does not exist" % path)
 
 if __name__ == "__main__":
-    DBusGMainLoop(set_as_default=True)
-    mainloop = GLib.MainLoop()
-
+    mainloop = GObject.MainLoop()
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     system_bus = dbus.SystemBus()
     name = dbus.service.BusName("org.selinux", system_bus)
-    server = selinux_server(system_bus, "/org/selinux/object")
+    object = selinux_server(system_bus, "/org/selinux/object")
+    slip.dbus.service.set_mainloop(mainloop)
     mainloop.run()

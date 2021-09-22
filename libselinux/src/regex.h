@@ -10,6 +10,7 @@
 #include <pcre.h>
 #endif
 
+#include "dso.h"
 
 enum { REGEX_MATCH,
        REGEX_MATCH_PARTIAL,
@@ -41,10 +42,10 @@ struct mmap_area;
  * expressions are not portable across architectures that do not have a
  * matching arch-string.
  */
-char const *regex_arch_string(void) ;
+char const *regex_arch_string(void) hidden;
 
 /**
- * regex_version returns the version string of the underlying regular
+ * regex_verison returns the version string of the underlying regular
  * regular expressions library. In the case of PCRE it just returns the
  * result of pcre_version(). In the case of PCRE2, the very first time this
  * function is called it allocates a buffer large enough to hold the version
@@ -54,12 +55,12 @@ char const *regex_arch_string(void) ;
  *
  * It may return NULL on error.
  */
-char const *regex_version(void) ;
+char const *regex_version(void) hidden;
 /**
  * This constructor function allocates a buffer for a regex_data structure.
  * The buffer is being initialized with zeroes.
  */
-struct regex_data *regex_data_create(void) ;
+struct regex_data *regex_data_create(void) hidden;
 /**
  * This complementary destructor function frees the a given regex_data buffer.
  * It also frees any non NULL member pointers with the appropriate pcreX_X_free
@@ -67,7 +68,7 @@ struct regex_data *regex_data_create(void) ;
  * the pcre_extra data conditionally. Calling this function on a NULL pointer is
  * save.
  */
-void regex_data_free(struct regex_data *regex) ;
+void regex_data_free(struct regex_data *regex) hidden;
 /**
  * This function compiles the regular expression. Additionally, it prepares
  * data structures required by the different underlying engines. For PCRE
@@ -87,7 +88,7 @@ void regex_data_free(struct regex_data *regex) ;
  * @retval -1 on error
  */
 int regex_prepare_data(struct regex_data **regex, char const *pattern_string,
-		       struct regex_error_data *errordata) ;
+		       struct regex_error_data *errordata) hidden;
 /**
  * This function loads a serialized precompiled pattern from a contiguous
  * data region given by map_area.
@@ -108,7 +109,7 @@ int regex_prepare_data(struct regex_data **regex, char const *pattern_string,
 int regex_load_mmap(struct mmap_area *map_area,
 		    struct regex_data **regex,
 		    int do_load_precompregex,
-		    bool *regex_compiled) ;
+		    bool *regex_compiled) hidden;
 /**
  * This function stores a precompiled regular expression to a file.
  * In the case of PCRE, it just dumps the binary representation of the
@@ -121,7 +122,7 @@ int regex_load_mmap(struct mmap_area *map_area,
  *			      the output file (ignored by PCRE1 back-end).
  */
 int regex_writef(struct regex_data *regex, FILE *fp,
-		 int do_write_precompregex) ;
+		 int do_write_precompregex) hidden;
 /**
  * This function applies a precompiled pattern to a subject string and
  * returns whether or not a match was found.
@@ -138,7 +139,7 @@ int regex_writef(struct regex_data *regex, FILE *fp,
  *                     regular expression
  */
 int regex_match(struct regex_data *regex, char const *subject,
-		int partial) ;
+		int partial) hidden;
 /**
  * This function compares two compiled regular expressions (regex1 and regex2).
  * It compares the binary representations of the compiled patterns. It is a very
@@ -149,7 +150,7 @@ int regex_match(struct regex_data *regex, char const *subject,
  *                       the same
  * @retval SELABEL_INCOMPARABLE otherwise
  */
-int regex_cmp(struct regex_data *regex1, struct regex_data *regex2) ;
+int regex_cmp(struct regex_data *regex1, struct regex_data *regex2) hidden;
 /**
  * This function takes the error data returned by regex_prepare_data and turns
  * it in to a human readable error message.
@@ -162,5 +163,5 @@ int regex_cmp(struct regex_data *regex1, struct regex_data *regex2) ;
  * @arg buf_size Total size of the given buffer in bytes.
  */
 void regex_format_error(struct regex_error_data const *error_data, char *buffer,
-			size_t buf_size) ;
+			size_t buf_size) hidden;
 #endif /* SRC_REGEX_H_ */

@@ -53,6 +53,7 @@
 #include <sepol/policydb/policydb.h>
 #include <sepol/policydb/services.h>
 #include <sepol/policydb/conditional.h>
+#include <sepol/policydb/flask.h>
 #include <sepol/policydb/hierarchy.h>
 #include <sepol/policydb/polcaps.h>
 #include "queue.h"
@@ -77,7 +78,7 @@ extern int yyerror(const char *msg);
 #define ERRORMSG_LEN 255
 static char errormsg[ERRORMSG_LEN + 1] = {0};
 
-static int id_has_dot(const char *id);
+static int id_has_dot(char *id);
 static int parse_security_context(context_struct_t *c);
 
 /* initialize all of the state variables for the scanner/parser */
@@ -141,7 +142,7 @@ int insert_id(const char *id, int push)
 
 /* If the identifier has a dot within it and that its first character
    is not a dot then return 1, else return 0. */
-static int id_has_dot(const char *id)
+static int id_has_dot(char *id)
 {
 	if (strchr(id, '.') >= id + 1) {
 		return 1;
@@ -1168,6 +1169,11 @@ int expand_attrib(void)
 
 	ebitmap_init(&attrs);
 	while ((id = queue_remove(id_queue))) {
+		if (!id) {
+			yyerror("No attribute name for expandattribute statement?");
+			goto exit;
+		}
+
 		if (!is_id_in_scope(SYM_TYPES, id)) {
 			yyerror2("attribute %s is not within scope", id);
 			goto exit;
@@ -1796,7 +1802,7 @@ int define_bool_tunable(int is_tunable)
 		return -1;
 	}
 
-	datum->state = (bool_value[0] == 'T') ? 1 : 0;
+	datum->state = (int)(bool_value[0] == 'T') ? 1 : 0;
 	free(bool_value);
 	return 0;
       cleanup:
@@ -1904,9 +1910,8 @@ int avrule_read_ioctls(struct av_ioctl_range_list **rangehead)
 {
 	char *id;
 	struct av_ioctl_range_list *rnew, *r = NULL;
-	uint8_t omit = 0;
-
 	*rangehead = NULL;
+	uint8_t omit = 0;
 
 	/* read in all the ioctl commands */
 	while ((id = queue_remove(id_queue))) {
@@ -1943,9 +1948,7 @@ int avrule_read_ioctls(struct av_ioctl_range_list **rangehead)
 		}
 	}
 	r = *rangehead;
-	if (r) {
-		r->omit = omit;
-	}
+	r->omit = omit;
 	return 0;
 error:
 	yyerror("out of memory");
@@ -2145,7 +2148,7 @@ out:
 /* index of the u32 containing the permission */
 #define XPERM_IDX(x) (x >> 5)
 /* set bits 0 through x-1 within the u32 */
-#define XPERM_SETBITS(x) ((1U << (x & 0x1f)) - 1)
+#define XPERM_SETBITS(x) ((1 << (x & 0x1f)) - 1)
 /* low value for this u32 */
 #define XPERM_LOW(x) (x << 5)
 /* high value for this u32 */
@@ -2172,7 +2175,7 @@ void avrule_xperm_setrangebits(uint16_t low, uint16_t high,
 	}
 }
 
-int avrule_xperms_used(const av_extended_perms_t *xperms)
+int avrule_xperms_used(av_extended_perms_t *xperms)
 {
 	unsigned int i;
 
@@ -2347,7 +2350,7 @@ unsigned int xperms_for_each_bit(unsigned int *bit, av_extended_perms_t *xperms)
 	return 0;
 }
 
-int avrule_cpy(avrule_t *dest, const avrule_t *src)
+int avrule_cpy(avrule_t *dest, avrule_t *src)
 {
 	class_perm_node_t *src_perms;
 	class_perm_node_t *dest_perms, *dest_tail;
@@ -2395,7 +2398,7 @@ int avrule_cpy(avrule_t *dest, const avrule_t *src)
 	return 0;
 }
 
-int define_te_avtab_ioctl(const avrule_t *avrule_template)
+int define_te_avtab_ioctl(avrule_t *avrule_template)
 {
 	avrule_t *avrule;
 	struct av_ioctl_range_list *rangelist;
@@ -3301,6 +3304,8 @@ int define_filename_trans(void)
 	ebitmap_t e_stypes, e_ttypes;
 	ebitmap_t e_tclasses;
 	ebitmap_node_t *snode, *tnode, *cnode;
+	filename_trans_t *ft;
+	filename_trans_datum_t *ftdatum;
 	filename_trans_rule_t *ftr;
 	type_datum_t *typdatum;
 	uint32_t otype;
@@ -3384,19 +3389,40 @@ int define_filename_trans(void)
 	ebitmap_for_each_positive_bit(&e_tclasses, cnode, c) {
 		ebitmap_for_each_positive_bit(&e_stypes, snode, s) {
 			ebitmap_for_each_positive_bit(&e_ttypes, tnode, t) {
-				rc = policydb_filetrans_insert(
-					policydbp, s+1, t+1, c+1, name,
-					NULL, otype, NULL
-				);
-				if (rc != SEPOL_OK) {
-					if (rc == SEPOL_EEXIST) {
-						yyerror2("duplicate filename transition for: filename_trans %s %s %s:%s",
-							name,
-							policydbp->p_type_val_to_name[s],
-							policydbp->p_type_val_to_name[t],
-							policydbp->p_class_val_to_name[c]);
-						goto bad;
-					}
+				ft = calloc(1, sizeof(*ft));
+				if (!ft) {
+					yyerror("out of memory");
+					goto bad;
+				}
+				ft->stype = s+1;
+				ft->ttype = t+1;
+				ft->tclass = c+1;
+				ft->name = strdup(name);
+				if (!ft->name) {
+					yyerror("out of memory");
+					goto bad;
+				}
+
+				ftdatum = hashtab_search(policydbp->filename_trans,
+							 (hashtab_key_t)ft);
+				if (ftdatum) {
+					yyerror2("duplicate filename transition for: filename_trans %s %s %s:%s",
+						 name,
+						 policydbp->p_type_val_to_name[s],
+						 policydbp->p_type_val_to_name[t],
+						 policydbp->p_class_val_to_name[c]);
+					goto bad;
+				}
+
+				ftdatum = calloc(1, sizeof(*ftdatum));
+				if (!ftdatum) {
+					yyerror("out of memory");
+					goto bad;
+				}
+				rc = hashtab_insert(policydbp->filename_trans,
+						    (hashtab_key_t)ft,
+						    ftdatum);
+				if (rc) {
 					yyerror("out of memory");
 					goto bad;
 				}
@@ -3444,10 +3470,9 @@ bad:
 	return -1;
 }
 
-static constraint_expr_t *constraint_expr_clone(const constraint_expr_t * expr)
+static constraint_expr_t *constraint_expr_clone(constraint_expr_t * expr)
 {
-	constraint_expr_t *h = NULL, *l = NULL, *newe;
-	const constraint_expr_t *e;
+	constraint_expr_t *h = NULL, *l = NULL, *e, *newe;
 	for (e = expr; e; e = e->next) {
 		newe = malloc(sizeof(*newe));
 		if (!newe)
@@ -3478,7 +3503,12 @@ static constraint_expr_t *constraint_expr_clone(const constraint_expr_t * expr)
 
 	return h;
       oom:
-	constraint_expr_destroy(h);
+	e = h;
+	while (e) {
+		l = e;
+		e = e->next;
+		constraint_expr_destroy(l);
+	}
 	return NULL;
 }
 
@@ -4087,6 +4117,8 @@ cond_expr_t *define_cond_expr(uint32_t expr_type, void *arg1, void *arg2)
 static int set_user_roles(role_set_t * set, char *id)
 {
 	role_datum_t *r;
+	unsigned int i;
+	ebitmap_node_t *node;
 
 	if (strcmp(id, "*") == 0) {
 		free(id);
@@ -4112,9 +4144,12 @@ static int set_user_roles(role_set_t * set, char *id)
 		return -1;
 	}
 
+	/* set the role and every role it dominates */
+	ebitmap_for_each_positive_bit(&r->dominates, node, i) {
+		if (ebitmap_set_bit(&set->roles, i, TRUE))
+			goto oom;
+	}
 	free(id);
-	if (ebitmap_set_bit(&set->roles, r->s.value - 1, TRUE))
-		goto oom;
 	return 0;
       oom:
 	yyerror("out of memory");
@@ -5474,9 +5509,7 @@ int define_genfs_context_helper(char *fstype, int has_type)
 {
 	struct genfs *genfs_p, *genfs, *newgenfs;
 	ocontext_t *newc, *c, *head, *p;
-	class_datum_t *cladatum;
 	char *type = NULL;
-	const char *sclass;
 	int len, len2;
 
 	if (policydbp->target_platform != SEPOL_TARGET_SELINUX) {
@@ -5538,39 +5571,30 @@ int define_genfs_context_helper(char *fstype, int has_type)
 		}
 		switch (type[0]) {
 		case 'b':
-			sclass = "blk_file";
+			newc->v.sclass = SECCLASS_BLK_FILE;
 			break;
 		case 'c':
-			sclass = "chr_file";
+			newc->v.sclass = SECCLASS_CHR_FILE;
 			break;
 		case 'd':
-			sclass = "dir";
+			newc->v.sclass = SECCLASS_DIR;
 			break;
 		case 'p':
-			sclass = "fifo_file";
+			newc->v.sclass = SECCLASS_FIFO_FILE;
 			break;
 		case 'l':
-			sclass = "lnk_file";
+			newc->v.sclass = SECCLASS_LNK_FILE;
 			break;
 		case 's':
-			sclass = "sock_file";
+			newc->v.sclass = SECCLASS_SOCK_FILE;
 			break;
 		case '-':
-			sclass = "file";
+			newc->v.sclass = SECCLASS_FILE;
 			break;
 		default:
 			yyerror2("invalid type %s", type);
 			goto fail;
 		}
-
-		cladatum = hashtab_search(policydbp->p_classes.table,
-					  sclass);
-		if (!cladatum) {
-			yyerror2("could not find class %s for "
-				 "genfscon statement", sclass);
-			goto fail;
-		}
-		newc->v.sclass = cladatum->s.value;
 	}
 	if (parse_security_context(&newc->context[0]))
 		goto fail;

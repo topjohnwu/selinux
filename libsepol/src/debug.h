@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <sepol/debug.h>
+#include "dso.h"
 #include "handle.h"
 
 #define STATUS_SUCCESS 0
@@ -61,10 +62,13 @@
 #ifdef __GNUC__
 __attribute__ ((format(printf, 3, 4)))
 #endif
-extern void sepol_msg_default_handler(void *varg,
+extern void hidden sepol_msg_default_handler(void *varg,
 					     sepol_handle_t * msg,
 					     const char *fmt, ...);
 
 extern struct sepol_handle sepol_compat_handle;
 
+hidden_proto(sepol_msg_get_channel)
+    hidden_proto(sepol_msg_get_fname)
+    hidden_proto(sepol_msg_get_level)
 #endif

@@ -41,6 +41,7 @@ int sepol_bool_key_create(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(sepol_bool_key_create)
 
 void sepol_bool_key_unpack(const sepol_bool_key_t * key, const char **name)
 {
@@ -48,6 +49,7 @@ void sepol_bool_key_unpack(const sepol_bool_key_t * key, const char **name)
 	*name = key->name;
 }
 
+hidden_def(sepol_bool_key_unpack)
 
 int sepol_bool_key_extract(sepol_handle_t * handle,
 			   const sepol_bool_t * boolean,
@@ -92,6 +94,7 @@ const char *sepol_bool_get_name(const sepol_bool_t * boolean)
 	return boolean->name;
 }
 
+hidden_def(sepol_bool_get_name)
 
 int sepol_bool_set_name(sepol_handle_t * handle,
 			sepol_bool_t * boolean, const char *name)
@@ -107,6 +110,7 @@ int sepol_bool_set_name(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(sepol_bool_set_name)
 
 /* Value */
 int sepol_bool_get_value(const sepol_bool_t * boolean)
@@ -115,6 +119,7 @@ int sepol_bool_get_value(const sepol_bool_t * boolean)
 	return boolean->value;
 }
 
+hidden_def(sepol_bool_get_value)
 
 void sepol_bool_set_value(sepol_bool_t * boolean, int value)
 {
@@ -122,6 +127,7 @@ void sepol_bool_set_value(sepol_bool_t * boolean, int value)
 	boolean->value = value;
 }
 
+hidden_def(sepol_bool_set_value)
 
 /* Create */
 int sepol_bool_create(sepol_handle_t * handle, sepol_bool_t ** bool_ptr)
@@ -142,6 +148,7 @@ int sepol_bool_create(sepol_handle_t * handle, sepol_bool_t ** bool_ptr)
 	return STATUS_SUCCESS;
 }
 
+hidden_def(sepol_bool_create)
 
 /* Deep copy clone */
 int sepol_bool_clone(sepol_handle_t * handle,
@@ -178,3 +185,4 @@ void sepol_bool_free(sepol_bool_t * boolean)
 	free(boolean);
 }
 
+hidden_def(sepol_bool_free)

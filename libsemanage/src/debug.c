@@ -33,22 +33,25 @@ int semanage_msg_get_level(semanage_handle_t * handle)
 	return handle->msg_level;
 }
 
+hidden_def(semanage_msg_get_level)
 
 const char *semanage_msg_get_channel(semanage_handle_t * handle)
 {
 	return handle->msg_channel;
 }
 
+hidden_def(semanage_msg_get_channel)
 
 const char *semanage_msg_get_fname(semanage_handle_t * handle)
 {
 	return handle->msg_fname;
 }
 
+hidden_def(semanage_msg_get_fname)
 #ifdef __GNUC__
     __attribute__ ((format(printf, 3, 4)))
 #endif
-void semanage_msg_default_handler(void *varg __attribute__ ((unused)),
+void hidden semanage_msg_default_handler(void *varg __attribute__ ((unused)),
 					 semanage_handle_t * handle,
 					 const char *fmt, ...)
 {
@@ -88,7 +91,7 @@ void semanage_msg_default_handler(void *varg __attribute__ ((unused)),
 #ifdef __GNUC__
 __attribute__ ((format(printf, 3, 4)))
 #endif
-void semanage_msg_relay_handler(void *varg,
+void hidden semanage_msg_relay_handler(void *varg,
 				       sepol_handle_t * sepolh,
 				       const char *fmt, ...)
 {

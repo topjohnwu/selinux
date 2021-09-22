@@ -49,7 +49,7 @@ spec_char	[\[\]\.\@\=\/\*\-\_\$\%\+\-\!\|\&\^\:\~\`\#\{\}\'\<\>\?\,]
 symbol		({digit}|{alpha}|{spec_char})+
 white		[ \t]
 newline		[\n\r]
-qstring		\"[^"\n\0]*\"
+qstring		\"[^"\n]*\"
 hll_lm          ^;;\*
 comment		;
 

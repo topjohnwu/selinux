@@ -35,3 +35,4 @@ int security_disable(void)
 	return 0;
 }
 
+hidden_def(security_disable)

@@ -5,9 +5,8 @@ BINDIR ?= $(PREFIX)/bin
 MANDIR ?= $(PREFIX)/share/man
 ETCDIR ?= /etc
 LOCALEDIR = $(DESTDIR)$(PREFIX)/share/locale
-INCLUDEDIR ?= $(PREFIX)/include
-PAMH ?= $(shell test -f $(INCLUDEDIR)/security/pam_appl.h && echo y)
-AUDITH ?= $(shell test -f $(INCLUDEDIR)/libaudit.h && echo y)
+PAMH ?= $(shell test -f /usr/include/security/pam_appl.h && echo y)
+AUDITH ?= $(shell test -f /usr/include/libaudit.h && echo y)
 # Enable capabilities to permit newrole to generate audit records.
 # This will make newrole a setuid root program.
 # The capabilities used are: CAP_AUDIT_WRITE.

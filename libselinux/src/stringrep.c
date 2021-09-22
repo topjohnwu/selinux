@@ -180,6 +180,7 @@ void selinux_flush_class_cache(void)
 	discover_class_cache = NULL;
 }
 
+hidden_def(selinux_flush_class_cache)
 
 security_class_t string_to_security_class(const char *s)
 {
