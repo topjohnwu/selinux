@@ -52,6 +52,7 @@
 /* Based on MurmurHash3, written by Austin Appleby and placed in the
  * public domain.
  */
+ignore_unsigned_overflow_
 static inline int avtab_hash(struct avtab_key *keyp, uint32_t mask)
 {
 	static const uint32_t c1 = 0xcc9e2d51;
@@ -63,7 +64,7 @@ static inline int avtab_hash(struct avtab_key *keyp, uint32_t mask)
 
 	uint32_t hash = 0;
 
-#define mix(input) { \
+#define mix(input) do { \
 	uint32_t v = input; \
 	v *= c1; \
 	v = (v << r1) | (v >> (32 - r1)); \
@@ -71,7 +72,7 @@ static inline int avtab_hash(struct avtab_key *keyp, uint32_t mask)
 	hash ^= v; \
 	hash = (hash << r2) | (hash >> (32 - r2)); \
 	hash = hash * m + n; \
-}
+} while (0)
 
 	mix(keyp->target_class);
 	mix(keyp->target_type);
@@ -418,7 +419,7 @@ void avtab_hash_eval(avtab_t * h, char *tag)
 }
 
 /* Ordering of datums in the original avtab format in the policy file. */
-static uint16_t spec_order[] = {
+static const uint16_t spec_order[] = {
 	AVTAB_ALLOWED,
 	AVTAB_AUDITDENY,
 	AVTAB_AUDITALLOW,
