@@ -15,14 +15,13 @@
 
 static inline unsigned sidtab_hash(const char * key)
 {
-	char *p, *keyp;
+	const char *p;
 	unsigned int size;
 	unsigned int val;
 
 	val = 0;
-	keyp = (char *)key;
-	size = strlen(keyp);
-	for (p = keyp; (unsigned int)(p - keyp) < size; p++)
+	size = strlen(key);
+	for (p = key; (unsigned int)(p - key) < size; p++)
 		val =
 		    (val << 4 | (val >> (8 * sizeof(unsigned int) - 4))) ^ (*p);
 	return val & (SIDTAB_SIZE - 1);
@@ -57,7 +56,7 @@ int sidtab_insert(struct sidtab *s, const char * ctx)
 		rc = -1;
 		goto out;
 	}
-	newctx = (char *) strdup(ctx);
+	newctx = strdup(ctx);
 	if (!newctx) {
 		rc = -1;
 		avc_free(newnode);
@@ -101,7 +100,7 @@ sidtab_context_to_sid(struct sidtab *s,
 	return rc;
 }
 
-void sidtab_sid_stats(struct sidtab *h, char *buf, int buflen)
+void sidtab_sid_stats(struct sidtab *s, char *buf, int buflen)
 {
 	int i, chain_len, slots_used, max_chain_len;
 	struct sidtab_node *cur;
@@ -109,7 +108,7 @@ void sidtab_sid_stats(struct sidtab *h, char *buf, int buflen)
 	slots_used = 0;
 	max_chain_len = 0;
 	for (i = 0; i < SIDTAB_SIZE; i++) {
-		cur = h->htable[i];
+		cur = s->htable[i];
 		if (cur) {
 			slots_used++;
 			chain_len = 0;
@@ -125,7 +124,7 @@ void sidtab_sid_stats(struct sidtab *h, char *buf, int buflen)
 
 	snprintf(buf, buflen,
 		 "%s:  %u SID entries and %d/%d buckets used, longest "
-		 "chain length %d\n", avc_prefix, h->nel, slots_used,
+		 "chain length %d\n", avc_prefix, s->nel, slots_used,
 		 SIDTAB_SIZE, max_chain_len);
 }
 

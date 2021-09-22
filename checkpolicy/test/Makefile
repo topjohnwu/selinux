@@ -1,7 +1,7 @@
 #
 # Makefile for building the dispol program
 #
-CFLAGS ?= -g -Wall -W -Werror -O2 -pipe
+CFLAGS ?= -g -Wall -W -Werror -O2
 
 # If no specific libsepol.a is specified, fall back on LDFLAGS search path
 # Otherwise, as $(LIBSEPOLA) already appears in the dependencies, there
@@ -13,10 +13,10 @@ endif
 all: dispol dismod
 
 dispol: dispol.o $(LIBSEPOLA)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS_LIBSEPOLA)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS_LIBSEPOLA)
 
 dismod: dismod.o $(LIBSEPOLA)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS_LIBSEPOLA)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS_LIBSEPOLA)
 
 clean:
 	-rm -f dispol dismod *.o 
