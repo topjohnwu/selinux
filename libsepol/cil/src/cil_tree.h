@@ -46,13 +46,15 @@ struct cil_tree_node {
 	struct cil_tree_node *next;		//Each element in the list points to the next element
 	enum cil_flavor flavor;
 	uint32_t line;
-	uint32_t hll_line;
+	uint32_t hll_offset;
 	void *data;
 };
 
-struct cil_tree_node *cil_tree_get_next_path(struct cil_tree_node *node, char **path, int* is_cil);
+struct cil_tree_node *cil_tree_get_next_path(struct cil_tree_node *node, char **info_kind, uint32_t *hll_line, char **path);
 char *cil_tree_get_cil_path(struct cil_tree_node *node);
 __attribute__((format (printf, 3, 4))) void cil_tree_log(struct cil_tree_node *node, enum cil_log_level lvl, const char* msg, ...);
+
+int cil_tree_subtree_has_decl(struct cil_tree_node *node);
 
 int cil_tree_init(struct cil_tree **tree);
 void cil_tree_destroy(struct cil_tree **tree);
@@ -61,8 +63,6 @@ void cil_tree_children_destroy(struct cil_tree_node *node);
 
 void cil_tree_node_init(struct cil_tree_node **node);
 void cil_tree_node_destroy(struct cil_tree_node **node);
-
-void cil_tree_print(struct cil_tree_node *tree, uint32_t depth);
 
 //finished values
 #define CIL_TREE_SKIP_NOTHING	0

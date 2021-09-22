@@ -4,7 +4,6 @@
 
 import errno
 import selinux
-import setools
 import glob
 import sepolgen.defaults as defaults
 import sepolgen.interfaces as interfaces
@@ -12,6 +11,17 @@ import sys
 import os
 import re
 import gzip
+
+from setools.boolquery import BoolQuery
+from setools.portconquery import PortconQuery
+from setools.policyrep import SELinuxPolicy
+from setools.objclassquery import ObjClassQuery
+from setools.rbacrulequery import RBACRuleQuery
+from setools.rolequery import RoleQuery
+from setools.terulequery import TERuleQuery
+from setools.typeattrquery import TypeAttributeQuery
+from setools.typequery import TypeQuery
+from setools.userquery import UserQuery
 
 PROGNAME = "policycoreutils"
 try:
@@ -168,7 +178,7 @@ def policy(policy_file):
     global _pol
 
     try:
-        _pol = setools.SELinuxPolicy(policy_file)
+        _pol = SELinuxPolicy(policy_file)
     except:
         raise ValueError(_("Failed to read %s policy file") % policy_file)
 
@@ -178,17 +188,17 @@ def load_store_policy(store):
         return None
     policy(policy_file)
 
-try:
+def init_policy():
     policy_file = get_installed_policy()
     policy(policy_file)
-except ValueError as e:
-    if selinux.is_selinux_enabled() == 1:
-        raise e
-
 
 def info(setype, name=None):
+    global _pol
+    if not _pol:
+        init_policy()
+
     if setype == TYPE:
-        q = setools.TypeQuery(_pol)
+        q = TypeQuery(_pol)
         q.name = name
         results = list(q.results())
 
@@ -206,7 +216,7 @@ def info(setype, name=None):
         } for x in results)
 
     elif setype == ROLE:
-        q = setools.RoleQuery(_pol)
+        q = RoleQuery(_pol)
         if name:
             q.name = name
 
@@ -217,7 +227,7 @@ def info(setype, name=None):
         } for x in q.results())
 
     elif setype == ATTRIBUTE:
-        q = setools.TypeAttributeQuery(_pol)
+        q = TypeAttributeQuery(_pol)
         if name:
             q.name = name
 
@@ -227,7 +237,7 @@ def info(setype, name=None):
         } for x in q.results())
 
     elif setype == PORT:
-        q = setools.PortconQuery(_pol)
+        q = PortconQuery(_pol)
         if name:
             ports = [int(i) for i in name.split("-")]
             if len(ports) == 2:
@@ -251,7 +261,7 @@ def info(setype, name=None):
         } for x in q.results())
 
     elif setype == USER:
-        q = setools.UserQuery(_pol)
+        q = UserQuery(_pol)
         if name:
             q.name = name
 
@@ -268,7 +278,7 @@ def info(setype, name=None):
         } for x in q.results())
 
     elif setype == BOOLEAN:
-        q = setools.BoolQuery(_pol)
+        q = BoolQuery(_pol)
         if name:
             q.name = name
 
@@ -278,7 +288,7 @@ def info(setype, name=None):
         } for x in q.results())
 
     elif setype == TCLASS:
-        q = setools.ObjClassQuery(_pol)
+        q = ObjClassQuery(_pol)
         if name:
             q.name = name
 
@@ -337,6 +347,9 @@ def _setools_rule_to_dict(rule):
 
 
 def search(types, seinfo=None):
+    global _pol
+    if not _pol:
+        init_policy()
     if not seinfo:
         seinfo = {}
     valid_types = set([ALLOW, AUDITALLOW, NEVERALLOW, DONTAUDIT, TRANSITION, ROLE_ALLOW])
@@ -369,11 +382,11 @@ def search(types, seinfo=None):
         tertypes.append(DONTAUDIT)
 
     if len(tertypes) > 0:
-        q = setools.TERuleQuery(_pol,
-                                ruletype=tertypes,
-                                source=source,
-                                target=target,
-                                tclass=tclass)
+        q = TERuleQuery(_pol,
+                        ruletype=tertypes,
+                        source=source,
+                        target=target,
+                        tclass=tclass)
 
         if PERMS in seinfo:
             q.perms = seinfo[PERMS]
@@ -382,11 +395,11 @@ def search(types, seinfo=None):
 
     if TRANSITION in types:
         rtypes = ['type_transition', 'type_change', 'type_member']
-        q = setools.TERuleQuery(_pol,
-                                ruletype=rtypes,
-                                source=source,
-                                target=target,
-                                tclass=tclass)
+        q = TERuleQuery(_pol,
+                        ruletype=rtypes,
+                        source=source,
+                        target=target,
+                        tclass=tclass)
 
         if PERMS in seinfo:
             q.perms = seinfo[PERMS]
@@ -395,11 +408,11 @@ def search(types, seinfo=None):
 
     if ROLE_ALLOW in types:
         ratypes = ['allow']
-        q = setools.RBACRuleQuery(_pol,
-                                  ruletype=ratypes,
-                                  source=source,
-                                  target=target,
-                                  tclass=tclass)
+        q = RBACRuleQuery(_pol,
+                          ruletype=ratypes,
+                          source=source,
+                          target=target,
+                          tclass=tclass)
 
         for r in q.results():
             toret.append({'source': str(r.source),
@@ -717,11 +730,11 @@ def get_all_entrypoints():
 
 
 def get_entrypoint_types(setype):
-    q = setools.TERuleQuery(_pol,
-                            ruletype=[ALLOW],
-                            source=setype,
-                            tclass=["file"],
-                            perms=["entrypoint"])
+    q = TERuleQuery(_pol,
+                    ruletype=[ALLOW],
+                    source=setype,
+                    tclass=["file"],
+                    perms=["entrypoint"])
     return [str(x.target) for x in q.results() if x.source == setype]
 
 
@@ -736,10 +749,10 @@ def get_init_transtype(path):
 
 
 def get_init_entrypoint(transtype):
-    q = setools.TERuleQuery(_pol,
-                            ruletype=["type_transition"],
-                            source="init_t",
-                            tclass=["process"])
+    q = TERuleQuery(_pol,
+                    ruletype=["type_transition"],
+                    source="init_t",
+                    tclass=["process"])
     entrypoints = []
     for i in q.results():
         try:
@@ -751,10 +764,10 @@ def get_init_entrypoint(transtype):
     return entrypoints
 
 def get_init_entrypoints_str():
-    q = setools.TERuleQuery(_pol,
-                            ruletype=["type_transition"],
-                            source="init_t",
-                            tclass=["process"])
+    q = TERuleQuery(_pol,
+                    ruletype=["type_transition"],
+                    source="init_t",
+                    tclass=["process"])
     entrypoints = {}
     for i in q.results():
         try:
@@ -834,7 +847,7 @@ def get_all_role_allows():
         return role_allows
     role_allows = {}
 
-    q = setools.RBACRuleQuery(_pol, ruletype=[ALLOW])
+    q = RBACRuleQuery(_pol, ruletype=[ALLOW])
     for r in q.results():
         src = str(r.source)
         tgt = str(r.target)
@@ -916,7 +929,11 @@ def get_all_roles():
     if roles:
         return roles
 
-    q = setools.RoleQuery(_pol)
+    global _pol
+    if not _pol:
+        init_policy()
+
+    q = RoleQuery(_pol)
     roles = [str(x) for x in q.results() if str(x) != "object_r"]
     return roles
 
@@ -1032,7 +1049,7 @@ def get_description(f, markup=markup):
         return txt + "treat the files as %s key data." % prettyprint(f, "_key_t")
 
     if f.endswith("_secret_t"):
-        return txt + "treat the files as %s secret data." % prettyprint(f, "_key_t")
+        return txt + "treat the files as %s secret data." % prettyprint(f, "_secret_t")
 
     if f.endswith("_ra_t"):
         return txt + "treat the files as %s read/append content." % prettyprint(f, "_ra_t")
@@ -1064,7 +1081,7 @@ def get_description(f, markup=markup):
     if f.endswith("_tmp_t"):
         return txt + "store %s temporary files in the /tmp directories." % prettyprint(f, "_tmp_t")
     if f.endswith("_etc_t"):
-        return txt + "store %s files in the /etc directories." % prettyprint(f, "_tmp_t")
+        return txt + "store %s files in the /etc directories." % prettyprint(f, "_etc_t")
     if f.endswith("_home_t"):
         return txt + "store %s files in the users home directory." % prettyprint(f, "_home_t")
     if f.endswith("_tmpfs_t"):

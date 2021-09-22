@@ -71,7 +71,7 @@ int ebitmap_union(ebitmap_t * dst, const ebitmap_t * e1)
 	return 0;
 }
 
-int ebitmap_and(ebitmap_t *dst, ebitmap_t *e1, ebitmap_t *e2)
+int ebitmap_and(ebitmap_t *dst, const ebitmap_t *e1, const ebitmap_t *e2)
 {
 	unsigned int i, length = min(ebitmap_length(e1), ebitmap_length(e2));
 	ebitmap_init(dst);
@@ -85,7 +85,7 @@ int ebitmap_and(ebitmap_t *dst, ebitmap_t *e1, ebitmap_t *e2)
 	return 0;
 }
 
-int ebitmap_xor(ebitmap_t *dst, ebitmap_t *e1, ebitmap_t *e2)
+int ebitmap_xor(ebitmap_t *dst, const ebitmap_t *e1, const ebitmap_t *e2)
 {
 	unsigned int i, length = max(ebitmap_length(e1), ebitmap_length(e2));
 	ebitmap_init(dst);
@@ -98,7 +98,7 @@ int ebitmap_xor(ebitmap_t *dst, ebitmap_t *e1, ebitmap_t *e2)
 	return 0;
 }
 
-int ebitmap_not(ebitmap_t *dst, ebitmap_t *e1, unsigned int maxbit)
+int ebitmap_not(ebitmap_t *dst, const ebitmap_t *e1, unsigned int maxbit)
 {
 	unsigned int i;
 	ebitmap_init(dst);
@@ -111,11 +111,12 @@ int ebitmap_not(ebitmap_t *dst, ebitmap_t *e1, unsigned int maxbit)
 	return 0;
 }
 
-int ebitmap_andnot(ebitmap_t *dst, ebitmap_t *e1, ebitmap_t *e2, unsigned int maxbit)
+int ebitmap_andnot(ebitmap_t *dst, const ebitmap_t *e1, const ebitmap_t *e2, unsigned int maxbit)
 {
+	int rc;
 	ebitmap_t e3;
 	ebitmap_init(dst);
-	int rc = ebitmap_not(&e3, e2, maxbit);
+	rc = ebitmap_not(&e3, e2, maxbit);
 	if (rc < 0)
 		return rc;
 	rc = ebitmap_and(dst, e1, &e3);
@@ -125,24 +126,28 @@ int ebitmap_andnot(ebitmap_t *dst, ebitmap_t *e1, ebitmap_t *e2, unsigned int ma
 	return 0;
 }
 
-unsigned int ebitmap_cardinality(ebitmap_t *e1)
+unsigned int ebitmap_cardinality(const ebitmap_t *e1)
 {
-	unsigned int i, count = 0;
-	for (i=ebitmap_startbit(e1); i < ebitmap_length(e1); i++)
-		if (ebitmap_get_bit(e1, i))
-			count++;
+	unsigned int count = 0;
+	const ebitmap_node_t *n;
+
+	for (n = e1->node; n; n = n->next) {
+		count += __builtin_popcountll(n->map);
+	}
 	return count;
 }
 
-int ebitmap_hamming_distance(ebitmap_t * e1, ebitmap_t * e2)
+int ebitmap_hamming_distance(const ebitmap_t * e1, const ebitmap_t * e2)
 {
+	int rc;
+	ebitmap_t tmp;
+	int distance;
 	if (ebitmap_cmp(e1, e2))
 		return 0;
-	ebitmap_t tmp;
-	int rc = ebitmap_xor(&tmp, e1, e2);
+	rc = ebitmap_xor(&tmp, e1, e2);
 	if (rc < 0)
 		return -1;
-	int distance = ebitmap_cardinality(&tmp);
+	distance = ebitmap_cardinality(&tmp);
 	ebitmap_destroy(&tmp);
 	return distance;
 }
@@ -340,6 +345,26 @@ int ebitmap_set_bit(ebitmap_t * e, unsigned int bit, int value)
 	}
 
 	return 0;
+}
+
+unsigned int ebitmap_highest_set_bit(const ebitmap_t * e)
+{
+	const ebitmap_node_t *n;
+	MAPTYPE map;
+	unsigned int pos = 0;
+
+	n = e->node;
+	if (!n)
+		return 0;
+
+	while (n->next)
+		n = n->next;
+
+	map = n->map;
+	while (map >>= 1)
+		pos++;
+
+	return n->startbit + pos;
 }
 
 void ebitmap_destroy(ebitmap_t * e)
