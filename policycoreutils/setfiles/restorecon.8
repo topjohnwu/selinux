@@ -13,6 +13,7 @@ restorecon \- restore file(s) default SELinux security contexts.
 .RB [ \-F ]
 .RB [ \-W ]
 .RB [ \-I | \-D ]
+.RB [ \-x ]
 .RB [ \-e
 .IR directory ]
 .IR pathname \ ...
@@ -31,6 +32,7 @@ restorecon \- restore file(s) default SELinux security contexts.
 .RB [ \-F ]
 .RB [ \-W ]
 .RB [ \-I | \-D ]
+.RB [ \-x ]
 
 .SH "DESCRIPTION"
 This manual page describes the
@@ -153,14 +155,21 @@ option of GNU
 .B find
 produces input suitable for this mode.
 .TP
+.B \-x
+prevent
+.B restorecon
+from crossing file system boundaries.
+.TP
 .SH "ARGUMENTS"
 .IR pathname \ ...
 The pathname for the file(s) to be relabeled.
 .SH "NOTES"
 .IP "1." 4
 .B restorecon
-does not follow symbolic links and by default it does not
-operate recursively on directories.
+by default does not operate recursively on directories. Paths leading up the
+final component of the file(s) are canonicalized using
+.BR realpath (3)
+before labeling.
 .IP "2." 4
 If the
 .I pathname

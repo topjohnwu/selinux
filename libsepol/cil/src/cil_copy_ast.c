@@ -40,8 +40,10 @@
 #include "cil_copy_ast.h"
 #include "cil_build_ast.h"
 #include "cil_strpool.h"
+#include "cil_verify.h"
 
 struct cil_args_copy {
+	struct cil_tree_node *orig_dest;
 	struct cil_tree_node *dest;
 	struct cil_db *db;
 };
@@ -102,12 +104,19 @@ int cil_copy_block(__attribute__((unused)) struct cil_db *db, void *data, void *
 	struct cil_symtab_datum *datum = NULL;
 
 	cil_symtab_get_datum(symtab, key, &datum);
-	if (datum == NULL) {
+	if (datum != NULL) {
+		if (FLAVOR(datum) != CIL_BLOCK) {
+			cil_tree_log(NODE(orig), CIL_ERR, "Block %s being copied", key);
+			cil_tree_log(NODE(datum), CIL_ERR, "  Conflicts with %s already declared", cil_node_to_string(NODE(datum)));
+			return SEPOL_ERR;
+		}
+		cil_tree_log(NODE(orig), CIL_WARN, "Block %s being copied", key);
+		cil_tree_log(NODE(datum), CIL_WARN, "  Previously declared");
+		*copy = datum;
+	} else {
 		struct cil_block *new;
 		cil_block_init(&new);
 		*copy = new;
-	} else {
-		*copy = datum;;
 	}
 
 	return SEPOL_OK;
@@ -653,7 +662,6 @@ int cil_copy_expandtypeattribute(__attribute__((unused)) struct cil_db *db, void
 	struct cil_expandtypeattribute *orig = data;
 	struct cil_expandtypeattribute *new = NULL;
 
-	fprintf(stderr, "%s %u\n", __func__, __LINE__);
 	cil_expandtypeattribute_init(&new);
 
 	if (orig->attr_strs != NULL) {
@@ -1512,78 +1520,33 @@ int cil_copy_macro(__attribute__((unused)) struct cil_db *db, void *data, void *
 	struct cil_symtab_datum *datum = NULL;
 
 	cil_symtab_get_datum(symtab, key, &datum);
-	if (datum == NULL) {
+	if (datum != NULL) {
+		if (FLAVOR(datum) != CIL_MACRO) {
+			cil_tree_log(NODE(orig), CIL_ERR, "Macro %s being copied", key);
+			cil_tree_log(NODE(datum), CIL_ERR, "  Conflicts with %s already declared", cil_node_to_string(NODE(datum)));
+			return SEPOL_ERR;
+		}
+		cil_tree_log(NODE(orig), CIL_WARN, "Skipping macro %s", key);
+		cil_tree_log(NODE(datum), CIL_WARN, "  Previously declared");
+		*copy = NULL;
+	} else {
 		struct cil_macro *new;
 		cil_macro_init(&new);
 		if (orig->params != NULL) {
 			cil_copy_list(orig->params, &new->params);
 		}
-
 		*copy = new;
-
-	} else {
-		struct cil_list_item *curr_orig = NULL;
-		struct cil_list_item *curr_new = NULL;
-		struct cil_param *param_orig = NULL;
-		struct cil_param *param_new = NULL;
-
-		if (((struct cil_macro*)datum)->params != NULL) {
-			curr_new = ((struct cil_macro*)datum)->params->head;
-		}
-
-		if (orig->params != NULL) {
-			curr_orig = orig->params->head;
-		}
-
-		if (curr_orig != NULL && curr_new != NULL) {
-			while (curr_orig != NULL) {
-				if (curr_new == NULL) {
-					goto exit;
-				}
-
-				param_orig = (struct cil_param*)curr_orig->data;
-				param_new = (struct cil_param*)curr_new->data;
-				if (param_orig->str != param_new->str) {
-					goto exit;
-				} else if (param_orig->flavor != param_new->flavor) {
-					goto exit;
-				}
-
-				curr_orig = curr_orig->next;
-				curr_new = curr_new->next;
-			}
-
-			if (curr_new != NULL) {
-				goto exit;
-			}
-		} else if (!(curr_orig == NULL && curr_new == NULL)) {
-			goto exit;
-		}
-
-		*copy = datum;
 	}
 
 	return SEPOL_OK;
-
-exit:
-	cil_log(CIL_INFO, "cil_copy_macro: macro cannot be redefined\n");
-	return SEPOL_ERR;
 }
 
-int cil_copy_optional(__attribute__((unused)) struct cil_db *db, void *data, void **copy, symtab_t *symtab)
+int cil_copy_optional(__attribute__((unused)) struct cil_db *db, __attribute__((unused)) void *data, void **copy, __attribute__((unused)) symtab_t *symtab)
 {
-	struct cil_optional *orig = data;
-	char *key = orig->datum.name;
-	struct cil_symtab_datum *datum = NULL;
+	struct cil_optional *new;
 
-	cil_symtab_get_datum(symtab, key, &datum);
-	if (datum == NULL) {
-		struct cil_optional *new;
-		cil_optional_init(&new);
-		*copy = new;
-	} else {
-		*copy = datum;
-	}
+	cil_optional_init(&new);
+	*copy = new;
 
 	return SEPOL_OK;
 }
@@ -1741,7 +1704,8 @@ int cil_copy_src_info(__attribute__((unused)) struct cil_db *db, void *data, voi
 
 	cil_src_info_init(&new);
 
-	new->is_cil = orig->is_cil;
+	new->kind = orig->kind;
+	new->hll_line = orig->hll_line;
 	new->path = orig->path;
 
 	*copy = new;
@@ -1749,7 +1713,7 @@ int cil_copy_src_info(__attribute__((unused)) struct cil_db *db, void *data, voi
 	return SEPOL_OK;
 }
 
-int __cil_copy_node_helper(struct cil_tree_node *orig, __attribute__((unused)) uint32_t *finished, void *extra_args)
+int __cil_copy_node_helper(struct cil_tree_node *orig, uint32_t *finished, void *extra_args)
 {
 	int rc = SEPOL_ERR;
 	struct cil_tree_node *parent = NULL;
@@ -1757,7 +1721,6 @@ int __cil_copy_node_helper(struct cil_tree_node *orig, __attribute__((unused)) u
 	struct cil_db *db = NULL;
 	struct cil_args_copy *args = NULL;
 	struct cil_tree_node *namespace = NULL;
-	struct cil_param *param = NULL;
 	enum cil_sym_index sym_index = CIL_SYM_UNKNOWN;
 	symtab_t *symtab = NULL;
 	void *data = NULL;
@@ -2055,15 +2018,33 @@ int __cil_copy_node_helper(struct cil_tree_node *orig, __attribute__((unused)) u
 
 	rc = (*copy_func)(db, orig->data, &data, symtab);
 	if (rc == SEPOL_OK) {
+		if (orig->flavor == CIL_MACRO && data == NULL) {
+			/* Skipping macro re-declaration */
+			if (args->orig_dest->flavor != CIL_BLOCKINHERIT) {
+				cil_log(CIL_ERR, "  Re-declaration of macro is only allowed when inheriting a block\n");
+				return SEPOL_ERR;
+			}
+			*finished = CIL_TREE_SKIP_HEAD;
+			return SEPOL_OK;
+		}
+
 		cil_tree_node_init(&new);
 
 		new->parent = parent;
 		new->line = orig->line;
-		new->hll_line = orig->hll_line;
+		new->hll_offset = orig->hll_offset;
 		new->flavor = orig->flavor;
 		new->data = data;
 
-		if (orig->flavor >= CIL_MIN_DECLARATIVE) {
+		if (orig->flavor == CIL_BLOCK && DATUM(data)->nodes->head != NULL) {
+			/* Duplicate block */
+			if (args->orig_dest->flavor != CIL_BLOCKINHERIT) {
+				cil_log(CIL_ERR, "  Re-declaration of block is only allowed when inheriting a block\n");
+				rc = SEPOL_ERR;
+				goto exit;
+			}
+			cil_list_append(DATUM(new->data)->nodes, CIL_NODE, new);
+		} else if (orig->flavor >= CIL_MIN_DECLARATIVE) {
 			/* Check the flavor of data if was found in the destination symtab */
 			if (DATUM(data)->nodes->head && FLAVOR(data) != orig->flavor) {
 				cil_tree_log(orig, CIL_ERR, "Incompatible flavor when trying to copy %s", DATUM(data)->name);
@@ -2072,7 +2053,11 @@ int __cil_copy_node_helper(struct cil_tree_node *orig, __attribute__((unused)) u
 				rc = SEPOL_ERR;
 				goto exit;
 			}
-			rc = cil_symtab_insert(symtab, ((struct cil_symtab_datum*)orig->data)->name, ((struct cil_symtab_datum*)data), new);
+
+			rc = cil_add_decl_to_symtab(db, symtab, DATUM(orig->data)->name, DATUM(data), new);
+			if (rc != SEPOL_OK) {
+				goto exit;
+			}
 
 			namespace = new;
 			while (namespace->flavor != CIL_MACRO && namespace->flavor != CIL_BLOCK && namespace->flavor != CIL_ROOT) {
@@ -2080,21 +2065,9 @@ int __cil_copy_node_helper(struct cil_tree_node *orig, __attribute__((unused)) u
 			}
 
 			if (namespace->flavor == CIL_MACRO) {
-				struct cil_macro *macro = namespace->data;
-				struct cil_list *param_list = macro->params;
-				if (param_list != NULL) {
-					struct cil_list_item *item;
-					cil_list_for_each(item, param_list) {
-						param = item->data;
-						if (param->flavor == new->flavor) {
-							if (param->str == ((struct cil_symtab_datum*)new->data)->name) {
-								cil_tree_log(orig, CIL_ERR, "%s %s shadows a macro parameter", cil_node_to_string(new), ((struct cil_symtab_datum*)orig->data)->name);
-								cil_tree_log(namespace, CIL_ERR, "Note: macro declaration");
-								rc = SEPOL_ERR;
-								goto exit;
-							}
-						}
-					}
+				rc = cil_verify_decl_does_not_shadow_macro_parameter(namespace->data, orig, DATUM(orig->data)->name);
+				if (rc != SEPOL_OK) {
+					goto exit;
 				}
 			}
 		}
@@ -2123,6 +2096,7 @@ int __cil_copy_node_helper(struct cil_tree_node *orig, __attribute__((unused)) u
 			args->dest = new;
 		}
 	} else {
+		cil_tree_log(orig, CIL_ERR, "Problem copying %s node", cil_node_to_string(orig));
 		goto exit;
 	}
 
@@ -2155,12 +2129,13 @@ int cil_copy_ast(struct cil_db *db, struct cil_tree_node *orig, struct cil_tree_
 	int rc = SEPOL_ERR;
 	struct cil_args_copy extra_args;
 
+	extra_args.orig_dest = dest;
 	extra_args.dest = dest;
 	extra_args.db = db;
 
 	rc = cil_tree_walk(orig, __cil_copy_node_helper, NULL,  __cil_copy_last_child_helper, &extra_args);
 	if (rc != SEPOL_OK) {
-		cil_log(CIL_INFO, "cil_tree_walk failed, rc: %d\n", rc);
+		cil_tree_log(dest, CIL_ERR, "Failed to copy %s to %s", cil_node_to_string(orig), cil_node_to_string(dest));
 		goto exit;
 	}
 
