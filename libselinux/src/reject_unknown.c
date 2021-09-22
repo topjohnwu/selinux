@@ -37,3 +37,4 @@ int security_reject_unknown(void)
 	return reject_unknown;
 }
 
+hidden_def(security_reject_unknown);

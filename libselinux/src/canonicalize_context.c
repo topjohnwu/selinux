@@ -60,6 +60,7 @@ int security_canonicalize_context_raw(const char * con,
 	return ret;
 }
 
+hidden_def(security_canonicalize_context_raw)
 
 int security_canonicalize_context(const char * con,
 				      char ** canoncon)
@@ -82,3 +83,4 @@ int security_canonicalize_context(const char * con,
 	return ret;
 }
 
+hidden_def(security_canonicalize_context)

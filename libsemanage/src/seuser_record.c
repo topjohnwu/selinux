@@ -59,6 +59,7 @@ int semanage_seuser_key_create(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_seuser_key_create)
 
 int semanage_seuser_key_extract(semanage_handle_t * handle,
 				const semanage_seuser_t * seuser,
@@ -75,6 +76,7 @@ int semanage_seuser_key_extract(semanage_handle_t * handle,
 	return STATUS_ERR;
 }
 
+hidden_def(semanage_seuser_key_extract)
 
 void semanage_seuser_key_free(semanage_seuser_key_t * key)
 {
@@ -82,6 +84,7 @@ void semanage_seuser_key_free(semanage_seuser_key_t * key)
 	free(key);
 }
 
+hidden_def(semanage_seuser_key_free)
 
 int semanage_seuser_compare(const semanage_seuser_t * seuser,
 			    const semanage_seuser_key_t * key)
@@ -90,6 +93,7 @@ int semanage_seuser_compare(const semanage_seuser_t * seuser,
 	return strcmp(seuser->name, key->name);
 }
 
+hidden_def(semanage_seuser_compare)
 
 int semanage_seuser_compare2(const semanage_seuser_t * seuser,
 			     const semanage_seuser_t * seuser2)
@@ -98,6 +102,7 @@ int semanage_seuser_compare2(const semanage_seuser_t * seuser,
 	return strcmp(seuser->name, seuser2->name);
 }
 
+hidden_def(semanage_seuser_compare2)
 
 static int semanage_seuser_compare2_qsort(const semanage_seuser_t ** seuser,
 					  const semanage_seuser_t ** seuser2)
@@ -113,6 +118,7 @@ const char *semanage_seuser_get_name(const semanage_seuser_t * seuser)
 	return seuser->name;
 }
 
+hidden_def(semanage_seuser_get_name)
 
 int semanage_seuser_set_name(semanage_handle_t * handle,
 			     semanage_seuser_t * seuser, const char *name)
@@ -128,6 +134,7 @@ int semanage_seuser_set_name(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_seuser_set_name)
 
 /* Selinux Name */
 const char *semanage_seuser_get_sename(const semanage_seuser_t * seuser)
@@ -136,6 +143,7 @@ const char *semanage_seuser_get_sename(const semanage_seuser_t * seuser)
 	return seuser->sename;
 }
 
+hidden_def(semanage_seuser_get_sename)
 
 int semanage_seuser_set_sename(semanage_handle_t * handle,
 			       semanage_seuser_t * seuser, const char *sename)
@@ -152,6 +160,7 @@ int semanage_seuser_set_sename(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_seuser_set_sename)
 
 /* MLS Range */
 const char *semanage_seuser_get_mlsrange(const semanage_seuser_t * seuser)
@@ -160,6 +169,7 @@ const char *semanage_seuser_get_mlsrange(const semanage_seuser_t * seuser)
 	return seuser->mls_range;
 }
 
+hidden_def(semanage_seuser_get_mlsrange)
 
 int semanage_seuser_set_mlsrange(semanage_handle_t * handle,
 				 semanage_seuser_t * seuser,
@@ -176,6 +186,7 @@ int semanage_seuser_set_mlsrange(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_seuser_set_mlsrange)
 
 /* Create */
 int semanage_seuser_create(semanage_handle_t * handle,
@@ -198,6 +209,7 @@ int semanage_seuser_create(semanage_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
+hidden_def(semanage_seuser_create)
 
 /* Deep copy clone */
 int semanage_seuser_clone(semanage_handle_t * handle,
@@ -230,6 +242,7 @@ int semanage_seuser_clone(semanage_handle_t * handle,
 	return STATUS_ERR;
 }
 
+hidden_def(semanage_seuser_clone)
 
 /* Destroy */
 void semanage_seuser_free(semanage_seuser_t * seuser)
@@ -244,6 +257,7 @@ void semanage_seuser_free(semanage_seuser_t * seuser)
 	free(seuser);
 }
 
+hidden_def(semanage_seuser_free)
 
 /* Record base functions */
 record_table_t SEMANAGE_SEUSER_RTABLE = {

@@ -49,6 +49,7 @@ int getfilecon_raw(const char *path, char ** context)
 	return ret;
 }
 
+hidden_def(getfilecon_raw)
 
 int getfilecon(const char *path, char ** context)
 {
@@ -69,3 +70,4 @@ int getfilecon(const char *path, char ** context)
 	return ret;
 }
 
+hidden_def(getfilecon)

@@ -25,6 +25,7 @@ int lsetfilecon_raw(const char *path, const char * context)
 	return rc;
 }
 
+hidden_def(lsetfilecon_raw)
 
 int lsetfilecon(const char *path, const char *context)
 {

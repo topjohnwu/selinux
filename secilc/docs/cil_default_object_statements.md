@@ -10,9 +10,7 @@ Allows the default user to be taken from the source or target context when compu
 
 **Statement definition:**
 
-```secil
     (defaultuser class_id default)
-```
 
 **Where:**
 
@@ -41,7 +39,6 @@ Allows the default user to be taken from the source or target context when compu
 
 When creating new `binder`, `property_service`, `zygote` or `memprotect` objects the [`user`](cil_user_statements.md#user) component of the new security context will be taken from the `source` context:
 
-```secil
     (class binder (impersonate call set_context_mgr transfer receive))
     (class property_service (set))
     (class zygote (specifyids specifyrlimits specifycapabilities specifyinvokewith specifyseinfo))
@@ -59,16 +56,13 @@ When creating new `binder`, `property_service`, `zygote` or `memprotect` objects
     ;; default_user zygote source;
     ;; default_user property_service source;
     ;; default_user memprotect source;
-```
 
 defaultrole
 -----------
 
 Allows the default role to be taken from the source or target context when computing a new context for the object [`class`](cil_class_and_permission_statements.md#class) identifier. Requires policy version 27.
 
-```secil
     (defaultrole class_id default)
-```
 
 **Where:**
 
@@ -97,7 +91,6 @@ Allows the default role to be taken from the source or target context when compu
 
 When creating new `binder`, `property_service` or `zygote` objects the [`role`](cil_role_statements.md#role) component of the new security context will be taken from the `target` context:
 
-```secil
     (class binder (impersonate call set_context_mgr transfer receive))
     (class property_service (set))
     (class zygote (specifyids specifyrlimits specifycapabilities specifyinvokewith specifyseinfo))
@@ -108,7 +101,6 @@ When creating new `binder`, `property_service` or `zygote` objects the [`role`](
     ;; default_role binder target;
     ;; default_role zygote target;
     ;; default_role property_service target;
-```
 
 defaulttype
 -----------
@@ -117,9 +109,7 @@ Allows the default type to be taken from the source or target context when compu
 
 **Statement definition:**
 
-```secil
     (defaulttype class_id default)
-```
 
 **Where:**
 
@@ -148,9 +138,7 @@ Allows the default type to be taken from the source or target context when compu
 
 When creating a new `socket` object, the [`type`](cil_type_statements.md#type) component of the new security context will be taken from the `source` context:
 
-```secil
     (defaulttype socket source)
-```
 
 defaultrange
 ------------
@@ -159,9 +147,7 @@ Allows the default level or range to be taken from the source, target, or both c
 
 **Statement definition:**
 
-```secil
     (defaultrange class_id default <range>)
-```
 
 **Where:**
 
@@ -194,12 +180,8 @@ Allows the default level or range to be taken from the source, target, or both c
 
 When creating a new `file` object, the appropriate `range` component of the new security context will be taken from the `target` context:
 
-```secil
     (defaultrange file target low_high)
-```
 
 MLS userspace object managers may need to compute the common parts of a range such that the object is created with the range common to the subject and containing object:
 
-```secil
     (defaultrange db_table glblub)
-```

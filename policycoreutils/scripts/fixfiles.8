@@ -6,7 +6,7 @@ fixfiles \- fix file SELinux security contexts.
 .na
 
 .B fixfiles
-.I [\-v] [\-F] [-M] [\-f] relabel
+.I [\-v] [\-F] [\-f] relabel
 
 .B fixfiles
 .I [\-v] [\-F] { check | restore | verify } dir/file ...
@@ -21,7 +21,7 @@ fixfiles \- fix file SELinux security contexts.
 .I [\-v] [\-F] \-C PREVIOUS_FILECONTEXT  { check | restore | verify }
 
 .B fixfiles
-.I [-F] [-M] [-B] onboot
+.I [-F] [-B] onboot
 
 .ad
 
@@ -35,8 +35,8 @@ database (extended attributes) on filesystems.
 .P
 It can also be run at any time to relabel when adding support for
 new policy, or  just check whether the file contexts are all
-as you expect.  By default it will relabel all mounted ext2, ext3, ext4, gfs2, xfs,
-jfs and btrfs file systems as long as they do not have a security context mount
+as you expect.  By default it will relabel all mounted ext2, ext3, xfs and 
+jfs file systems as long as they do not have a security context mount 
 option.  You can use the \-R flag to use rpmpackages as an alternative.
 The file /etc/selinux/fixfiles_exclude_dirs can contain a list of directories
 excluded from relabeling.
@@ -69,17 +69,13 @@ Only act on files created after the specified date.  Date must be specified in
 "YYYY\-MM\-DD HH:MM" format.  Date field will be passed to find \-\-newermt command.
 
 .TP
-.B \-M
-Bind mount filesystems before relabeling them, this allows fixing the context of files or directories that have been mounted over.
-
-.TP
 .B -v
 Modify verbosity from progress to verbose. (Run restorecon with \-v instead of \-p)
 
 .SH "ARGUMENTS"
 One of:
 .TP 
-.B check | verify
+.B check
 print any incorrect file context labels, showing old and new context, but do not change them.
 .TP 
 .B restore
@@ -87,6 +83,9 @@ change any incorrect file context labels.
 .TP 
 .B relabel
 Prompt for removal of contents of /tmp directory and then change any incorrect file context labels to match the install file_contexts file.
+.TP 
+.B verify
+List out files with incorrect file context labels, but do not change them.
 .TP 
 .B [[dir/file] ... ] 
 List of files or directories trees that you wish to check file context on.

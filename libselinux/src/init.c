@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include "dso.h"
 #include "policy.h"
 #include "selinux_internal.h"
 #include "setrans_internal.h"
@@ -78,6 +79,7 @@ int selinuxfs_exists(void)
 	fclose(fp);
 	return exists;
 }
+hidden_def(selinuxfs_exists)
 
 static void init_selinuxmnt(void)
 {
@@ -136,12 +138,14 @@ void fini_selinuxmnt(void)
 	selinux_mnt = NULL;
 }
 
+hidden_def(fini_selinuxmnt)
 
 void set_selinuxmnt(const char *mnt)
 {
 	selinux_mnt = strdup(mnt);
 }
 
+hidden_def(set_selinuxmnt)
 
 static void init_lib(void) __attribute__ ((constructor));
 static void init_lib(void)

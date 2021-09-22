@@ -12,7 +12,6 @@ setfiles \- set SELinux file security contexts.
 .RB [ \-n ]
 .RB [ \-e
 .IR directory ]
-.RB [ \-E ]
 .RB [ \-p ]
 .RB [ \-s ]
 .RB [ \-v ]
@@ -57,14 +56,11 @@ option will force a replacement of the entire context.
 check the validity of the contexts against the specified binary policy.
 .TP
 .B \-d
-show what specification matched each file.
+show what specification matched each file (do not abort validation
+after ABORT_ON_ERRORS errors).
 .TP
 .BI \-e \ directory
 directory to exclude (repeat option for more than one directory).
-.TP
-.BI \-E
-treat conflicting specifications as errors, such as where two hardlinks for
-the same inode have different contexts.
 .TP
 .BI \-f \ infilename
 .I infilename
@@ -213,8 +209,7 @@ option is used.
 .SH "NOTES"
 .IP "1." 4
 .B setfiles
-operates recursively on directories. Paths leading up the final
-component of the file(s) are not canonicalized before labeling.
+follows symbolic links and operates recursively on directories.
 .IP "2." 4
 If the
 .I pathname

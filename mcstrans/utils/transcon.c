@@ -14,7 +14,7 @@ static __attribute__((__noreturn__)) void usage(const char *progname)
 }
 
 int main(int argc, char **argv) {
-	char *scon;
+	security_context_t scon;
 	if ( argc != 2 ) usage(argv[0]);
 	if (init_translations()==0) {
 		if(trans_context(argv[1],&scon) == 0) {

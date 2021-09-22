@@ -42,7 +42,7 @@ static __attribute__((__noreturn__)) void usage(const char *progname)
 	exit(1);
 }
 
-static int render_access_mask(uint32_t mask, avtab_key_t * key, policydb_t * p,
+int render_access_mask(uint32_t mask, avtab_key_t * key, policydb_t * p,
 		       FILE * fp)
 {
 	char *perm;
@@ -54,13 +54,13 @@ static int render_access_mask(uint32_t mask, avtab_key_t * key, policydb_t * p,
 	return 0;
 }
 
-static int render_type(uint32_t type, policydb_t * p, FILE * fp)
+int render_type(uint32_t type, policydb_t * p, FILE * fp)
 {
 	fprintf(fp, "%s", p->p_type_val_to_name[type - 1]);
 	return 0;
 }
 
-static int render_key(avtab_key_t * key, policydb_t * p, FILE * fp)
+int render_key(avtab_key_t * key, policydb_t * p, FILE * fp)
 {
 	char *stype, *ttype, *tclass;
 	stype = p->p_type_val_to_name[key->source_type - 1];
@@ -84,7 +84,7 @@ static int render_key(avtab_key_t * key, policydb_t * p, FILE * fp)
 #define RENDER_DISABLED		0x0004
 #define RENDER_CONDITIONAL	(RENDER_ENABLED|RENDER_DISABLED)
 
-static int render_av_rule(avtab_key_t * key, avtab_datum_t * datum, uint32_t what,
+int render_av_rule(avtab_key_t * key, avtab_datum_t * datum, uint32_t what,
 		   policydb_t * p, FILE * fp)
 {
 	if (!(what & RENDER_UNCONDITIONAL)) {
@@ -163,7 +163,7 @@ static int render_av_rule(avtab_key_t * key, avtab_datum_t * datum, uint32_t wha
 	return 0;
 }
 
-static int display_avtab(avtab_t * a, uint32_t what, policydb_t * p, FILE * fp)
+int display_avtab(avtab_t * a, uint32_t what, policydb_t * p, FILE * fp)
 {
 	unsigned int i;
 	avtab_ptr_t cur;
@@ -178,7 +178,7 @@ static int display_avtab(avtab_t * a, uint32_t what, policydb_t * p, FILE * fp)
 	return 0;
 }
 
-static int display_bools(policydb_t * p, FILE * fp)
+int display_bools(policydb_t * p, FILE * fp)
 {
 	unsigned int i;
 
@@ -189,7 +189,7 @@ static int display_bools(policydb_t * p, FILE * fp)
 	return 0;
 }
 
-static void display_expr(policydb_t * p, cond_expr_t * exp, FILE * fp)
+void display_expr(policydb_t * p, cond_expr_t * exp, FILE * fp)
 {
 
 	cond_expr_t *cur;
@@ -224,7 +224,7 @@ static void display_expr(policydb_t * p, cond_expr_t * exp, FILE * fp)
 	}
 }
 
-static int display_cond_expressions(policydb_t * p, FILE * fp)
+int display_cond_expressions(policydb_t * p, FILE * fp)
 {
 	cond_node_t *cur;
 	cond_av_list_t *av_cur;
@@ -249,7 +249,7 @@ static int display_cond_expressions(policydb_t * p, FILE * fp)
 	return 0;
 }
 
-static int display_handle_unknown(policydb_t * p, FILE * out_fp)
+int display_handle_unknown(policydb_t * p, FILE * out_fp)
 {
 	if (p->handle_unknown == ALLOW_UNKNOWN)
 		fprintf(out_fp, "Allow unknown classes and permissions\n");
@@ -260,7 +260,7 @@ static int display_handle_unknown(policydb_t * p, FILE * out_fp)
 	return 0;
 }
 
-static int change_bool(char *name, int state, policydb_t * p, FILE * fp)
+int change_bool(char *name, int state, policydb_t * p, FILE * fp)
 {
 	cond_bool_datum_t *bool;
 
@@ -285,7 +285,7 @@ static void display_policycaps(policydb_t * p, FILE * fp)
 	ebitmap_for_each_positive_bit(&p->policycaps, node, i) {
 		capname = sepol_polcap_getname(i);
 		if (capname == NULL) {
-			snprintf(buf, sizeof(buf), "unknown (%u)", i);
+			snprintf(buf, sizeof(buf), "unknown (%d)", i);
 			capname = buf;
 		}
 		fprintf(fp, "\t%s\n", capname);
@@ -335,25 +335,17 @@ static int filenametr_display(hashtab_key_t key,
 			      hashtab_datum_t datum,
 			      void *ptr)
 {
-	struct filename_trans_key *ft = (struct filename_trans_key *)key;
+	struct filename_trans *ft = (struct filename_trans *)key;
 	struct filename_trans_datum *ftdatum = datum;
 	struct filenametr_display_args *args = ptr;
 	policydb_t *p = args->p;
 	FILE *fp = args->fp;
-	ebitmap_node_t *node;
-	uint32_t bit;
 
-	do {
-		ebitmap_for_each_positive_bit(&ftdatum->stypes, node, bit) {
-			display_id(p, fp, SYM_TYPES, bit, "");
-			display_id(p, fp, SYM_TYPES, ft->ttype - 1, "");
-			display_id(p, fp, SYM_CLASSES, ft->tclass - 1, ":");
-			display_id(p, fp, SYM_TYPES, ftdatum->otype - 1, "");
-			fprintf(fp, " %s\n", ft->name);
-		}
-		ftdatum = ftdatum->next;
-	} while (ftdatum);
-
+	display_id(p, fp, SYM_TYPES, ft->stype - 1, "");
+	display_id(p, fp, SYM_TYPES, ft->ttype - 1, "");
+	display_id(p, fp, SYM_CLASSES, ft->tclass - 1, ":");
+	display_id(p, fp, SYM_TYPES, ftdatum->otype - 1, "");
+	fprintf(fp, " %s\n", ft->name);
 	return 0;
 }
 
@@ -368,7 +360,7 @@ static void display_filename_trans(policydb_t *p, FILE *fp)
 	hashtab_map(p->filename_trans, filenametr_display, &args);
 }
 
-static int menu(void)
+int menu(void)
 {
 	printf("\nSelect a command:\n");
 	printf("1)  display unconditional AVTAB\n");
