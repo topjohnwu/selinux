@@ -1228,7 +1228,8 @@ out:
     return rc;
 err:
     selinux_log(SELINUX_ERROR, "%s:  Error looking up context for path %s, pkgname %s, seinfo %s, uid %u: %s\n",
-                __FUNCTION__, pathname, pkgname, info->seinfo, info->uid, strerror(errno));
+                __FUNCTION__, pathname, pkgname, info ? info->seinfo : seinfo,
+                info ? info->uid : uid, strerror(errno));
     rc = -1;
     goto out;
 }
