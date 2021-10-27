@@ -286,7 +286,6 @@ static inline int store_stem(struct saved_data *data, char *buf, int stem_len)
 		tmp_arr = realloc(data->stem_arr,
 				  sizeof(*tmp_arr) * alloc_stems);
 		if (!tmp_arr) {
-			free(buf);
 			return -1;
 		}
 		data->alloc_stems = alloc_stems;
@@ -308,6 +307,7 @@ static inline int find_stem_from_spec(struct saved_data *data, const char *buf)
 	int stem_len = get_stem_from_spec(buf);
 	int stemid;
 	char *stem;
+	int r;
 
 	if (!stem_len)
 		return -1;
@@ -321,7 +321,11 @@ static inline int find_stem_from_spec(struct saved_data *data, const char *buf)
 	if (!stem)
 		return -1;
 
-	return store_stem(data, stem, stem_len);
+	r = store_stem(data, stem, stem_len);
+	if (r < 0)
+		free(stem);
+
+	return r;
 }
 
 /* This will always check for buffer over-runs and either read the next entry
@@ -441,9 +445,15 @@ static inline int process_line(struct selabel_handle *rec,
 	items = read_spec_entries(line_buf, &errbuf, 3, &regex, &type, &context);
 	if (items < 0) {
 		rc = errno;
-		selinux_log(SELINUX_ERROR,
-			"%s:  line %u error due to: %s\n", path,
-			lineno, errbuf ?: strerror(errno));
+		if (errbuf) {
+			selinux_log(SELINUX_ERROR,
+				    "%s:  line %u error due to: %s\n", path,
+				    lineno, errbuf);
+		} else {
+			selinux_log(SELINUX_ERROR,
+				    "%s:  line %u error due to: %m\n", path,
+				    lineno);
+		}
 		errno = rc;
 		return -1;
 	}

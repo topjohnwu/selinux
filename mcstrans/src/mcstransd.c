@@ -40,17 +40,17 @@
 //#define log_debug(fmt, ...) syslog(LOG_DEBUG, fmt, __VA_ARGS__)
 #define log_debug(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
 #else
-#define log_debug(fmt, ...) ;
+#define log_debug(fmt, ...) do {} while (0)
 #endif
 
 extern int init_translations(void);
 extern void finish_context_translations(void);
-extern int trans_context(const security_context_t, security_context_t *);
-extern int untrans_context(const security_context_t, security_context_t *);
+extern int trans_context(const char *, char **);
+extern int untrans_context(const char *, char **);
 
 extern int init_colors(void);
 extern void finish_context_colors(void);
-extern int raw_color(const security_context_t, char **);
+extern int raw_color(const char *, char **);
 
 #define SETRANSD_PATHNAME "/sbin/mcstransd"
 

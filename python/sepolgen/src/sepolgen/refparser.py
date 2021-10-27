@@ -126,6 +126,7 @@ tokens = (
     'GEN_REQ',
     'TEMPLATE',
     'GEN_CONTEXT',
+    'GEN_TUNABLE',
     #   m4
     'IFELSE',
     'IFDEF',
@@ -192,6 +193,7 @@ reserved = {
     'gen_require' : 'GEN_REQ',
     'template' : 'TEMPLATE',
     'gen_context' : 'GEN_CONTEXT',
+    'gen_tunable' : 'GEN_TUNABLE',
     # M4
     'ifelse' : 'IFELSE',
     'ifndef' : 'IFNDEF',
@@ -431,9 +433,9 @@ def p_ifelse(p):
 
 
 def p_ifdef(p):
-    '''ifdef : IFDEF OPAREN TICK IDENTIFIER SQUOTE COMMA TICK interface_stmts SQUOTE CPAREN optional_semi
-             | IFNDEF OPAREN TICK IDENTIFIER SQUOTE COMMA TICK interface_stmts SQUOTE CPAREN optional_semi
-             | IFDEF OPAREN TICK IDENTIFIER SQUOTE COMMA TICK interface_stmts SQUOTE COMMA TICK interface_stmts SQUOTE CPAREN optional_semi
+    '''ifdef : IFDEF OPAREN TICK IDENTIFIER SQUOTE COMMA TICK statements SQUOTE CPAREN optional_semi
+             | IFNDEF OPAREN TICK IDENTIFIER SQUOTE COMMA TICK statements SQUOTE CPAREN optional_semi
+             | IFDEF OPAREN TICK IDENTIFIER SQUOTE COMMA TICK statements SQUOTE COMMA TICK statements SQUOTE CPAREN optional_semi
     '''
     x = refpolicy.IfDef(p[4])
     if p[1] == 'ifdef':
@@ -518,6 +520,7 @@ def p_policy_stmt(p):
                    | range_transition_def
                    | role_transition_def
                    | bool
+                   | gen_tunable
                    | define
                    | initial_sid
                    | genfscon
@@ -844,6 +847,17 @@ def p_bool(p):
         b.state = False
     p[0] = b
 
+def p_gen_tunable(p):
+    '''gen_tunable : GEN_TUNABLE OPAREN TICK IDENTIFIER SQUOTE COMMA TRUE CPAREN
+                   | GEN_TUNABLE OPAREN TICK IDENTIFIER SQUOTE COMMA FALSE CPAREN'''
+    b = refpolicy.Bool()
+    b.name = p[4]
+    if p[7] == "true":
+        b.state = True
+    else:
+        b.state = False
+    p[0] = b
+
 def p_conditional(p):
     ''' conditional : IF OPAREN cond_expr CPAREN OBRACE interface_stmts CBRACE
                     | IF OPAREN cond_expr CPAREN OBRACE interface_stmts CBRACE ELSE OBRACE interface_stmts CBRACE
@@ -1134,6 +1148,6 @@ def parse_headers(root, output=None, expand=True, debug=False):
             status.step()
 
     if len(failures):
-        o("failed to parse some headers: %s" % ", ".join(failures))
+        o("failed to parse some headers: %s\n" % ", ".join(failures))
 
     return headers
