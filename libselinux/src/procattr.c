@@ -25,21 +25,23 @@ static __thread char destructor_initialized;
 /* Bionic and glibc >= 2.30 declare gettid() system call wrapper in unistd.h and
  * has a definition for it */
 #ifdef __BIONIC__
-  #define OVERRIDE_GETTID 0
+  #define HAVE_GETTID 1
 #elif !defined(__GLIBC_PREREQ)
-  #define OVERRIDE_GETTID 1
+  #define HAVE_GETTID 0
 #elif !__GLIBC_PREREQ(2,30)
-  #define OVERRIDE_GETTID 1
+  #define HAVE_GETTID 0
 #else
-  #define OVERRIDE_GETTID 0
+  #define HAVE_GETTID 1
 #endif
 
-#if OVERRIDE_GETTID
-static pid_t gettid(void)
+static pid_t selinux_gettid(void)
 {
+#if HAVE_GETTID
+	return gettid();
+#else
 	return syscall(__NR_gettid);
-}
 #endif
+}
 
 static void procattr_thread_destructor(void __attribute__((unused)) *unused)
 {
@@ -57,7 +59,7 @@ static void procattr_thread_destructor(void __attribute__((unused)) *unused)
 
 void __attribute__((destructor)) procattr_destructor(void);
 
-void hidden __attribute__((destructor)) procattr_destructor(void)
+void  __attribute__((destructor)) procattr_destructor(void)
 {
 	if (destructor_key_initialized)
 		__selinux_key_delete(destructor_key);
@@ -94,7 +96,7 @@ static int openattr(pid_t pid, const char *attr, int flags)
 		if (fd >= 0 || errno != ENOENT)
 			goto out;
 		free(path);
-		tid = gettid();
+		tid = selinux_gettid();
 		rc = asprintf(&path, "/proc/self/task/%d/attr/%s", tid, attr);
 	} else {
 		errno = EINVAL;
@@ -144,7 +146,7 @@ static int getprocattrcon_raw(char ** context,
 		default:
 			errno = ENOENT;
 			return -1;
-	};
+	}
 
 	if (prev_context && prev_context != UNSET) {
 		*context = strdup(prev_context);
@@ -238,7 +240,7 @@ static int setprocattrcon_raw(const char * context,
 		default:
 			errno = ENOENT;
 			return -1;
-	};
+	}
 
 	if (!context && !*prev_context)
 		return 0;
@@ -345,22 +347,3 @@ all_selfattr_def(con, current)
     all_selfattr_def(sockcreatecon, sockcreate)
     all_selfattr_def(keycreatecon, keycreate)
 
-    hidden_def(getcon_raw)
-    hidden_def(getcon)
-    hidden_def(getexeccon_raw)
-    hidden_def(getfilecon_raw)
-    hidden_def(getfilecon)
-    hidden_def(getfscreatecon_raw)
-    hidden_def(getkeycreatecon_raw)
-    hidden_def(getpeercon_raw)
-    hidden_def(getpidcon_raw)
-    hidden_def(getprevcon_raw)
-    hidden_def(getprevcon)
-    hidden_def(getsockcreatecon_raw)
-    hidden_def(setcon_raw)
-    hidden_def(setexeccon_raw)
-    hidden_def(setexeccon)
-    hidden_def(setfilecon_raw)
-    hidden_def(setfscreatecon_raw)
-    hidden_def(setkeycreatecon_raw)
-    hidden_def(setsockcreatecon_raw)

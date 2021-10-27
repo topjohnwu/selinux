@@ -29,7 +29,6 @@ const char *sepol_context_get_user(const sepol_context_t * con)
 	return con->user;
 }
 
-hidden_def(sepol_context_get_user)
 
 int sepol_context_set_user(sepol_handle_t * handle,
 			   sepol_context_t * con, const char *user)
@@ -47,7 +46,6 @@ int sepol_context_set_user(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_context_set_user)
 
 /* Role */
 const char *sepol_context_get_role(const sepol_context_t * con)
@@ -56,7 +54,6 @@ const char *sepol_context_get_role(const sepol_context_t * con)
 	return con->role;
 }
 
-hidden_def(sepol_context_get_role)
 
 int sepol_context_set_role(sepol_handle_t * handle,
 			   sepol_context_t * con, const char *role)
@@ -73,7 +70,6 @@ int sepol_context_set_role(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_context_set_role)
 
 /* Type */
 const char *sepol_context_get_type(const sepol_context_t * con)
@@ -82,7 +78,6 @@ const char *sepol_context_get_type(const sepol_context_t * con)
 	return con->type;
 }
 
-hidden_def(sepol_context_get_type)
 
 int sepol_context_set_type(sepol_handle_t * handle,
 			   sepol_context_t * con, const char *type)
@@ -99,7 +94,6 @@ int sepol_context_set_type(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_context_set_type)
 
 /* MLS */
 const char *sepol_context_get_mls(const sepol_context_t * con)
@@ -108,7 +102,6 @@ const char *sepol_context_get_mls(const sepol_context_t * con)
 	return con->mls;
 }
 
-hidden_def(sepol_context_get_mls)
 
 int sepol_context_set_mls(sepol_handle_t * handle,
 			  sepol_context_t * con, const char *mls)
@@ -125,7 +118,6 @@ int sepol_context_set_mls(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_context_set_mls)
 
 /* Create */
 int sepol_context_create(sepol_handle_t * handle, sepol_context_t ** con_ptr)
@@ -147,7 +139,6 @@ int sepol_context_create(sepol_handle_t * handle, sepol_context_t ** con_ptr)
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_context_create)
 
 /* Deep copy clone */
 int sepol_context_clone(sepol_handle_t * handle,
@@ -188,7 +179,6 @@ int sepol_context_clone(sepol_handle_t * handle,
 	return STATUS_ERR;
 }
 
-hidden_def(sepol_context_clone)
 
 /* Destroy */
 void sepol_context_free(sepol_context_t * con)
@@ -204,7 +194,6 @@ void sepol_context_free(sepol_context_t * con)
 	free(con);
 }
 
-hidden_def(sepol_context_free)
 
 int sepol_context_from_string(sepol_handle_t * handle,
 			      const char *str, sepol_context_t ** con)
@@ -278,32 +267,13 @@ int sepol_context_from_string(sepol_handle_t * handle,
 	return STATUS_ERR;
 }
 
-hidden_def(sepol_context_from_string)
-
-static inline int safe_sum(size_t *sum, const size_t augends[], const size_t cnt) {
-
-	size_t a, i;
-
-	*sum = 0;
-	for(i=0; i < cnt; i++) {
-		/* sum should not be smaller than the addend */
-		a = augends[i];
-		*sum += a;
-		if (*sum < a) {
-			return i;
-		}
-	}
-
-	return 0;
-}
-
 int sepol_context_to_string(sepol_handle_t * handle,
 			    const sepol_context_t * con, char **str_ptr)
 {
 
 	int rc;
 	char *str = NULL;
-	size_t total_sz, err;
+	size_t total_sz = 0, i;
 	const size_t sizes[] = {
 			strlen(con->user),                 /* user length */
 			strlen(con->role),                 /* role length */
@@ -312,10 +282,11 @@ int sepol_context_to_string(sepol_handle_t * handle,
 			((con->mls) ? 3 : 2) + 1           /* mls has extra ":" also null byte */
 	};
 
-	err = safe_sum(&total_sz, sizes, ARRAY_SIZE(sizes));
-	if (err) {
-		ERR(handle, "invalid size, overflow at position: %zu", err);
-		goto err;
+	for (i = 0; i < ARRAY_SIZE(sizes); i++) {
+		if (__builtin_add_overflow(total_sz, sizes[i], &total_sz)) {
+			ERR(handle, "invalid size, overflow at position: %zu", i);
+			goto err;
+		}
 	}
 
 	str = (char *)malloc(total_sz);
