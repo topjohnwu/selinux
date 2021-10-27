@@ -68,12 +68,12 @@ int sepol_policydb_create(sepol_policydb_t ** sp)
 	p = &(*sp)->p;
 	if (policydb_init(p)) {
 		free(*sp);
+		*sp = NULL;
 		return -1;
 	}
 	return 0;
 }
 
-hidden_def(sepol_policydb_create)
 
 void sepol_policydb_free(sepol_policydb_t * p)
 {
@@ -83,7 +83,6 @@ void sepol_policydb_free(sepol_policydb_t * p)
 	free(p);
 }
 
-hidden_def(sepol_policydb_free)
 
 int sepol_policy_kern_vers_min(void)
 {

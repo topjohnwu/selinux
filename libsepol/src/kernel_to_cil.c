@@ -16,9 +16,9 @@
 #define IPPROTO_SCTP 132
 #endif
 
+#include <sepol/kernel_to_cil.h>
 #include <sepol/policydb/avtab.h>
 #include <sepol/policydb/conditional.h>
-#include <sepol/policydb/flask.h>
 #include <sepol/policydb/hashtab.h>
 #include <sepol/policydb/polcaps.h>
 #include <sepol/policydb/policydb.h>
@@ -189,9 +189,13 @@ static char *constraint_expr_to_str(struct policydb *pdb, struct constraint_expr
 					names = ebitmap_to_str(&curr->names, pdb->p_role_val_to_name, 1);
 				}
 				if (!names) {
-					goto exit;
+					names = strdup("NO_IDENTIFIER");
 				}
-				new_val = create_str("(%s %s %s)", 3, op, attr1, names);
+				if (strchr(names, ' ')) {
+					new_val = create_str("(%s %s (%s))", 3, op, attr1, names);
+				} else {
+					new_val = create_str("(%s %s %s)", 3, op, attr1, names);
+				}
 				free(names);
 			}
 		} else {
@@ -778,9 +782,20 @@ exit:
 
 static void write_default_mls_level(FILE *out)
 {
-	sepol_printf(out, "(sensitivity s0)");
-	sepol_printf(out, "(sensitivityorder (s0))");
-	sepol_printf(out, "(level %s (s0))", DEFAULT_LEVEL);
+	sepol_printf(out, "(sensitivity s0)\n");
+	sepol_printf(out, "(sensitivityorder (s0))\n");
+	sepol_printf(out, "(level %s (s0))\n", DEFAULT_LEVEL);
+}
+
+static int map_count_sensitivity_aliases(__attribute__((unused)) char *key, void *data, void *args)
+{
+	level_datum_t *sens = data;
+	unsigned *count = args;
+
+	if (sens->isalias)
+		(*count)++;
+
+	return SEPOL_OK;
 }
 
 static int map_sensitivity_aliases_to_strs(char *key, void *data, void *args)
@@ -800,26 +815,13 @@ static int write_sensitivity_rules_to_cil(FILE *out, struct policydb *pdb)
 {
 	level_datum_t *level;
 	char *prev, *name, *actual;
-	struct strs *strs;
-	unsigned i, num;
+	struct strs *strs = NULL;
+	unsigned i, num = 0;
 	int rc = 0;
-
-	rc = strs_init(&strs, pdb->p_levels.nprim);
-	if (rc != 0) {
-		goto exit;
-	}
 
 	/* sensitivities */
 	for (i=0; i < pdb->p_levels.nprim; i++) {
 		name = pdb->p_sens_val_to_name[i];
-		if (!name) continue;
-		level = hashtab_search(pdb->p_levels.table, name);
-		if (!level) {
-			rc = -1;
-			goto exit;
-		}
-		if (level->isalias) continue;
-
 		sepol_printf(out, "(sensitivity %s)\n", name);
 	}
 
@@ -828,14 +830,6 @@ static int write_sensitivity_rules_to_cil(FILE *out, struct policydb *pdb)
 	prev = NULL;
 	for (i=0; i < pdb->p_levels.nprim; i++) {
 		name = pdb->p_sens_val_to_name[i];
-		if (!name) continue;
-		level = hashtab_search(pdb->p_levels.table, name);
-		if (!level) {
-			rc = -1;
-			goto exit;
-		}
-		if (level->isalias) continue;
-
 		if (prev) {
 			sepol_printf(out, "%s ", prev);
 		}
@@ -846,6 +840,22 @@ static int write_sensitivity_rules_to_cil(FILE *out, struct policydb *pdb)
 	}
 	sepol_printf(out, "))\n");
 
+	rc = hashtab_map(pdb->p_levels.table, map_count_sensitivity_aliases, &num);
+	if (rc != 0) {
+		goto exit;
+	}
+
+	if (num == 0) {
+		/* No aliases, so skip sensitivity alias rules */
+		rc = 0;
+		goto exit;
+	}
+
+	rc = strs_init(&strs, num);
+	if (rc != 0) {
+		goto exit;
+	}
+
 	rc = hashtab_map(pdb->p_levels.table, map_sensitivity_aliases_to_strs, strs);
 	if (rc != 0) {
 		goto exit;
@@ -853,16 +863,9 @@ static int write_sensitivity_rules_to_cil(FILE *out, struct policydb *pdb)
 
 	strs_sort(strs);
 
-	num = strs_num_items(strs);
-
 	/* sensitivity aliases */
 	for (i=0; i < num; i++) {
 		name = strs_read_at_index(strs, i);
-		level = hashtab_search(pdb->p_levels.table, name);
-		if (!level) {
-			rc = -1;
-			goto exit;
-		}
 		sepol_printf(out, "(sensitivityalias %s)\n", name);
 	}
 
@@ -888,6 +891,17 @@ exit:
 	return rc;
 }
 
+static int map_count_category_aliases(__attribute__((unused)) char *key, void *data, void *args)
+{
+	cat_datum_t *cat = data;
+	unsigned *count = args;
+
+	if (cat->isalias)
+		(*count)++;
+
+	return SEPOL_OK;
+}
+
 static int map_category_aliases_to_strs(char *key, void *data, void *args)
 {
 	cat_datum_t *cat = data;
@@ -905,26 +919,13 @@ static int write_category_rules_to_cil(FILE *out, struct policydb *pdb)
 {
 	cat_datum_t *cat;
 	char *prev, *name, *actual;
-	struct strs *strs;
-	unsigned i, num;
+	struct strs *strs = NULL;
+	unsigned i, num = 0;
 	int rc = 0;
-
-	rc = strs_init(&strs, pdb->p_levels.nprim);
-	if (rc != 0) {
-		goto exit;
-	}
 
 	/* categories */
 	for (i=0; i < pdb->p_cats.nprim; i++) {
 		name = pdb->p_cat_val_to_name[i];
-		if (!name) continue;
-		cat = hashtab_search(pdb->p_cats.table, name);
-		if (!cat) {
-			rc = -1;
-			goto exit;
-		}
-		if (cat->isalias) continue;
-
 		sepol_printf(out, "(category %s)\n", name);
 	}
 
@@ -933,14 +934,6 @@ static int write_category_rules_to_cil(FILE *out, struct policydb *pdb)
 	prev = NULL;
 	for (i=0; i < pdb->p_cats.nprim; i++) {
 		name = pdb->p_cat_val_to_name[i];
-		if (!name) continue;
-		cat = hashtab_search(pdb->p_cats.table, name);
-		if (!cat) {
-			rc = -1;
-			goto exit;
-		}
-		if (cat->isalias) continue;
-
 		if (prev) {
 			sepol_printf(out, "%s ", prev);
 		}
@@ -951,6 +944,22 @@ static int write_category_rules_to_cil(FILE *out, struct policydb *pdb)
 	}
 	sepol_printf(out, "))\n");
 
+	rc = hashtab_map(pdb->p_cats.table, map_count_category_aliases, &num);
+	if (rc != 0) {
+		goto exit;
+	}
+
+	if (num == 0) {
+		/* No aliases, so skip category alias rules */
+		rc = 0;
+		goto exit;
+	}
+
+	rc = strs_init(&strs, num);
+	if (rc != 0) {
+		goto exit;
+	}
+
 	rc = hashtab_map(pdb->p_cats.table, map_category_aliases_to_strs, strs);
 	if (rc != 0) {
 		goto exit;
@@ -958,16 +967,9 @@ static int write_category_rules_to_cil(FILE *out, struct policydb *pdb)
 
 	strs_sort(strs);
 
-	num = strs_num_items(strs);
-
 	/* category aliases */
 	for (i=0; i < num; i++) {
 		name = strs_read_at_index(strs, i);
-		cat = hashtab_search(pdb->p_cats.table, name);
-		if (!cat) {
-			rc = -1;
-			goto exit;
-		}
 		sepol_printf(out, "(categoryalias %s)\n", name);
 	}
 
@@ -1032,11 +1034,14 @@ static char *cats_ebitmap_to_str(struct ebitmap *cats, char **val_to_name)
 {
 	struct ebitmap_node *node;
 	uint32_t i, start, range;
-	char *catsbuf, *p;
+	char *catsbuf = NULL, *p;
 	const char *fmt;
 	int len, remaining;
 
 	remaining = (int)cats_ebitmap_len(cats, val_to_name);
+	if (remaining == 0) {
+		goto exit;
+	}
 	catsbuf = malloc(remaining);
 	if (!catsbuf) {
 		goto exit;
@@ -1045,7 +1050,7 @@ static char *cats_ebitmap_to_str(struct ebitmap *cats, char **val_to_name)
 	p = catsbuf;
 
 	*p++ = '(';
-	remaining--;;
+	remaining--;
 
 	range = 0;
 	ebitmap_for_each_positive_bit(cats, node, i) {
@@ -1101,7 +1106,7 @@ static int write_sensitivitycategory_rules_to_cil(FILE *out, struct policydb *pd
 		}
 		if (level->isalias) continue;
 
-		if (ebitmap_cardinality(&level->level->cat) > 0) {
+		if (!ebitmap_is_empty(&level->level->cat)) {
 			cats = cats_ebitmap_to_str(&level->level->cat, pdb->p_cat_val_to_name);
 			sepol_printf(out, "(sensitivitycategory %s %s)\n", name, cats);
 			free(cats);
@@ -1368,33 +1373,55 @@ exit:
 	return rc;
 }
 
+static int map_count_type_aliases(__attribute__((unused)) char *key, void *data, void *args)
+{
+	type_datum_t *datum = data;
+	unsigned *count = args;
+
+	if (datum->primary == 0 && datum->flavor == TYPE_TYPE)
+		(*count)++;
+
+	return SEPOL_OK;
+}
+
+static int map_type_aliases_to_strs(char *key, void *data, void *args)
+{
+	type_datum_t *datum = data;
+	struct strs *strs = args;
+	int rc = 0;
+
+	if (datum->primary == 0 && datum->flavor == TYPE_TYPE)
+		rc = strs_add(strs, key);
+
+	return rc;
+}
+
 static int write_type_alias_rules_to_cil(FILE *out, struct policydb *pdb)
 {
 	type_datum_t *alias;
 	struct strs *strs;
 	char *name;
 	char *type;
-	unsigned i, num;
+	unsigned i, num = 0;
 	int rc = 0;
 
-	rc = strs_init(&strs, pdb->p_types.nprim);
+	rc = hashtab_map(pdb->p_types.table, map_count_type_aliases, &num);
 	if (rc != 0) {
 		goto exit;
 	}
 
-	for (i=0; i < pdb->p_types.nprim; i++) {
-		alias = pdb->type_val_to_struct[i];
-		if (!alias->primary) {
-			rc = strs_add(strs, pdb->p_type_val_to_name[i]);
-			if (rc != 0) {
-				goto exit;
-			}
-		}
+	rc = strs_init(&strs, num);
+	if (rc != 0) {
+		goto exit;
+	}
+
+	rc = hashtab_map(pdb->p_types.table, map_type_aliases_to_strs, strs);
+	if (rc != 0) {
+		goto exit;
 	}
 
 	strs_sort(strs);
 
-	num = strs_num_items(strs);
 	for (i=0; i<num; i++) {
 		name = strs_read_at_index(strs, i);
 		if (!name) {
@@ -1502,7 +1529,7 @@ static int write_type_attribute_sets_to_cil(FILE *out, struct policydb *pdb)
 		if (attr->flavor != TYPE_ATTRIB) continue;
 		name = pdb->p_type_val_to_name[i];
 		typemap = &pdb->attr_type_map[i];
-		if (ebitmap_cardinality(typemap) == 0) continue;
+		if (ebitmap_is_empty(typemap)) continue;
 		types = ebitmap_to_str(typemap, pdb->p_type_val_to_name, 1);
 		if (!types) {
 			rc = -1;
@@ -1822,21 +1849,35 @@ struct map_filename_trans_args {
 
 static int map_filename_trans_to_str(hashtab_key_t key, void *data, void *arg)
 {
-	filename_trans_t *ft = (filename_trans_t *)key;
+	filename_trans_key_t *ft = (filename_trans_key_t *)key;
 	filename_trans_datum_t *datum = data;
 	struct map_filename_trans_args *map_args = arg;
 	struct policydb *pdb = map_args->pdb;
 	struct strs *strs = map_args->strs;
 	char *src, *tgt, *class, *filename, *new;
+	struct ebitmap_node *node;
+	uint32_t bit;
+	int rc;
 
-	src = pdb->p_type_val_to_name[ft->stype - 1];
 	tgt = pdb->p_type_val_to_name[ft->ttype - 1];
 	class = pdb->p_class_val_to_name[ft->tclass - 1];
 	filename = ft->name;
-	new =  pdb->p_type_val_to_name[datum->otype - 1];
+	do {
+		new = pdb->p_type_val_to_name[datum->otype - 1];
 
-	return strs_create_and_add(strs, "(typetransition %s %s %s %s %s)", 5,
-				   src, tgt, class, filename, new);
+		ebitmap_for_each_positive_bit(&datum->stypes, node, bit) {
+			src = pdb->p_type_val_to_name[bit];
+			rc = strs_create_and_add(strs,
+						 "(typetransition %s %s %s %s %s)",
+						 5, src, tgt, class, filename, new);
+			if (rc)
+				return rc;
+		}
+
+		datum = datum->next;
+	} while (datum);
+
+	return 0;
 }
 
 static int write_filename_trans_rules_to_cil(FILE *out, struct policydb *pdb)
@@ -1879,7 +1920,7 @@ static char *level_to_str(struct policydb *pdb, struct mls_level *level)
 	char *sens_str = pdb->p_sens_val_to_name[level->sens - 1];
 	char *cats_str;
 
-	if (ebitmap_cardinality(cats) > 0) {
+	if (!ebitmap_is_empty(cats)) {
 		cats_str = cats_ebitmap_to_str(cats, pdb->p_cat_val_to_name);
 		level_str = create_str("(%s %s)", 2, sens_str, cats_str);
 		free(cats_str);
@@ -2188,7 +2229,7 @@ static int write_role_decl_rules_to_cil(FILE *out, struct policydb *pdb)
 			goto exit;
 		}
 		types = &role->types.types;
-		if (types && (ebitmap_cardinality(types) > 0)) {
+		if (types && !ebitmap_is_empty(types)) {
 			rc = strs_init(&type_strs, pdb->p_types.nprim);
 			if (rc != 0) {
 				goto exit;
@@ -2373,7 +2414,7 @@ static int write_user_decl_rules_to_cil(FILE *out, struct policydb *pdb)
 		}
 
 		roles = &user->roles.roles;
-		if (roles && (ebitmap_cardinality(roles) > 0)) {
+		if (roles && !ebitmap_is_empty(roles)) {
 			rc = strs_init(&role_strs, pdb->p_roles.nprim);
 			if (rc != 0) {
 				goto exit;
@@ -2456,9 +2497,10 @@ static int write_user_decl_rules_to_cil(FILE *out, struct policydb *pdb)
 		sepol_printf(out, ")\n");
 	}
 
-	strs_destroy(&strs);
-
 exit:
+	if (strs)
+		strs_destroy(&strs);
+
 	if (rc != 0) {
 		sepol_log_err("Error writing user declarations to CIL\n");
 	}
@@ -2616,7 +2658,7 @@ static int write_genfscon_rules_to_cil(FILE *out, struct policydb *pdb)
 				goto exit;
 			}
 
-			rc = strs_create_and_add(strs, "(genfscon %s %s %s)", 3,
+			rc = strs_create_and_add(strs, "(genfscon %s \"%s\" %s)", 3,
 						 fstype, name, ctx);
 			free(ctx);
 			if (rc != 0) {
@@ -2738,13 +2780,13 @@ static int write_selinux_node_rules_to_cil(FILE *out, struct policydb *pdb)
 
 	for (node = pdb->ocontexts[4]; node != NULL; node = node->next) {
 		if (inet_ntop(AF_INET, &node->u.node.addr, addr, INET_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon address is invalid: %s", strerror(errno));
+			sepol_log_err("Nodecon address is invalid: %m");
 			rc = -1;
 			goto exit;
 		}
 
 		if (inet_ntop(AF_INET, &node->u.node.mask, mask, INET_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon mask is invalid: %s", strerror(errno));
+			sepol_log_err("Nodecon mask is invalid: %m");
 			rc = -1;
 			goto exit;
 		}
@@ -2778,13 +2820,13 @@ static int write_selinux_node6_rules_to_cil(FILE *out, struct policydb *pdb)
 
 	for (node = pdb->ocontexts[6]; node != NULL; node = node->next) {
 		if (inet_ntop(AF_INET6, &node->u.node6.addr, addr, INET6_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon address is invalid: %s", strerror(errno));
+			sepol_log_err("Nodecon address is invalid: %m");
 			rc = -1;
 			goto exit;
 		}
 
 		if (inet_ntop(AF_INET6, &node->u.node6.mask, mask, INET6_ADDRSTRLEN) == NULL) {
-			sepol_log_err("Nodecon mask is invalid: %s", strerror(errno));
+			sepol_log_err("Nodecon mask is invalid: %m");
 			rc = -1;
 			goto exit;
 		}
@@ -2826,8 +2868,7 @@ static int write_selinux_ibpkey_rules_to_cil(FILE *out, struct policydb *pdb)
 
 		if (inet_ntop(AF_INET6, &subnet_prefix.s6_addr,
 			      subnet_prefix_str, INET6_ADDRSTRLEN) == NULL) {
-			sepol_log_err("ibpkeycon subnet_prefix is invalid: %s",
-				      strerror(errno));
+			sepol_log_err("ibpkeycon subnet_prefix is invalid: %m");
 			rc = -1;
 			goto exit;
 		}
@@ -3077,7 +3118,7 @@ static int write_xen_devicetree_rules_to_cil(FILE *out, struct policydb *pdb)
 			goto exit;
 		}
 
-		sepol_printf(out, "(devicetreecon %s %s)\n", name, ctx);
+		sepol_printf(out, "(devicetreecon \"%s\" %s)\n", name, ctx);
 
 		free(ctx);
 	}
@@ -3126,6 +3167,18 @@ int sepol_kernel_policydb_to_cil(FILE *out, struct policydb *pdb)
 
 	if (pdb->policy_type != SEPOL_POLICY_KERN) {
 		sepol_log_err("Policy is not a kernel policy");
+		rc = -1;
+		goto exit;
+	}
+
+	if (pdb->policyvers >= POLICYDB_VERSION_AVTAB && pdb->policyvers <= POLICYDB_VERSION_PERMISSIVE) {
+		/*
+		 * For policy versions between 20 and 23, attributes exist in the policy,
+		 * but only in the type_attr_map. This means that there are gaps in both
+		 * the type_val_to_struct and p_type_val_to_name arrays and policy rules
+		 * can refer to those gaps.
+		 */
+		sepol_log_err("Writing policy versions between 20 and 23 as CIL is not supported");
 		rc = -1;
 		goto exit;
 	}

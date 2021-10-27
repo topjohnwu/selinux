@@ -53,7 +53,7 @@ static int node_parse_addr(sepol_handle_t * handle,
 
 			if (inet_pton(AF_INET, addr_str, &in_addr) <= 0) {
 				ERR(handle, "could not parse IPv4 address "
-				    "%s: %s", addr_str, strerror(errno));
+				    "%s: %m", addr_str);
 				return STATUS_ERR;
 			}
 
@@ -66,7 +66,7 @@ static int node_parse_addr(sepol_handle_t * handle,
 
 			if (inet_pton(AF_INET6, addr_str, &in_addr) <= 0) {
 				ERR(handle, "could not parse IPv6 address "
-				    "%s: %s", addr_str, strerror(errno));
+				    "%s: %m", addr_str);
 				return STATUS_ERR;
 			}
 
@@ -147,8 +147,7 @@ static int node_expand_addr(sepol_handle_t * handle,
 				      INET_ADDRSTRLEN) == NULL) {
 
 				ERR(handle,
-				    "could not expand IPv4 address to string: %s",
-				    strerror(errno));
+				    "could not expand IPv4 address to string: %m");
 				return STATUS_ERR;
 			}
 			break;
@@ -163,8 +162,7 @@ static int node_expand_addr(sepol_handle_t * handle,
 				      INET6_ADDRSTRLEN) == NULL) {
 
 				ERR(handle,
-				    "could not expand IPv6 address to string: %s",
-				    strerror(errno));
+				    "could not expand IPv6 address to string: %m");
 				return STATUS_ERR;
 			}
 			break;
@@ -259,7 +257,6 @@ int sepol_node_key_create(sepol_handle_t * handle,
 	return STATUS_ERR;
 }
 
-hidden_def(sepol_node_key_create)
 
 void sepol_node_key_unpack(const sepol_node_key_t * key,
 			   const char **addr, const char **mask, int *proto)
@@ -270,7 +267,6 @@ void sepol_node_key_unpack(const sepol_node_key_t * key,
 	*proto = key->proto;
 }
 
-hidden_def(sepol_node_key_unpack)
 
 int sepol_node_key_extract(sepol_handle_t * handle,
 			   const sepol_node_t * node,
@@ -314,7 +310,6 @@ void sepol_node_key_free(sepol_node_key_t * key)
 	free(key);
 }
 
-hidden_def(sepol_node_key_free)
 
 int sepol_node_compare(const sepol_node_t * node, const sepol_node_key_t * key)
 {
@@ -375,7 +370,6 @@ int sepol_node_get_addr(sepol_handle_t * handle,
 	return STATUS_ERR;
 }
 
-hidden_def(sepol_node_get_addr)
 
 int sepol_node_get_addr_bytes(sepol_handle_t * handle,
 			      const sepol_node_t * node,
@@ -394,7 +388,6 @@ int sepol_node_get_addr_bytes(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_node_get_addr_bytes)
 
 int sepol_node_set_addr(sepol_handle_t * handle,
 			sepol_node_t * node, int proto, const char *addr)
@@ -420,7 +413,6 @@ int sepol_node_set_addr(sepol_handle_t * handle,
 	return STATUS_ERR;
 }
 
-hidden_def(sepol_node_set_addr)
 
 int sepol_node_set_addr_bytes(sepol_handle_t * handle,
 			      sepol_node_t * node,
@@ -440,7 +432,6 @@ int sepol_node_set_addr_bytes(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_node_set_addr_bytes)
 
 /* Mask */
 int sepol_node_get_mask(sepol_handle_t * handle,
@@ -464,7 +455,6 @@ int sepol_node_get_mask(sepol_handle_t * handle,
 	return STATUS_ERR;
 }
 
-hidden_def(sepol_node_get_mask)
 
 int sepol_node_get_mask_bytes(sepol_handle_t * handle,
 			      const sepol_node_t * node,
@@ -483,7 +473,6 @@ int sepol_node_get_mask_bytes(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_node_get_mask_bytes)
 
 int sepol_node_set_mask(sepol_handle_t * handle,
 			sepol_node_t * node, int proto, const char *mask)
@@ -509,7 +498,6 @@ int sepol_node_set_mask(sepol_handle_t * handle,
 	return STATUS_ERR;
 }
 
-hidden_def(sepol_node_set_mask)
 
 int sepol_node_set_mask_bytes(sepol_handle_t * handle,
 			      sepol_node_t * node,
@@ -528,7 +516,6 @@ int sepol_node_set_mask_bytes(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_node_set_mask_bytes)
 
 /* Protocol */
 int sepol_node_get_proto(const sepol_node_t * node)
@@ -537,7 +524,6 @@ int sepol_node_get_proto(const sepol_node_t * node)
 	return node->proto;
 }
 
-hidden_def(sepol_node_get_proto)
 
 void sepol_node_set_proto(sepol_node_t * node, int proto)
 {
@@ -545,7 +531,6 @@ void sepol_node_set_proto(sepol_node_t * node, int proto)
 	node->proto = proto;
 }
 
-hidden_def(sepol_node_set_proto)
 
 const char *sepol_node_get_proto_str(int proto)
 {
@@ -560,7 +545,6 @@ const char *sepol_node_get_proto_str(int proto)
 	}
 }
 
-hidden_def(sepol_node_get_proto_str)
 
 /* Create */
 int sepol_node_create(sepol_handle_t * handle, sepol_node_t ** node)
@@ -584,7 +568,6 @@ int sepol_node_create(sepol_handle_t * handle, sepol_node_t ** node)
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_node_create)
 
 /* Deep copy clone */
 int sepol_node_clone(sepol_handle_t * handle,
@@ -637,7 +620,6 @@ void sepol_node_free(sepol_node_t * node)
 	free(node);
 }
 
-hidden_def(sepol_node_free)
 
 /* Context */
 sepol_context_t *sepol_node_get_con(const sepol_node_t * node)
@@ -646,7 +628,6 @@ sepol_context_t *sepol_node_get_con(const sepol_node_t * node)
 	return node->con;
 }
 
-hidden_def(sepol_node_get_con)
 
 int sepol_node_set_con(sepol_handle_t * handle,
 		       sepol_node_t * node, sepol_context_t * con)
@@ -664,4 +645,3 @@ int sepol_node_set_con(sepol_handle_t * handle,
 	return STATUS_SUCCESS;
 }
 
-hidden_def(sepol_node_set_con)
