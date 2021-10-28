@@ -50,7 +50,6 @@ struct avc_callback_node {
 	struct avc_callback_node *next;
 };
 
-static void *avc_netlink_thread = NULL;
 static void *avc_lock = NULL;
 static void *avc_log_lock = NULL;
 static struct avc_node *avc_node_freelist = NULL;
@@ -145,22 +144,7 @@ int avc_get_initial_sid(const char * name, security_id_t * sid)
 	return rc;
 }
 
-int avc_open(struct selinux_opt *opts, unsigned nopts)
-{
-	avc_setenforce = 0;
-
-	while (nopts--)
-		switch(opts[nopts].type) {
-		case AVC_OPT_SETENFORCE:
-			avc_setenforce = 1;
-			avc_enforcing = !!opts[nopts].value;
-			break;
-		}
-
-	return avc_init("avc", NULL, NULL, NULL, NULL);
-}
-
-int avc_init(const char *prefix,
+static int avc_init_internal(const char *prefix,
 	     const struct avc_memory_callback *mem_cb,
 	     const struct avc_log_callback *log_cb,
 	     const struct avc_thread_callback *thread_cb,
@@ -222,28 +206,47 @@ int avc_init(const char *prefix,
 		rc = security_getenforce();
 		if (rc < 0) {
 			avc_log(SELINUX_ERROR,
-				"%s:  could not determine enforcing mode: %s\n",
-				avc_prefix,
-				strerror(errno));
+				"%s:  could not determine enforcing mode: %m\n",
+				avc_prefix);
 			goto out;
 		}
 		avc_enforcing = rc;
 	}
 
-	rc = avc_netlink_open(0);
+	rc = selinux_status_open(0);
 	if (rc < 0) {
 		avc_log(SELINUX_ERROR,
-			"%s:  can't open netlink socket: %d (%s)\n",
-			avc_prefix, errno, strerror(errno));
+			"%s: could not open selinux status page: %d (%m)\n",
+			avc_prefix, errno);
 		goto out;
-	}
-	if (avc_using_threads) {
-		avc_netlink_thread = avc_create_thread(&avc_netlink_loop);
-		avc_netlink_trouble = 0;
 	}
 	avc_running = 1;
       out:
 	return rc;
+}
+
+int avc_open(struct selinux_opt *opts, unsigned nopts)
+{
+	avc_setenforce = 0;
+
+	while (nopts--)
+		switch(opts[nopts].type) {
+		case AVC_OPT_SETENFORCE:
+			avc_setenforce = 1;
+			avc_enforcing = !!opts[nopts].value;
+			break;
+		}
+
+	return avc_init_internal("avc", NULL, NULL, NULL, NULL);
+}
+
+int avc_init(const char *prefix,
+	     const struct avc_memory_callback *mem_cb,
+	     const struct avc_log_callback *log_cb,
+	     const struct avc_thread_callback *thread_cb,
+	     const struct avc_lock_callback *lock_cb)
+{
+	return avc_init_internal(prefix, mem_cb, log_cb, thread_cb, lock_cb);
 }
 
 void avc_cache_stats(struct avc_cache_stats *p)
@@ -294,7 +297,6 @@ void avc_av_stats(void)
 		slots_used, AVC_CACHE_SLOTS, max_chain_len);
 }
 
-hidden_def(avc_av_stats)
 
 static inline struct avc_node *avc_reclaim_node(void)
 {
@@ -494,7 +496,6 @@ void avc_cleanup(void)
 {
 }
 
-hidden_def(avc_cleanup)
 
 int avc_reset(void)
 {
@@ -539,7 +540,6 @@ int avc_reset(void)
 	return rc;
 }
 
-hidden_def(avc_reset)
 
 void avc_destroy(void)
 {
@@ -551,9 +551,7 @@ void avc_destroy(void)
 
 	avc_get_lock(avc_lock);
 
-	if (avc_using_threads)
-		avc_stop_thread(avc_netlink_thread);
-	avc_netlink_close();
+	selinux_status_close();
 
 	for (i = 0; i < AVC_CACHE_SLOTS; i++) {
 		node = avc_cache.slots[i];
@@ -733,7 +731,6 @@ void avc_audit(security_id_t ssid, security_id_t tsid,
 	avc_release_lock(avc_log_lock);
 }
 
-hidden_def(avc_audit)
 
 
 static void avd_init(struct av_decision *avd)
@@ -761,7 +758,7 @@ int avc_has_perm_noaudit(security_id_t ssid,
 		avd_init(avd);
 
 	if (!avc_using_threads && !avc_app_main_loop) {
-		(void)avc_netlink_check_nb();
+		(void) selinux_status_updated();
 	}
 
 	if (!aeref) {
@@ -825,7 +822,6 @@ int avc_has_perm_noaudit(security_id_t ssid,
 	return rc;
 }
 
-hidden_def(avc_has_perm_noaudit)
 
 int avc_has_perm(security_id_t ssid, security_id_t tsid,
 		 security_class_t tclass, access_vector_t requested,
