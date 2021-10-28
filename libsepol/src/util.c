@@ -27,7 +27,6 @@
 #include <sepol/policydb/flask_types.h>
 #include <sepol/policydb/policydb.h>
 #include <sepol/policydb/util.h>
-#include <dso.h>
 
 struct val_to_name {
 	unsigned int val;
@@ -130,9 +129,9 @@ char *sepol_extended_perms_to_string(avtab_extended_perms_t *xperms)
 	unsigned int bit;
 	unsigned int in_range = 0;
 	static char xpermsbuf[2048];
-	xpermsbuf[0] = '\0';
 	char *p;
 	int len, xpermslen = 0;
+	xpermsbuf[0] = '\0';
 	p = xpermsbuf;
 
 	if ((xperms->specified != AVTAB_XPERMS_IOCTLFUNCTION)
@@ -250,7 +249,7 @@ static inline int tokenize_str(char delim, char **str, char **ptr, size_t *len)
  * contain the remaining content of line_buf. If the delimiter is any whitespace
  * character, then all whitespace will be squashed.
  */
-int hidden tokenize(char *line_buf, char delim, int num_args, ...)
+int tokenize(char *line_buf, char delim, int num_args, ...)
 {
 	char **arg, *buf_p;
 	int rc, items;

@@ -1,8 +1,8 @@
-CWD ?= $(shell pwd)
-HTMLDIR ?= $(CWD)/html
-PDFDIR ?= $(CWD)/pdf
-TMPDIR ?= $(CWD)/tmp
-TESTDIR ?= $(CWD)/../test
+CWD = $(shell pwd)
+HTMLDIR = $(CWD)/html
+PDFDIR = $(CWD)/pdf
+TMPDIR = $(CWD)/tmp
+TESTDIR = $(CWD)/../test
 
 # All the markdown files that make up the guide:
 FILE_LIST ?= cil_introduction.md \
@@ -28,6 +28,8 @@ FILE_LIST ?= cil_introduction.md \
 
 PANDOC_FILE_LIST = $(addprefix $(TMPDIR)/,$(FILE_LIST))
 
+PANDOC_HIGHLIGHT_STYLE="theme.theme"
+
 PDF_OUT=CIL_Reference_Guide.pdf
 HTML_OUT=CIL_Reference_Guide.html
 PANDOC = pandoc
@@ -51,16 +53,16 @@ $(TMPDIR)/%.md: %.md | $(TMPDIR)
 $(TMPDIR)/policy.cil: $(TESTDIR)/policy.cil
 	cp -f $< $@
 	@# add a title for the TOC to policy.cil. This is needed to play nicely with the PDF conversion.
-	$(SED) -i '1i Example Policy\n=========\n```' $@
+	$(SED) -i '1i Example Policy\n=========\n```secil' $@
 	echo '```' >> $@
 
-html: $(PANDOC_FILE_LIST) $(TMPDIR)/policy.cil
+html: $(PANDOC_FILE_LIST) $(TMPDIR)/policy.cil secil.xml
 	mkdir -p $(HTMLDIR)
-	$(PANDOC) -t html $^ -o $(HTMLDIR)/$(HTML_OUT)
+	$(PANDOC) --highlight-style=$(PANDOC_HIGHLIGHT_STYLE) --syntax-definition=secil.xml --standalone --metadata title="CIL Reference Guide" -t html $(PANDOC_FILE_LIST) $(TMPDIR)/policy.cil  -o $(HTMLDIR)/$(HTML_OUT)
 
-pdf: $(PANDOC_FILE_LIST) $(TMPDIR)/policy.cil
+pdf: $(PANDOC_FILE_LIST) $(TMPDIR)/policy.cil secil.xml
 	mkdir -p $(PDFDIR)
-	$(PANDOC) --standalone --toc $^ -o $(PDFDIR)/$(PDF_OUT)
+	$(PANDOC) --highlight-style=$(PANDOC_HIGHLIGHT_STYLE) --syntax-definition=secil.xml --standalone --toc $(PANDOC_FILE_LIST) $(TMPDIR)/policy.cil -o $(PDFDIR)/$(PDF_OUT)
 
 clean:
 	rm -rf $(HTMLDIR)

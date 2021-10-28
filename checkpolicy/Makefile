@@ -10,7 +10,7 @@ TARGETS = checkpolicy checkmodule
 LEX = flex
 YACC = bison -y
 
-CFLAGS ?= -g -Wall -Werror -Wshadow -O2 -pipe -fno-strict-aliasing
+CFLAGS ?= -g -Wall -Werror -Wshadow -O2 -fno-strict-aliasing
 
 # If no specific libsepol.a is specified, fall back on LDFLAGS search path
 # Otherwise, as $(LIBSEPOLA) already appears in the dependencies, there
@@ -30,10 +30,10 @@ all:  $(TARGETS)
 	$(MAKE) -C test
 
 checkpolicy: $(CHECKPOLOBJS) $(LIBSEPOLA)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS_LIBSEPOLA)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS_LIBSEPOLA)
 
 checkmodule: $(CHECKMODOBJS) $(LIBSEPOLA)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS_LIBSEPOLA)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS_LIBSEPOLA)
 
 %.o: %.c 
 	$(CC) $(CFLAGS) -o $@ -c $<
