@@ -7,19 +7,20 @@ SBINDIR ?= $(PREFIX)/sbin
 MANDIR = $(PREFIX)/share/man
 AUTOSTARTDIR = /etc/xdg/autostart
 DBUSSERVICEDIR = $(PREFIX)/share/dbus-1/services
-SYSTEMDDIR ?= $(PREFIX)/lib/systemd
+SYSTEMDSYSTEMUNITDIR ?= $(shell $(PKG_CONFIG) --variable=systemdsystemunitdir systemd)
+SYSTEMDUSERUNITDIR ?= $(shell $(PKG_CONFIG) --variable=systemduserunitdir systemd)
 
 autostart_DATA = sealertauto.desktop
 INITDIR ?= /etc/rc.d/init.d
 SELINUXDIR = /etc/selinux
 
-DBUSFLAGS = -DHAVE_DBUS $(shell $(PKG_CONFIG) --cflags dbus-glib-1)
-DBUSLIB = $(shell $(PKG_CONFIG) --libs dbus-glib-1)
+GIO_CFLAGS = -DHAVE_DBUS $(shell $(PKG_CONFIG) --cflags gio-2.0)
+GIO_LIBS = $(shell $(PKG_CONFIG) --libs gio-2.0)
 
 CFLAGS ?= -g -Werror -Wall -W
-override CFLAGS += $(DBUSFLAGS)
+override CFLAGS += $(GIO_CFLAGS)
 
-override LDLIBS += -lselinux $(DBUSLIB)
+override LDLIBS += -lselinux $(GIO_LIBS)
 
 all: restorecond
 
@@ -48,8 +49,10 @@ install: all
 	install -m 644 restorecond.desktop $(DESTDIR)$(AUTOSTARTDIR)/restorecond.desktop
 	-mkdir -p $(DESTDIR)$(DBUSSERVICEDIR)
 	install -m 644 org.selinux.Restorecond.service  $(DESTDIR)$(DBUSSERVICEDIR)/org.selinux.Restorecond.service
-	-mkdir -p $(DESTDIR)$(SYSTEMDDIR)/system
-	install -m 644 restorecond.service $(DESTDIR)$(SYSTEMDDIR)/system/
+	-mkdir -p $(DESTDIR)$(SYSTEMDSYSTEMUNITDIR)
+	install -m 644 restorecond.service $(DESTDIR)$(SYSTEMDSYSTEMUNITDIR)
+	-mkdir -p $(DESTDIR)$(SYSTEMDUSERUNITDIR)
+	install -m 644 restorecond_user.service $(DESTDIR)$(SYSTEMDUSERUNITDIR)
 relabel: install
 	/sbin/restorecon $(DESTDIR)$(SBINDIR)/restorecond 
 

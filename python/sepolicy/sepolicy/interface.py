@@ -146,12 +146,12 @@ def get_interface_dict(path="/usr/share/selinux/devel/policy.xml"):
             tree = xml.etree.ElementTree.fromstring(xml_path)
         for l in tree.findall("layer"):
             for m in l.findall("module"):
-                for i in m.getiterator('interface'):
+                for i in m.iter('interface'):
                     for e in i.findall("param"):
                         param_list.append(e.get('name'))
                     interface_dict[(i.get("name"))] = [param_list, (i.find('summary').text), "interface"]
                     param_list = []
-                for i in m.getiterator('template'):
+                for i in m.iter('template'):
                     for e in i.findall("param"):
                         param_list.append(e.get('name'))
                     interface_dict[(i.get("name"))] = [param_list, (i.find('summary').text), "template"]
@@ -198,7 +198,7 @@ def get_xml_file(if_file):
     filename = os.path.basename(if_file).split(".")[0]
     rc, output = getstatusoutput("/usr/bin/python3 /usr/share/selinux/devel/include/support/segenxml.py -w -m %s" % (basedir + filename))
     if rc != 0:
-        sys.stderr.write("\n Could not proceed selected interface file.\n")
+        sys.stderr.write("\n Could not process selected interface file.\n")
         sys.stderr.write("\n%s" % output)
         sys.exit(1)
     else:

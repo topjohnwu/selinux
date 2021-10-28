@@ -42,7 +42,7 @@ typedef struct cil_db cil_db_t;
 extern void cil_db_init(cil_db_t **db);
 extern void cil_db_destroy(cil_db_t **db);
 
-extern int cil_add_file(cil_db_t *db, char *name, char *data, size_t size);
+extern int cil_add_file(cil_db_t *db, const char *name, const char *data, size_t size);
 
 extern int cil_compile(cil_db_t *db);
 extern int cil_build_policydb(cil_db_t *db, sepol_policydb_t **sepol_db);
@@ -51,6 +51,7 @@ extern int cil_selinuxusers_to_string(cil_db_t *db, char **out, size_t *size);
 extern int cil_filecons_to_string(cil_db_t *db, char **out, size_t *size);
 extern void cil_set_disable_dontaudit(cil_db_t *db, int disable_dontaudit);
 extern void cil_set_multiple_decls(cil_db_t *db, int multiple_decls);
+extern void cil_set_qualified_names(struct cil_db *db, int qualified_names);
 extern void cil_set_disable_neverallow(cil_db_t *db, int disable_neverallow);
 extern void cil_set_preserve_tunables(cil_db_t *db, int preserve_tunables);
 extern int cil_set_handle_unknown(cil_db_t *db, int handle_unknown);
@@ -60,6 +61,9 @@ extern void cil_set_attrs_expand_size(struct cil_db *db, unsigned attrs_expand_s
 extern void cil_set_target_platform(cil_db_t *db, int target_platform);
 extern void cil_set_policy_version(cil_db_t *db, int policy_version);
 extern void cil_write_policy_conf(FILE *out, struct cil_db *db);
+extern int cil_write_parse_ast(FILE *out, cil_db_t *db);
+extern int cil_write_build_ast(FILE *out, cil_db_t *db);
+extern int cil_write_resolve_ast(FILE *out, cil_db_t *db);
 
 enum cil_log_level {
 	CIL_ERR = 1,
@@ -67,7 +71,7 @@ enum cil_log_level {
 	CIL_INFO
 };
 extern void cil_set_log_level(enum cil_log_level lvl);
-extern void cil_set_log_handler(void (*handler)(int lvl, char *msg));
+extern void cil_set_log_handler(void (*handler)(int lvl, const char *msg));
 
 #ifdef __GNUC__
 __attribute__ ((format(printf, 2, 3)))

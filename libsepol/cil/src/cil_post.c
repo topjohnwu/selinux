@@ -27,6 +27,7 @@
  * either expressed or implied, of Tresys Technology, LLC.
  */
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -49,6 +50,12 @@
 
 #define GEN_REQUIRE_ATTR "cil_gen_require" /* Also in libsepol/src/module_to_cil.c */
 #define TYPEATTR_INFIX "_typeattr_"        /* Also in libsepol/src/module_to_cil.c */
+
+struct fc_data {
+	unsigned int meta;
+	size_t stem_len;
+	size_t str_len;
+};
 
 static int __cil_expr_to_bitmap(struct cil_list *expr, ebitmap_t *out, int max, struct cil_db *db);
 static int __cil_expr_list_to_bitmap(struct cil_list *expr_list, ebitmap_t *out, int max, struct cil_db *db);
@@ -156,9 +163,9 @@ static int cil_verify_is_list(struct cil_list *list, enum cil_flavor flavor)
 	return CIL_TRUE;
 }
 
-void cil_post_fc_fill_data(struct fc_data *fc, char *path)
+static void cil_post_fc_fill_data(struct fc_data *fc, const char *path)
 {
-	int c = 0;
+	size_t c = 0;
 	fc->meta = 0;
 	fc->stem_len = 0;
 	fc->str_len = 0;
@@ -179,6 +186,13 @@ void cil_post_fc_fill_data(struct fc_data *fc, char *path)
 			break;
 		case '\\':
 			c++;
+			if (path[c] == '\0') {
+				if (!fc->meta) {
+					fc->stem_len++;
+				}
+				fc->str_len++;
+				return;
+			}
 			/* FALLTHRU */
 		default:
 			if (!fc->meta) {
@@ -199,8 +213,8 @@ int cil_post_filecon_compare(const void *a, const void *b)
 	struct fc_data *a_data = cil_malloc(sizeof(*a_data));
 	struct fc_data *b_data = cil_malloc(sizeof(*b_data));
 	char *a_path = cil_malloc(strlen(a_filecon->path_str) + 1);
-	a_path[0] = '\0';
 	char *b_path = cil_malloc(strlen(b_filecon->path_str) + 1);
+	a_path[0] = '\0';
 	b_path[0] = '\0';
 	strcat(a_path, a_filecon->path_str);
 	strcat(b_path, b_filecon->path_str);
@@ -1301,7 +1315,7 @@ static int __cil_expr_to_bitmap(struct cil_list *expr, ebitmap_t *out, int max, 
 	flavor = expr->flavor;
 
 	if (curr->flavor == CIL_OP) {
-		enum cil_flavor op = (enum cil_flavor)curr->data;
+		enum cil_flavor op = (enum cil_flavor)(uintptr_t)curr->data;
 
 		if (op == CIL_ALL) {
 			ebitmap_init(&b1); /* all zeros */
@@ -1480,9 +1494,13 @@ static void __mark_neverallow_attrs(struct cil_list *expr_list)
 {
 	struct cil_list_item *curr;
 
+	if (!expr_list) {
+		return;
+	}
+
 	cil_list_for_each(curr, expr_list) {
 		if (curr->flavor == CIL_DATUM) {
-			if (NODE(curr->data)->flavor == CIL_TYPEATTRIBUTE) {
+			if (FLAVOR(curr->data) == CIL_TYPEATTRIBUTE) {
 				struct cil_typeattribute *attr = curr->data;
 				if (strstr(DATUM(attr)->name, TYPEATTR_INFIX)) {
 					__mark_neverallow_attrs(attr->expr_list);
@@ -2123,6 +2141,10 @@ static int __evaluate_classperms_list(struct cil_list *classperms, struct cil_db
 				}
 			} else { /* MAP */
 				struct cil_list_item *i = NULL;
+				rc = __evaluate_classperms(cp, db);
+				if (rc != SEPOL_OK) {
+					goto exit;
+				}
 				cil_list_for_each(i, cp->perms) {
 					struct cil_perm *cmp = i->data;
 					rc = __evaluate_classperms_list(cmp->classperms, db);

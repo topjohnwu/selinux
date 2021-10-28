@@ -78,7 +78,7 @@ typedef struct missing_requirement {
 	uint32_t perm_value;
 } missing_requirement_t;
 
-static const char *symtab_names[SYM_NUM] = {
+static const char * const symtab_names[SYM_NUM] = {
 	"common", "class", "role", "type/attribute", "user",
 	"bool", "level", "category"
 };
@@ -2570,36 +2570,6 @@ int link_modules(sepol_handle_t * handle,
 		num_mod_decls += modules[i]->num_decls;
 	}
 	if (prepare_base(&state, num_mod_decls) == -1) {
-		goto cleanup;
-	}
-
-	/* copy all types, declared and required */
-	for (i = 0; i < len; i++) {
-		state.cur = modules[i];
-		state.cur_mod_name = modules[i]->policy->name;
-		ret =
-		    hashtab_map(modules[i]->policy->p_types.table,
-				type_copy_callback, &state);
-		if (ret) {
-			retval = ret;
-			goto cleanup;
-		}
-	}
-
-	/* then copy everything else, including aliases, and fixup attributes */
-	for (i = 0; i < len; i++) {
-		state.cur = modules[i];
-		state.cur_mod_name = modules[i]->policy->name;
-		ret =
-		    copy_identifiers(&state, modules[i]->policy->symtab, NULL);
-		if (ret) {
-			retval = ret;
-			goto cleanup;
-		}
-	}
-
-	if (policydb_index_others(state.handle, state.base, 0)) {
-		ERR(state.handle, "Error while indexing others");
 		goto cleanup;
 	}
 
