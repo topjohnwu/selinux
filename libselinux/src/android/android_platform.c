@@ -21,10 +21,7 @@ static const struct selinux_opt seopts_file_product[] = {
 };
 static const struct selinux_opt seopts_file_vendor[] = {
     { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_file_contexts" },
-    { SELABEL_OPT_PATH, "/vendor_file_contexts" },
-    // TODO: remove nonplat* when no need to retain backward compatibility.
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_file_contexts" },
-    { SELABEL_OPT_PATH, "/nonplat_file_contexts" }
+    { SELABEL_OPT_PATH, "/vendor_file_contexts" }
 };
 static const struct selinux_opt seopts_file_odm[] = {
     { SELABEL_OPT_PATH, "/odm/etc/selinux/odm_file_contexts" },
@@ -51,10 +48,7 @@ static char const * const seapp_contexts_product[] = {
 };
 static char const * const seapp_contexts_vendor[] = {
 	"/vendor/etc/selinux/vendor_seapp_contexts",
-	"/vendor_seapp_contexts",
-        // TODO: remove nonplat* when no need to retain backward compatibility.
-	"/vendor/etc/selinux/nonplat_seapp_contexts",
-	"/nonplat_seapp_contexts"
+	"/vendor_seapp_contexts"
 };
 static char const * const seapp_contexts_odm[] = {
 	"/odm/etc/selinux/odm_seapp_contexts",
