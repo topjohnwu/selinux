@@ -331,6 +331,11 @@ rust_bindgen {
 
     // This is mainly to run layout tests for generated bindings on the host.
     host_supported: true,
+
+    apex_available: [
+        "com.android.virt",
+        "//apex_available:platform",
+    ],
 }
 
 rust_test {
