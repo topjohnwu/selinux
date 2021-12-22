@@ -1225,7 +1225,7 @@ int __perm_str_to_datum(char *perm_str, class_datum_t *sepol_class, uint32_t *da
 			goto exit;
 		}
 	}
-	*datum |= 1 << (sepol_perm->s.value - 1);
+	*datum |= UINT32_C(1) << (sepol_perm->s.value - 1);
 
 	return SEPOL_OK;
 
@@ -1523,7 +1523,7 @@ int cil_avrule_to_policydb(policydb_t *pdb, const struct cil_db *db, struct cil_
 /* index of the u32 containing the permission */
 #define XPERM_IDX(x) (x >> 5)
 /* set bits 0 through x-1 within the u32 */
-#define XPERM_SETBITS(x) ((1U << (x & 0x1f)) - 1)
+#define XPERM_SETBITS(x) ((UINT32_C(1) << (x & 0x1f)) - 1)
 /* low value for this u32 */
 #define XPERM_LOW(x) (x << 5)
 /* high value for this u32 */
@@ -4760,7 +4760,7 @@ static struct cil_list *cil_classperms_from_sepol(policydb_t *pdb, uint16_t clas
 	cil_list_init(&cp->perms, CIL_PERM);
 	for (i = 0; i < sepol_class->permissions.nprim; i++) {
 		struct cil_perm *perm;
-		if ((data & (1 << i)) == 0) continue;
+		if ((data & (UINT32_C(1) << i)) == 0) continue;
 		perm = perm_value_to_cil[class][i+1];
 		if (!perm) goto exit;
 		cil_list_append(cp->perms, CIL_PERM, perm);
@@ -4825,6 +4825,7 @@ static int cil_check_type_bounds(const struct cil_db *db, policydb_t *pdb, void 
 			avtab_ptr_t cur;
 			struct cil_avrule target;
 			struct cil_tree_node *n1 = NULL;
+			int count_bad = 0;
 
 			*violation = CIL_TRUE;
 
@@ -4838,10 +4839,13 @@ static int cil_check_type_bounds(const struct cil_db *db, policydb_t *pdb, void 
 			for (cur = bad; cur; cur = cur->next) {
 				struct cil_list_item *i2;
 				struct cil_list *matching;
+				int num_matching = 0;
+				int count_matching = 0;
 
 				rc = cil_avrule_from_sepol(pdb, cur, &target, type_value_to_cil, class_value_to_cil, perm_value_to_cil);
 				if (rc != SEPOL_OK) {
 					cil_log(CIL_ERR, "Failed to convert sepol avrule to CIL\n");
+					bounds_destroy_bad(bad);
 					goto exit;
 				}
 				__cil_print_rule("  ", "allow", &target);
@@ -4855,6 +4859,9 @@ static int cil_check_type_bounds(const struct cil_db *db, policydb_t *pdb, void 
 					goto exit;
 				}
 				cil_list_for_each(i2, matching) {
+					num_matching++;
+				}
+				cil_list_for_each(i2, matching) {
 					struct cil_tree_node *n2 = i2->data;
 					struct cil_avrule *r2 = n2->data;
 					if (n1 == n2) {
@@ -4864,9 +4871,19 @@ static int cil_check_type_bounds(const struct cil_db *db, policydb_t *pdb, void 
 						__cil_print_parents("    ", n2);
 						__cil_print_rule("      ", "allow", r2);
 					}
+					count_matching++;
+					if (count_matching >= 2) {
+						cil_log(CIL_ERR, "    Only first 2 of %d matching rules shown\n", num_matching);
+						break;
+					}
 				}
 				cil_list_destroy(&matching, CIL_FALSE);
 				cil_list_destroy(&target.perms.classperms, CIL_TRUE);
+				count_bad++;
+				if (count_bad >= 2) {
+					cil_log(CIL_ERR, "  Only first 2 of %d bad rules shown\n", numbad);
+					break;
+				}
 			}
 			bounds_destroy_bad(bad);
 		}
