@@ -89,7 +89,7 @@ static void render_access_bitmap(ebitmap_t * map, uint32_t class,
 	fprintf(fp, "{");
 	for (i = ebitmap_startbit(map); i < ebitmap_length(map); i++) {
 		if (ebitmap_get_bit(map, i)) {
-			perm = sepol_av_to_string(p, class, 1 << i);
+			perm = sepol_av_to_string(p, class, UINT32_C(1) << i);
 			if (perm)
 				fprintf(fp, " %s", perm);
 		}
@@ -751,12 +751,14 @@ static int read_policy(char *filename, policydb_t * policy)
 			fprintf(stderr, "%s:  Out of memory!\n", __FUNCTION__);
 			exit(1);
 		}
+		sepol_policydb_free(package->policy);
 		package->policy = (sepol_policydb_t *) policy;
 		package->file_contexts = NULL;
 		retval =
 		    sepol_module_package_read(package,
 					      (sepol_policy_file_t *) & f, 1);
-		free(package->file_contexts);
+		package->policy = NULL;
+		sepol_module_package_free(package);
 	} else {
 		if (policydb_init(policy)) {
 			fprintf(stderr, "%s:  Out of memory!\n", __FUNCTION__);
