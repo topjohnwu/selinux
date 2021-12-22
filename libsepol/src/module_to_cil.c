@@ -573,7 +573,7 @@ static int avrule_to_cil(int indent, struct policydb *pdb, uint32_t type, const 
 		rule = "auditallow";
 		break;
 	case AVRULE_AUDITDENY:
-		rule = "auditdenty";
+		rule = "auditdeny";
 		break;
 	case AVRULE_DONTAUDIT:
 		rule = "dontaudit";
@@ -3354,9 +3354,14 @@ static int typealiases_to_cil(int indent, struct policydb *pdb, struct avrule_bl
 	char *type_name;
 	struct list_node *curr;
 	struct avrule_decl *decl = stack_peek(decl_stack);
-	struct list *alias_list = typealias_lists[decl->decl_id];
+	struct list *alias_list;
 	int rc = -1;
 
+	if (decl == NULL) {
+		return -1;
+	}
+
+	alias_list = typealias_lists[decl->decl_id];
 	if (alias_list == NULL) {
 		return 0;
 	}
