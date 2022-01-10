@@ -1,15 +1,18 @@
 #include "android_common.h"
 #include <packagelistparser/packagelistparser.h>
 
-// For 'system', 'system_ext' (optional), 'product' (optional), 'vendor' (mandatory)
-// and/or 'odm' (optional).
-#define MAX_FILE_CONTEXT_SIZE 5
+// For 'system', 'system_ext' (optional), 'apex' (optional), 'product' (optional),
+// 'vendor' (mandatory) and/or 'odm' (optional) .
+#define MAX_FILE_CONTEXT_SIZE 6
 
 static const char *const sepolicy_file = "/sepolicy";
 
 static const struct selinux_opt seopts_file_plat[] = {
     { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
     { SELABEL_OPT_PATH, "/plat_file_contexts" }
+};
+static const struct selinux_opt seopts_file_apex[] = {
+    { SELABEL_OPT_PATH, "/dev/selinux/apex_file_contexts" }
 };
 static const struct selinux_opt seopts_file_system_ext[] = {
     { SELABEL_OPT_PATH, "/system_ext/etc/selinux/system_ext_file_contexts" },
@@ -37,6 +40,9 @@ static const struct selinux_opt seopts_file_odm[] = {
 static char const * const seapp_contexts_plat[] = {
 	"/system/etc/selinux/plat_seapp_contexts",
 	"/plat_seapp_contexts"
+};
+static char const * const seapp_contexts_apex[] = {
+	"/dev/selinux/apex_seapp_contexts"
 };
 static char const * const seapp_contexts_system_ext[] = {
 	"/system_ext/etc/selinux/system_ext_seapp_contexts",
@@ -85,6 +91,12 @@ struct selabel_handle* selinux_android_file_context_handle(void)
     for (i = 0; i < ARRAY_SIZE(seopts_file_plat); i++) {
         if (access(seopts_file_plat[i].value, R_OK) != -1) {
             seopts_file[size++] = seopts_file_plat[i];
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(seopts_file_apex); i++) {
+        if (access(seopts_file_apex[i].value, R_OK) != -1) {
+            seopts_file[size++] = seopts_file_apex[i];
             break;
         }
     }
@@ -320,6 +332,12 @@ int selinux_android_seapp_context_reload(void)
 	for (i = 0; i < ARRAY_SIZE(seapp_contexts_plat); i++) {
 		if (access(seapp_contexts_plat[i], R_OK) != -1) {
 			seapp_contexts_files[files_len++] = seapp_contexts_plat[i];
+			break;
+		}
+	}
+	for (i = 0; i < ARRAY_SIZE(seapp_contexts_apex); i++) {
+		if (access(seapp_contexts_apex[i], R_OK) != -1) {
+			seapp_contexts_files[files_len++] = seapp_contexts_apex[i];
 			break;
 		}
 	}
