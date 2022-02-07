@@ -278,6 +278,12 @@ static void closef(struct selabel_handle *rec)
 	struct spec *spec;
 	unsigned int i;
 
+	if (!data)
+		return;
+
+	/* make sure successive ->func_close() calls are harmless */
+	rec->data = NULL;
+
 	if (data->spec_arr) {
 		for (i = 0; i < data->nspec; i++) {
 			spec = &data->spec_arr[i];
