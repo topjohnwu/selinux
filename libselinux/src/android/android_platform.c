@@ -806,12 +806,12 @@ static int seapp_context_lookup(enum seapp_kind kind,
 
 		username = pwd->pw_name;
 
-	} else if (appid < AID_SUPPLEMENTAL_PROCESS_START) {
+	} else if (appid < AID_SDK_SANDBOX_PROCESS_START) {
 		username = "_app";
 		appid -= AID_APP;
 	} else if (appid < AID_ISOLATED_START) {
-		username = "_supplemental";
-		appid -= AID_SUPPLEMENTAL_PROCESS_START;
+		username = "_sdksandbox";
+		appid -= AID_SDK_SANDBOX_PROCESS_START;
 	} else {
 		username = "_isolated";
 		appid -= AID_ISOLATED_START;
@@ -1134,8 +1134,8 @@ struct pkg_info *package_info_lookup(const char *name)
 #define EXPAND_USER_PATH "/mnt/expand/\?\?\?\?\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?\?\?\?\?\?\?\?\?/user"
 #define EXPAND_USER_DE_PATH "/mnt/expand/\?\?\?\?\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?\?\?\?\?\?\?\?\?/user_de"
 #define USER_PROFILE_PATH "/data/misc/profiles/cur/*"
-#define SUPPLEMENTAL_DATA_CE_PATH "/data/misc_ce/*/supplemental"
-#define SUPPLEMENTAL_DATA_DE_PATH "/data/misc_de/*/supplemental"
+#define SDK_SANDBOX_DATA_CE_PATH "/data/misc_ce/*/sdksandbox"
+#define SDK_SANDBOX_DATA_DE_PATH "/data/misc_de/*/sdksandbox"
 
 #define DATA_DATA_PREFIX DATA_DATA_PATH "/"
 #define DATA_USER_PREFIX DATA_USER_PATH "/"
@@ -1154,8 +1154,8 @@ static bool is_app_data_path(const char *pathname) {
         !strncmp(pathname, DATA_USER_DE_PREFIX, sizeof(DATA_USER_DE_PREFIX)-1) ||
         !fnmatch(EXPAND_USER_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME) ||
         !fnmatch(EXPAND_USER_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME) ||
-        !fnmatch(SUPPLEMENTAL_DATA_CE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME) ||
-        !fnmatch(SUPPLEMENTAL_DATA_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME));
+        !fnmatch(SDK_SANDBOX_DATA_CE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME) ||
+        !fnmatch(SDK_SANDBOX_DATA_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME));
 }
 
 static int pkgdir_selabel_lookup(const char *pathname,
@@ -1208,16 +1208,16 @@ static int pkgdir_selabel_lookup(const char *pathname,
         pathname += sizeof(DATA_MISC_CE_PREFIX) - 1;
         while (isdigit(*pathname))
             pathname++;
-        if (!strncmp(pathname, "/supplemental/", sizeof("/supplemental/")-1)) {
-            pathname += sizeof("/supplemental/") - 1;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+            pathname += sizeof("/sdksandbox/") - 1;
         } else
             return 0;
     } else if (!strncmp(pathname, DATA_MISC_DE_PREFIX, sizeof(DATA_MISC_DE_PREFIX)-1)) {
         pathname += sizeof(DATA_MISC_DE_PREFIX) - 1;
         while (isdigit(*pathname))
             pathname++;
-        if (!strncmp(pathname, "/supplemental/", sizeof("/supplemental/")-1)) {
-            pathname += sizeof("/supplemental/") - 1;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+            pathname += sizeof("/sdksandbox/") - 1;
         } else
             return 0;
     } else
