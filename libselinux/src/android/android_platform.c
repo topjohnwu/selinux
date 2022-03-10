@@ -1131,17 +1131,22 @@ struct pkg_info *package_info_lookup(const char *name)
 #define DATA_DATA_PATH "/data/data"
 #define DATA_USER_PATH "/data/user"
 #define DATA_USER_DE_PATH "/data/user_de"
-#define EXPAND_USER_PATH "/mnt/expand/\?\?\?\?\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?\?\?\?\?\?\?\?\?/user"
-#define EXPAND_USER_DE_PATH "/mnt/expand/\?\?\?\?\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?\?\?\?\?\?\?\?\?/user_de"
 #define USER_PROFILE_PATH "/data/misc/profiles/cur/*"
 #define SDK_SANDBOX_DATA_CE_PATH "/data/misc_ce/*/sdksandbox"
 #define SDK_SANDBOX_DATA_DE_PATH "/data/misc_de/*/sdksandbox"
+
+#define EXPAND_MNT_PATH "/mnt/expand/\?\?\?\?\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?-\?\?\?\?\?\?\?\?\?\?\?\?"
+#define EXPAND_USER_PATH EXPAND_MNT_PATH "/user"
+#define EXPAND_USER_DE_PATH EXPAND_MNT_PATH "/user_de"
+#define EXPAND_SDK_CE_PATH EXPAND_MNT_PATH "/misc_ce/*/sdksandbox"
+#define EXPAND_SDK_DE_PATH EXPAND_MNT_PATH "/misc_de/*/sdksandbox"
 
 #define DATA_DATA_PREFIX DATA_DATA_PATH "/"
 #define DATA_USER_PREFIX DATA_USER_PATH "/"
 #define DATA_USER_DE_PREFIX DATA_USER_DE_PATH "/"
 #define DATA_MISC_CE_PREFIX DATA_MISC_CE_PATH "/"
 #define DATA_MISC_DE_PREFIX DATA_MISC_DE_PATH "/"
+#define EXPAND_MNT_PATH_PREFIX EXPAND_MNT_PATH "/"
 
 /*
  * This method helps in identifying paths that refer to users' app data. Labeling for app data is
@@ -1149,13 +1154,16 @@ struct pkg_info *package_info_lookup(const char *name)
  * installd rather than by init.
  */
 static bool is_app_data_path(const char *pathname) {
+    int flags = FNM_LEADING_DIR|FNM_PATHNAME;
     return (!strncmp(pathname, DATA_DATA_PREFIX, sizeof(DATA_DATA_PREFIX)-1) ||
         !strncmp(pathname, DATA_USER_PREFIX, sizeof(DATA_USER_PREFIX)-1) ||
         !strncmp(pathname, DATA_USER_DE_PREFIX, sizeof(DATA_USER_DE_PREFIX)-1) ||
-        !fnmatch(EXPAND_USER_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME) ||
-        !fnmatch(EXPAND_USER_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME) ||
-        !fnmatch(SDK_SANDBOX_DATA_CE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME) ||
-        !fnmatch(SDK_SANDBOX_DATA_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME));
+        !fnmatch(EXPAND_USER_PATH, pathname, flags) ||
+        !fnmatch(EXPAND_USER_DE_PATH, pathname, flags) ||
+        !fnmatch(SDK_SANDBOX_DATA_CE_PATH, pathname, flags) ||
+        !fnmatch(SDK_SANDBOX_DATA_DE_PATH, pathname, flags) ||
+        !fnmatch(EXPAND_SDK_CE_PATH, pathname, flags) ||
+        !fnmatch(EXPAND_SDK_DE_PATH, pathname, flags));
 }
 
 static int pkgdir_selabel_lookup(const char *pathname,
@@ -1214,6 +1222,24 @@ static int pkgdir_selabel_lookup(const char *pathname,
             return 0;
     } else if (!strncmp(pathname, DATA_MISC_DE_PREFIX, sizeof(DATA_MISC_DE_PREFIX)-1)) {
         pathname += sizeof(DATA_MISC_DE_PREFIX) - 1;
+        while (isdigit(*pathname))
+            pathname++;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+            pathname += sizeof("/sdksandbox/") - 1;
+        } else
+            return 0;
+    } else if (!fnmatch(EXPAND_SDK_CE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME)) {
+        pathname += sizeof(EXPAND_MNT_PATH_PREFIX) - 1;
+        pathname += sizeof("misc_ce/") - 1;
+        while (isdigit(*pathname))
+            pathname++;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+            pathname += sizeof("/sdksandbox/") - 1;
+        } else
+            return 0;
+    } else if (!fnmatch(EXPAND_SDK_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME)) {
+        pathname += sizeof(EXPAND_MNT_PATH_PREFIX) - 1;
+        pathname += sizeof("misc_de/") - 1;
         while (isdigit(*pathname))
             pathname++;
         if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
