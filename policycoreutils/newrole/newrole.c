@@ -100,7 +100,6 @@
 #endif
 
 #define DEFAULT_PATH "/usr/bin:/bin"
-#define DEFAULT_CONTEXT_SIZE 255	/* first guess at context size */
 
 extern char **environ;
 
@@ -115,7 +114,7 @@ extern char **environ;
  *
  * Returns malloc'd memory
  */
-static char *build_new_range(char *newlevel, const char *range)
+static char *build_new_range(const char *newlevel, const char *range)
 {
 	char *newrangep = NULL;
 	const char *tmpptr;
@@ -166,7 +165,7 @@ static char *build_new_range(char *newlevel, const char *range)
 #include <security/pam_appl.h>	/* for PAM functions */
 #include <security/pam_misc.h>	/* for misc_conv PAM utility function */
 
-const char *service_name = "newrole";
+static const char *service_name = "newrole";
 
 /* authenticate_via_pam()
  *
@@ -182,7 +181,7 @@ const char *service_name = "newrole";
  * program.  This is the only function in this program that makes PAM
  * calls.
  */
-int authenticate_via_pam(const char *ttyn, pam_handle_t * pam_handle)
+static int authenticate_via_pam(const char *ttyn, pam_handle_t * pam_handle)
 {
 
 	int result = 0;		/* set to 0 (not authenticated) by default */
@@ -230,14 +229,13 @@ static int free_hashtab_entry(hashtab_key_t key, hashtab_datum_t d,
 
 static unsigned int reqsymhash(hashtab_t h, const_hashtab_key_t key)
 {
-	char *p, *keyp;
+	const char *p;
 	size_t size;
 	unsigned int val;
 
 	val = 0;
-	keyp = (char *)key;
-	size = strlen(keyp);
-	for (p = keyp; ((size_t) (p - keyp)) < size; p++)
+	size = strlen(key);
+	for (p = key; ((size_t) (p - key)) < size; p++)
 		val =
 		    (val << 4 | (val >> (8 * sizeof(unsigned int) - 4))) ^ (*p);
 	return val & (h->size - 1);
@@ -335,6 +333,14 @@ static int read_pam_config(void)
 
 #define PASSWORD_PROMPT _("Password:")	/* prompt for getpass() */
 
+static void memzero(void *ptr, size_t size)
+{
+	volatile unsigned char * volatile p = ptr;
+	while (size--) {
+		*p++ = '\0';
+	}
+}
+
 /* authenticate_via_shadow_passwd()
  *
  * in:     uname - the calling user's user name
@@ -348,11 +354,12 @@ static int read_pam_config(void)
  * This function uses the shadow passwd file to thenticate the user running
  * this program.
  */
-int authenticate_via_shadow_passwd(const char *uname)
+static int authenticate_via_shadow_passwd(const char *uname)
 {
 	struct spwd *p_shadow_line;
 	char *unencrypted_password_s;
 	char *encrypted_password_s;
+	int ret;
 
 	setspent();
 	p_shadow_line = getspnam(uname);
@@ -370,10 +377,18 @@ int authenticate_via_shadow_passwd(const char *uname)
 	}
 
 	/* Use crypt() to encrypt user's input password. */
+	errno = 0;
 	encrypted_password_s = crypt(unencrypted_password_s,
 				     p_shadow_line->sp_pwdp);
-	memset(unencrypted_password_s, 0, strlen(unencrypted_password_s));
-	return (!strcmp(encrypted_password_s, p_shadow_line->sp_pwdp));
+	memzero(unencrypted_password_s, strlen(unencrypted_password_s));
+	if (errno || !encrypted_password_s) {
+		fprintf(stderr, _("Cannot encrypt password.\n"));
+		return 0;
+	}
+
+	ret = !strcmp(encrypted_password_s, p_shadow_line->sp_pwdp);
+	memzero(encrypted_password_s, strlen(encrypted_password_s));
+	return ret;
 }
 #endif				/* if/else USE_PAM */
 
@@ -623,7 +638,7 @@ static inline int drop_capabilities(__attribute__ ((__unused__)) int full)
  * This function will set the uid values to be that of caller's uid, and
  * will drop any privilege which may have been raised.
  */
-static int transition_to_caller_uid()
+static int transition_to_caller_uid(void)
 {
 	uid_t uid = getuid();
 
@@ -850,7 +865,6 @@ static int parse_command_line_arguments(int argc, char **argv, char *ttyn,
 		case 'V':
 			printf("newrole: %s version %s\n", PACKAGE, VERSION);
 			exit(0);
-			break;
 		case 'p':
 			*preserve_environment = 1;
 			break;

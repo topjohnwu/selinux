@@ -23,6 +23,13 @@ force a reload of policy
 .B \-B, \-\-build
 force a rebuild of policy (also reloads unless \-n is used)
 .TP
+.B \-\-rebuild-if-modules-changed
+Force a rebuild of the policy if any changes to module content are detected
+(by comparing with checksum from the last transaction).  One can use this
+instead of \-B to ensure that any changes to the module store done by an
+external tool (e.g. a package manager) are applied, while automatically
+skipping the rebuild if there are no new changes.
+.TP
 .B \-D, \-\-disable_dontaudit
 Temporarily remove dontaudits from policy.  Reverts whenever policy is rebuilt
 .TP
@@ -95,6 +102,9 @@ only modules listed in \-\-extract after this option.
 .B  \-H,\-\-hll
 Extract module as an HLL file. This only affects the \-\-extract option and
 only modules listed in \-\-extract after this option.
+.TP
+.B  \-m,\-\-checksum
+Add SHA256 checksum of modules to the list output.
 
 .SH EXAMPLE
 .nf
@@ -130,6 +140,9 @@ $ semodule \-B \-S "/tmp/var/lib/selinux"
 # Write the HLL version of puppet and the CIL version of wireshark
 # modules at priority 400 to the current working directory
 $ semodule \-X 400 \-\-hll \-E puppet \-\-cil \-E wireshark
+# Check whether a module in "localmodule.pp" file is same as installed module "localmodule"
+$ /usr/libexec/selinux/hll/pp localmodule.pp | sha256sum
+$ semodule -l -m | grep localmodule
 .fi
 
 .SH SEE ALSO

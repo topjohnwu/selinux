@@ -33,6 +33,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
 #include <limits.h>
 #include <errno.h>
 #include <dirent.h>
@@ -50,13 +52,13 @@
 
 #include "debug.h"
 #include "handle.h"
+#include "compressed_file.h"
 #include "modules.h"
 #include "direct_api.h"
 #include "semanage_store.h"
 #include "database_policydb.h"
 #include "policy.h"
-#include <sys/mman.h>
-#include <sys/wait.h>
+#include "sha256.h"
 
 #define PIPE_READ 0
 #define PIPE_WRITE 1
@@ -446,198 +448,10 @@ static int parse_module_headers(semanage_handle_t * sh, char *module_data,
        return 0;
 }
 
-#include <stdlib.h>
-#include <bzlib.h>
-#include <string.h>
-#include <sys/sendfile.h>
-
-/* bzip() a data to a file, returning the total number of compressed bytes
- * in the file.  Returns -1 if file could not be compressed. */
-static ssize_t bzip(semanage_handle_t *sh, const char *filename, char *data,
-			size_t num_bytes)
-{
-	BZFILE* b;
-	size_t  size = 1<<16;
-	int     bzerror;
-	size_t  total = 0;
-	size_t len = 0;
-	FILE *f;
-
-	if ((f = fopen(filename, "wb")) == NULL) {
-		return -1;
-	}
-
-	if (!sh->conf->bzip_blocksize) {
-		if (fwrite(data, 1, num_bytes, f) < num_bytes) {
-			fclose(f);
-			return -1;
-		}
-		fclose(f);
-		return num_bytes;
-	}
-
-	b = BZ2_bzWriteOpen( &bzerror, f, sh->conf->bzip_blocksize, 0, 0);
-	if (bzerror != BZ_OK) {
-		BZ2_bzWriteClose ( &bzerror, b, 1, 0, 0 );
-		return -1;
-	}
-	
-	while ( num_bytes > total ) {
-		if (num_bytes - total > size) {
-			len = size;
-		} else {
-			len = num_bytes - total;
-		}
-		BZ2_bzWrite ( &bzerror, b, &data[total], len );
-		if (bzerror == BZ_IO_ERROR) { 
-			BZ2_bzWriteClose ( &bzerror, b, 1, 0, 0 );
-			return -1;
-		}
-		total += len;
-	}
-
-	BZ2_bzWriteClose ( &bzerror, b, 0, 0, 0 );
-	fclose(f);
-	if (bzerror == BZ_IO_ERROR) {
-		return -1;
-	}
-	return total;
-}
-
-#define BZ2_MAGICSTR "BZh"
-#define BZ2_MAGICLEN (sizeof(BZ2_MAGICSTR)-1)
-
-/* bunzip() a file to '*data', returning the total number of uncompressed bytes
- * in the file.  Returns -1 if file could not be decompressed. */
-ssize_t bunzip(semanage_handle_t *sh, FILE *f, char **data)
-{
-	BZFILE* b = NULL;
-	size_t  nBuf;
-	char*   buf = NULL;
-	size_t  size = 1<<18;
-	size_t  bufsize = size;
-	int     bzerror;
-	size_t  total = 0;
-	char*   uncompress = NULL;
-	char*   tmpalloc = NULL;
-	int     ret = -1;
-
-	buf = malloc(bufsize);
-	if (buf == NULL) {
-		ERR(sh, "Failure allocating memory.");
-		goto exit;
-	}
-
-	/* Check if the file is bzipped */
-	bzerror = fread(buf, 1, BZ2_MAGICLEN, f);
-	rewind(f);
-	if ((bzerror != BZ2_MAGICLEN) || memcmp(buf, BZ2_MAGICSTR, BZ2_MAGICLEN)) {
-		goto exit;
-	}
-
-	b = BZ2_bzReadOpen ( &bzerror, f, 0, sh->conf->bzip_small, NULL, 0 );
-	if ( bzerror != BZ_OK ) {
-		ERR(sh, "Failure opening bz2 archive.");
-		goto exit;
-	}
-
-	uncompress = malloc(size);
-	if (uncompress == NULL) {
-		ERR(sh, "Failure allocating memory.");
-		goto exit;
-	}
-
-	while ( bzerror == BZ_OK) {
-		nBuf = BZ2_bzRead ( &bzerror, b, buf, bufsize);
-		if (( bzerror == BZ_OK ) || ( bzerror == BZ_STREAM_END )) {
-			if (total + nBuf > size) {
-				size *= 2;
-				tmpalloc = realloc(uncompress, size);
-				if (tmpalloc == NULL) {
-					ERR(sh, "Failure allocating memory.");
-					goto exit;
-				}
-				uncompress = tmpalloc;
-			}
-			memcpy(&uncompress[total], buf, nBuf);
-			total += nBuf;
-		}
-	}
-	if ( bzerror != BZ_STREAM_END ) {
-		ERR(sh, "Failure reading bz2 archive.");
-		goto exit;
-	}
-
-	ret = total;
-	*data = uncompress;
-
-exit:
-	BZ2_bzReadClose ( &bzerror, b );
-	free(buf);
-	if ( ret < 0 ) {
-		free(uncompress);
-	}
-	return ret;
-}
-
-/* mmap() a file to '*data',
- *  If the file is bzip compressed map_file will uncompress 
- * the file into '*data'.
- * Returns the total number of bytes in memory .
- * Returns -1 if file could not be opened or mapped. */
-static ssize_t map_file(semanage_handle_t *sh, const char *path, char **data,
-			int *compressed)
-{
-	ssize_t size = -1;
-	char *uncompress;
-	int fd = -1;
-	FILE *file = NULL;
-
-	fd = open(path, O_RDONLY);
-	if (fd == -1) {
-		ERR(sh, "Unable to open %s\n", path);
-		return -1;
-	}
-
-	file = fdopen(fd, "r");
-	if (file == NULL) {
-		ERR(sh, "Unable to open %s\n", path);
-		close(fd);
-		return -1;
-	}
-
-	if ((size = bunzip(sh, file, &uncompress)) > 0) {
-		*data = mmap(0, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
-		if (*data == MAP_FAILED) {
-			free(uncompress);
-			fclose(file);
-			return -1;
-		} else {
-			memcpy(*data, uncompress, size);
-		}
-		free(uncompress);
-		*compressed = 1;
-	} else {
-		struct stat sb;
-		if (fstat(fd, &sb) == -1 ||
-		    (*data = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0)) ==
-		    MAP_FAILED) {
-			size = -1;
-		} else {
-			size = sb.st_size;
-		}
-		*compressed = 0;
-	} 
-
-	fclose(file);
-
-	return size;
-}
-
 /* Writes a block of data to a file.  Returns 0 on success, -1 on
  * error. */
 static int write_file(semanage_handle_t * sh,
-		      const char *filename, char *data, size_t num_bytes)
+		      const char *filename, const char *data, size_t num_bytes)
 {
 	int out;
 
@@ -1037,23 +851,33 @@ cleanup:
 	return ret;
 }
 
+static void update_checksum_with_len(Sha256Context *context, size_t s)
+{
+	int i;
+	uint8_t buffer[8];
+
+	for (i = 0; i < 8; i++) {
+		buffer[i] = s & 0xff;
+		s >>= 8;
+	}
+	Sha256Update(context, buffer, 8);
+}
+
 static int semanage_compile_module(semanage_handle_t *sh,
-				semanage_module_info_t *modinfo)
+				   semanage_module_info_t *modinfo,
+				   Sha256Context *context)
 {
 	char cil_path[PATH_MAX];
 	char hll_path[PATH_MAX];
 	char *compiler_path = NULL;
 	char *cil_data = NULL;
 	char *err_data = NULL;
-	char *hll_data = NULL;
 	char *start = NULL;
 	char *end = NULL;
-	ssize_t hll_data_len = 0;
-	ssize_t bzip_status;
 	int status = 0;
-	int compressed;
 	size_t cil_data_len = 0;
 	size_t err_data_len = 0;
+	struct file_contents hll_contents = {};
 
 	if (!strcasecmp(modinfo->lang_ext, "cil")) {
 		goto cleanup;
@@ -1084,13 +908,15 @@ static int semanage_compile_module(semanage_handle_t *sh,
 		goto cleanup;
 	}
 
-	if ((hll_data_len = map_file(sh, hll_path, &hll_data, &compressed)) <= 0) {
+	status = map_compressed_file(sh, hll_path, &hll_contents);
+	if (status < 0) {
 		ERR(sh, "Unable to read file %s\n", hll_path);
-		status = -1;
 		goto cleanup;
 	}
 
-	status = semanage_pipe_data(sh, compiler_path, hll_data, (size_t)hll_data_len, &cil_data, &cil_data_len, &err_data, &err_data_len);
+	status = semanage_pipe_data(sh, compiler_path, hll_contents.data,
+				    hll_contents.len, &cil_data, &cil_data_len,
+				    &err_data, &err_data_len);
 	if (err_data_len > 0) {
 		for (start = end = err_data; end < err_data + err_data_len; end++) {
 			if (*end == '\n') {
@@ -1110,10 +936,14 @@ static int semanage_compile_module(semanage_handle_t *sh,
 		goto cleanup;
 	}
 
-	bzip_status = bzip(sh, cil_path, cil_data, cil_data_len);
-	if (bzip_status == -1) {
-		ERR(sh, "Failed to bzip %s\n", cil_path);
-		status = -1;
+	if (context) {
+		update_checksum_with_len(context, cil_data_len);
+		Sha256Update(context, cil_data, cil_data_len);
+	}
+
+	status = write_compressed_file(sh, cil_path, cil_data, cil_data_len);
+	if (status == -1) {
+		ERR(sh, "Failed to write %s\n", cil_path);
 		goto cleanup;
 	}
 
@@ -1131,9 +961,7 @@ static int semanage_compile_module(semanage_handle_t *sh,
 	}
 
 cleanup:
-	if (hll_data_len > 0) {
-		munmap(hll_data, hll_data_len);
-	}
+	unmap_compressed_file(&hll_contents);
 	free(cil_data);
 	free(err_data);
 	free(compiler_path);
@@ -1141,18 +969,40 @@ cleanup:
 	return status;
 }
 
-static int semanage_compile_hll_modules(semanage_handle_t *sh,
-				semanage_module_info_t *modinfos,
-				int num_modinfos)
+static int modinfo_cmp(const void *a, const void *b)
 {
-	int status = 0;
-	int i;
+	const semanage_module_info_t *ma = a;
+	const semanage_module_info_t *mb = b;
+
+	return strcmp(ma->name, mb->name);
+}
+
+static int semanage_compile_hll_modules(semanage_handle_t *sh,
+					semanage_module_info_t *modinfos,
+					int num_modinfos,
+					char *cil_checksum)
+{
+	/* to be incremented when checksum input data format changes */
+	static const size_t CHECKSUM_EPOCH = 1;
+
+	int i, status = 0;
 	char cil_path[PATH_MAX];
 	struct stat sb;
+	Sha256Context context;
+	SHA256_HASH hash;
+	struct file_contents contents = {};
 
 	assert(sh);
 	assert(modinfos);
 
+	/* Sort modules by name to get consistent ordering. */
+	qsort(modinfos, num_modinfos, sizeof(*modinfos), &modinfo_cmp);
+
+	Sha256Initialise(&context);
+	update_checksum_with_len(&context, CHECKSUM_EPOCH);
+
+	/* prefix with module count to avoid collisions */
+	update_checksum_with_len(&context, num_modinfos);
 	for (i = 0; i < num_modinfos; i++) {
 		status = semanage_module_get_path(
 				sh,
@@ -1160,30 +1010,102 @@ static int semanage_compile_hll_modules(semanage_handle_t *sh,
 				SEMANAGE_MODULE_PATH_CIL,
 				cil_path,
 				sizeof(cil_path));
-		if (status != 0) {
-			goto cleanup;
+		if (status != 0)
+			return -1;
+
+		if (!semanage_get_ignore_module_cache(sh)) {
+			status = stat(cil_path, &sb);
+			if (status == 0) {
+				status = map_compressed_file(sh, cil_path, &contents);
+				if (status < 0) {
+					ERR(sh, "Error mapping file: %s", cil_path);
+					return -1;
+				}
+
+				/* prefix with length to avoid collisions */
+				update_checksum_with_len(&context, contents.len);
+				Sha256Update(&context, contents.data, contents.len);
+
+				unmap_compressed_file(&contents);
+				continue;
+			} else if (errno != ENOENT) {
+				ERR(sh, "Unable to access %s: %s\n", cil_path,
+				    strerror(errno));
+				return -1; //an error in the "stat" call
+			}
 		}
 
-		if (semanage_get_ignore_module_cache(sh) == 0 &&
-				(status = stat(cil_path, &sb)) == 0) {
-			continue;
-		}
-		if (status != 0 && errno != ENOENT) {
-			ERR(sh, "Unable to access %s: %s\n", cil_path, strerror(errno));
-			goto cleanup; //an error in the "stat" call
-		}
+		status = semanage_compile_module(sh, &modinfos[i], &context);
+		if (status < 0)
+			return -1;
+	}
+	Sha256Finalise(&context, &hash);
 
-		status = semanage_compile_module(sh, &modinfos[i]);
-		if (status < 0) {
-			goto cleanup;
+	semanage_hash_to_checksum_string(hash.bytes, cil_checksum);
+	return 0;
+}
+
+static int semanage_compare_checksum(semanage_handle_t *sh, const char *reference)
+{
+	const char *path = semanage_path(SEMANAGE_TMP, SEMANAGE_MODULES_CHECKSUM);
+	struct stat sb;
+	int fd, retval;
+	char *data;
+
+	fd = open(path, O_RDONLY);
+	if (fd == -1) {
+		if (errno != ENOENT) {
+			ERR(sh, "Unable to open %s: %s\n", path, strerror(errno));
+			return -1;
 		}
+		/* Checksum file not present - force a rebuild. */
+		return 1;
 	}
 
-	status = 0;
+	if (fstat(fd, &sb) == -1) {
+		ERR(sh, "Unable to stat %s\n", path);
+		retval = -1;
+		goto out_close;
+	}
 
-cleanup:
-	return status;
+	if (sb.st_size != (off_t)CHECKSUM_CONTENT_SIZE) {
+		/* Incompatible/invalid hash type - just force a rebuild. */
+		WARN(sh, "Module checksum invalid - forcing a rebuild\n");
+		retval = 1;
+		goto out_close;
+	}
+
+	data = mmap(NULL, CHECKSUM_CONTENT_SIZE, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (data == MAP_FAILED) {
+		ERR(sh, "Unable to mmap %s\n", path);
+		retval = -1;
+		goto out_close;
+	}
+
+	retval = memcmp(data, reference, CHECKSUM_CONTENT_SIZE) != 0;
+	munmap(data, sb.st_size);
+out_close:
+	close(fd);
+	return retval;
 }
+
+static int semanage_write_modules_checksum(semanage_handle_t *sh,
+					   const char *checksum)
+{
+	const char *path = semanage_path(SEMANAGE_TMP, SEMANAGE_MODULES_CHECKSUM);
+
+	return write_file(sh, path, checksum, CHECKSUM_CONTENT_SIZE);
+}
+
+/* Files that must exist in order to skip policy rebuild. */
+static const int semanage_computed_files[] = {
+	SEMANAGE_STORE_KERNEL,
+	SEMANAGE_STORE_FC,
+	SEMANAGE_STORE_SEUSERS,
+	SEMANAGE_LINKED,
+	SEMANAGE_SEUSERS_LINKED,
+	SEMANAGE_USERS_EXTRA_LINKED
+};
 
 /* Copies a file from src to dst. If dst already exists then
  * overwrite it. If source doesn't exist then return success.
@@ -1211,6 +1133,7 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 	semanage_module_info_t *modinfos = NULL;
 	mode_t mask = umask(0077);
 	struct stat sb;
+	char modules_checksum[CHECKSUM_CONTENT_SIZE + 1 /* '\0' */];
 
 	int do_rebuild, do_write_kernel, do_install;
 	int fcontexts_modified, ports_modified, seusers_modified,
@@ -1243,6 +1166,14 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 	ibendports_modified = ibendports->dtable->is_modified(ibendports->dbase);
 	seusers_modified = seusers->dtable->is_modified(seusers->dbase);
 	fcontexts_modified = fcontexts->dtable->is_modified(fcontexts->dbase);
+
+	/* Before we do anything else, flush the join to its component parts.
+	 * This *does not* flush to disk automatically */
+	if (users->dtable->is_modified(users->dbase)) {
+		retval = users->dtable->flush(sh, users->dbase);
+		if (retval < 0)
+			goto cleanup;
+	}
 
 	/* Rebuild if explicitly requested or any module changes occurred. */
 	do_rebuild = sh->do_rebuild | sh->modules_modified;
@@ -1310,14 +1241,6 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 		}
 	}
 
-	/* Before we do anything else, flush the join to its component parts.
-	 * This *does not* flush to disk automatically */
-	if (users->dtable->is_modified(users->dbase)) {
-		retval = users->dtable->flush(sh, users->dbase);
-		if (retval < 0)
-			goto cleanup;
-	}
-
 	/*
 	 * This is for systems that have already migrated with an older version
 	 * of semanage_migrate_store. The older version did not copy
@@ -1326,47 +1249,51 @@ static int semanage_direct_commit(semanage_handle_t * sh)
 	 * in order to skip re-linking are present; otherwise, we force
 	 * a rebuild.
 	 */
-	if (!do_rebuild) {
-		int files[] = {SEMANAGE_STORE_KERNEL,
-					   SEMANAGE_STORE_FC,
-					   SEMANAGE_STORE_SEUSERS,
-					   SEMANAGE_LINKED,
-					   SEMANAGE_SEUSERS_LINKED,
-					   SEMANAGE_USERS_EXTRA_LINKED};
-
-		for (i = 0; i < (int) ARRAY_SIZE(files); i++) {
-			path = semanage_path(SEMANAGE_TMP, files[i]);
-			if (stat(path, &sb) != 0) {
-				if (errno != ENOENT) {
-					ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
-					retval = -1;
-					goto cleanup;
-				}
-
-				do_rebuild = 1;
-				goto rebuild;
+	for (i = 0; !do_rebuild && i < (int)ARRAY_SIZE(semanage_computed_files); i++) {
+		path = semanage_path(SEMANAGE_TMP, semanage_computed_files[i]);
+		if (stat(path, &sb) != 0) {
+			if (errno != ENOENT) {
+				ERR(sh, "Unable to access %s: %s\n", path, strerror(errno));
+				retval = -1;
+				goto cleanup;
 			}
+
+			do_rebuild = 1;
+			break;
 		}
 	}
 
-rebuild:
-	/*
-	 * Now that we know whether or not a rebuild is required,
-	 * we can determine what else needs to be done.
-	 * We need to write the kernel policy if we are rebuilding
-	 * or if any other policy component that lives in the kernel
-	 * policy has been modified.
-	 * We need to install the policy files if any of the managed files
-	 * that live under /etc/selinux (kernel policy, seusers, file contexts)
-	 * will be modified.
-	 */
-	do_write_kernel = do_rebuild | ports_modified | ibpkeys_modified |
-		ibendports_modified |
-		bools->dtable->is_modified(bools->dbase) |
-		ifaces->dtable->is_modified(ifaces->dbase) |
-		nodes->dtable->is_modified(nodes->dbase) |
-		users->dtable->is_modified(users_base->dbase);
-	do_install = do_write_kernel | seusers_modified | fcontexts_modified;
+	if (do_rebuild || sh->check_ext_changes) {
+		retval = semanage_get_active_modules(sh, &modinfos, &num_modinfos);
+		if (retval < 0) {
+			goto cleanup;
+		}
+
+		/* No modules - nothing to rebuild. */
+		if (num_modinfos == 0) {
+			goto cleanup;
+		}
+
+		retval = semanage_compile_hll_modules(sh, modinfos, num_modinfos,
+						      modules_checksum);
+		if (retval < 0) {
+			ERR(sh, "Failed to compile hll files into cil files.\n");
+			goto cleanup;
+		}
+
+		if (!do_rebuild && sh->check_ext_changes) {
+			retval = semanage_compare_checksum(sh, modules_checksum);
+			if (retval < 0)
+				goto cleanup;
+			do_rebuild = retval;
+		}
+
+		retval = semanage_write_modules_checksum(sh, modules_checksum);
+		if (retval < 0) {
+			ERR(sh, "Failed to write module checksum file.\n");
+			goto cleanup;
+		}
+	}
 
 	/*
 	 * If there were policy changes, or explicitly requested, or
@@ -1374,21 +1301,6 @@ rebuild:
 	 */
 	if (do_rebuild) {
 		/* =================== Module expansion =============== */
-
-		retval = semanage_get_active_modules(sh, &modinfos, &num_modinfos);
-		if (retval < 0) {
-			goto cleanup;
-		}
-
-		if (num_modinfos == 0) {
-			goto cleanup;
-		}
-
-		retval = semanage_compile_hll_modules(sh, modinfos, num_modinfos);
-		if (retval < 0) {
-			ERR(sh, "Failed to compile hll files into cil files.\n");
-			goto cleanup;
-		}
 
 		retval = semanage_get_cil_paths(sh, modinfos, num_modinfos, &mod_filenames);
 		if (retval < 0)
@@ -1520,6 +1432,23 @@ rebuild:
 			goto cleanup;
 		}
 	}
+
+	/*
+	 * Determine what else needs to be done.
+	 * We need to write the kernel policy if we are rebuilding
+	 * or if any other policy component that lives in the kernel
+	 * policy has been modified.
+	 * We need to install the policy files if any of the managed files
+	 * that live under /etc/selinux (kernel policy, seusers, file contexts)
+	 * will be modified.
+	 */
+	do_write_kernel = do_rebuild | ports_modified | ibpkeys_modified |
+		ibendports_modified |
+		bools->dtable->is_modified(bools->dbase) |
+		ifaces->dtable->is_modified(ifaces->dbase) |
+		nodes->dtable->is_modified(nodes->dbase) |
+		users->dtable->is_modified(users_base->dbase);
+	do_install = do_write_kernel | seusers_modified | fcontexts_modified;
 
 	/* Attach our databases to the policydb we just created or loaded. */
 	dbase_policydb_attach((dbase_policydb_t *) pusers_base->dbase, out);
@@ -1756,19 +1685,17 @@ static int semanage_direct_install_file(semanage_handle_t * sh,
 {
 
 	int retval = -1;
-	char *data = NULL;
-	ssize_t data_len = 0;
-	int compressed = 0;
 	char *path = NULL;
 	char *filename;
 	char *lang_ext = NULL;
 	char *module_name = NULL;
 	char *separator;
 	char *version = NULL;
+	struct file_contents contents = {};
 
-	if ((data_len = map_file(sh, install_filename, &data, &compressed)) <= 0) {
+	retval = map_compressed_file(sh, install_filename, &contents);
+	if (retval < 0) {
 		ERR(sh, "Unable to read file %s\n", install_filename);
-		retval = -1;
 		goto cleanup;
 	}
 
@@ -1781,7 +1708,7 @@ static int semanage_direct_install_file(semanage_handle_t * sh,
 
 	filename = basename(path);
 
-	if (compressed) {
+	if (contents.compressed) {
 		separator = strrchr(filename, '.');
 		if (separator == NULL) {
 			ERR(sh, "Compressed module does not have a valid extension.");
@@ -1805,7 +1732,8 @@ static int semanage_direct_install_file(semanage_handle_t * sh,
 	}
 
 	if (strcmp(lang_ext, "pp") == 0) {
-		retval = parse_module_headers(sh, data, data_len, &module_name, &version);
+		retval = parse_module_headers(sh, contents.data, contents.len,
+					      &module_name, &version);
 		free(version);
 		if (retval != 0)
 			goto cleanup;
@@ -1822,10 +1750,11 @@ static int semanage_direct_install_file(semanage_handle_t * sh,
 		fprintf(stderr, "Warning: SELinux userspace will refer to the module from %s as %s rather than %s\n", install_filename, module_name, filename);
 	}
 
-	retval = semanage_direct_install(sh, data, data_len, module_name, lang_ext);
+	retval = semanage_direct_install(sh, contents.data, contents.len,
+					 module_name, lang_ext);
 
 cleanup:
-	if (data_len > 0) munmap(data, data_len);
+	unmap_compressed_file(&contents);
 	free(module_name);
 	free(path);
 
@@ -1844,10 +1773,8 @@ static int semanage_direct_extract(semanage_handle_t * sh,
 	enum semanage_module_path_type file_type;
 	int rc = -1;
 	semanage_module_info_t *_modinfo = NULL;
-	ssize_t _data_len;
-	char *_data;
-	int compressed;
 	struct stat sb;
+	struct file_contents contents = {};
 
 	/* get path of module */
 	rc = semanage_module_get_path(
@@ -1897,25 +1824,39 @@ static int semanage_direct_extract(semanage_handle_t * sh,
 			goto cleanup;
 		}
 
-		rc = semanage_compile_module(sh, _modinfo);
+		rc = semanage_compile_module(sh, _modinfo, NULL);
 		if (rc < 0) {
 			goto cleanup;
 		}
 	}
 
-	_data_len = map_file(sh, input_file, &_data, &compressed);
-	if (_data_len <= 0) {
+	rc = map_compressed_file(sh, input_file, &contents);
+	if (rc < 0) {
 		ERR(sh, "Error mapping file: %s", input_file);
-		rc = -1;
 		goto cleanup;
 	}
 
+	/* The API promises an mmap'ed pointer */
+	if (contents.compressed) {
+		*mapped_data = mmap(NULL, contents.len, PROT_READ|PROT_WRITE,
+				    MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
+		if (*mapped_data == MAP_FAILED) {
+			ERR(sh, "Unable to map memory");
+			rc = -1;
+			goto cleanup;
+		}
+		memcpy(*mapped_data, contents.data, contents.len);
+		free(contents.data);
+	} else {
+		*mapped_data = contents.data;
+	}
+
 	*modinfo = _modinfo;
-	*data_len = (size_t)_data_len;
-	*mapped_data = _data;
+	*data_len = contents.len;
 
 cleanup:
 	if (rc != 0) {
+		unmap_compressed_file(&contents);
 		semanage_module_info_destroy(sh, _modinfo);
 		free(_modinfo);
 	}
@@ -2869,8 +2810,8 @@ static int semanage_direct_install_info(semanage_handle_t *sh,
 		goto cleanup;
 	}
 
-	ret = bzip(sh, path, data, data_len);
-	if (ret <= 0) {
+	ret = write_compressed_file(sh, path, data, data_len);
+	if (ret < 0) {
 		ERR(sh, "Error while writing to %s.", path);
 		status = -3;
 		goto cleanup;
