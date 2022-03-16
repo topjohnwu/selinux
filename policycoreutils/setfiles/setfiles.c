@@ -1,4 +1,5 @@
 #include "restore.h"
+#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio_ext.h>
@@ -34,20 +35,20 @@ static __attribute__((__noreturn__)) void usage(const char *const name)
 {
 	if (iamrestorecon) {
 		fprintf(stderr,
-			"usage:  %s [-iIDFmnprRv0x] [-e excludedir] pathname...\n"
-			"usage:  %s [-iIDFmnprRv0x] [-e excludedir] -f filename\n",
+			"usage:  %s [-iIDFmnprRv0xT] [-e excludedir] pathname...\n"
+			"usage:  %s [-iIDFmnprRv0xT] [-e excludedir] -f filename\n",
 			name, name);
 	} else {
 		fprintf(stderr,
-			"usage:  %s [-diIDlmnpqvEFW] [-e excludedir] [-r alt_root_path] [-c policyfile] spec_file pathname...\n"
-			"usage:  %s [-diIDlmnpqvEFW] [-e excludedir] [-r alt_root_path] [-c policyfile] spec_file -f filename\n"
-			"usage:  %s -s [-diIDlmnpqvFW] spec_file\n",
+			"usage:  %s [-diIDlmnpqvEFWT] [-e excludedir] [-r alt_root_path] [-c policyfile] spec_file pathname...\n"
+			"usage:  %s [-diIDlmnpqvEFWT] [-e excludedir] [-r alt_root_path] [-c policyfile] spec_file -f filename\n"
+			"usage:  %s -s [-diIDlmnpqvFWT] spec_file\n",
 			name, name, name);
 	}
 	exit(-1);
 }
 
-void set_rootpath(const char *arg)
+static void set_rootpath(const char *arg)
 {
 	if (strlen(arg) == 1 && strncmp(arg, "/", 1) == 0) {
 		fprintf(stderr, "%s:  invalid alt_rootpath: %s\n",
@@ -64,7 +65,7 @@ void set_rootpath(const char *arg)
 	}
 }
 
-int canoncon(char **contextp)
+static int canoncon(char **contextp)
 {
 	char *context = *contextp, *tmpcon;
 	int rc = 0;
@@ -144,12 +145,12 @@ int main(int argc, char **argv)
 	int opt, i = 0;
 	const char *input_filename = NULL;
 	int use_input_file = 0;
-	char *buf = NULL;
-	size_t buf_len;
+	char *buf = NULL, *endptr;
+	size_t buf_len, nthreads = 1;
 	const char *base;
 	int errors = 0;
-	const char *ropts = "e:f:hiIDlmno:pqrsvFRW0x";
-	const char *sopts = "c:de:f:hiIDlmno:pqr:svEFR:W0";
+	const char *ropts = "e:f:hiIDlmno:pqrsvFRW0xT:";
+	const char *sopts = "c:de:f:hiIDlmno:pqr:svEFR:W0T:";
 	const char *opts;
 	union selinux_callback cb;
 
@@ -162,6 +163,10 @@ int main(int argc, char **argv)
 	policyfile = NULL;
 
 	r_opts.abort_on_error = 0;
+	if (!argv[0]) {
+		fprintf(stderr, "Called without required program name!\n");
+		exit(-1);
+	}
 	r_opts.progname = strdup(argv[0]);
 	if (!r_opts.progname) {
 		fprintf(stderr, "%s:  Out of memory!\n", argv[0]);
@@ -370,6 +375,11 @@ int main(int argc, char **argv)
 				usage(argv[0]);
                         }
                         break;
+		case 'T':
+			nthreads = strtoull(optarg, &endptr, 10);
+			if (*optarg == '\0' || *endptr != '\0')
+				usage(argv[0]);
+			break;
 		case 'h':
 		case '?':
 			usage(argv[0]);
@@ -417,7 +427,7 @@ int main(int argc, char **argv)
 
 		altpath = argv[optind];
 		optind++;
-	} else if (argc == 1)
+	} else if (argc < 2)
 		usage(argv[0]);
 
 	/* Set selabel_open options. */
@@ -448,13 +458,13 @@ int main(int argc, char **argv)
 			buf[len - 1] = 0;
 			if (!strcmp(buf, "/"))
 				r_opts.mass_relabel = SELINUX_RESTORECON_MASS_RELABEL;
-			errors |= process_glob(buf, &r_opts) < 0;
+			errors |= process_glob(buf, &r_opts, nthreads) < 0;
 		}
 		if (strcmp(input_filename, "-") != 0)
 			fclose(f);
 	} else {
 		for (i = optind; i < argc; i++)
-			errors |= process_glob(argv[i], &r_opts) < 0;
+			errors |= process_glob(argv[i], &r_opts, nthreads) < 0;
 	}
 
 	maybe_audit_mass_relabel(r_opts.mass_relabel, errors);

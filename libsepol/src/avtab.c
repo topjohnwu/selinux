@@ -503,6 +503,11 @@ int avtab_read_item(struct policy_file *fp, uint32_t vers, avtab_t * a,
 
 		for (i = 0; i < ARRAY_SIZE(spec_order); i++) {
 			if (val & spec_order[i]) {
+				if (items >= items2) { /* items is index, items2 is total number */
+					ERR(fp->handle, "entry has too many items (%d/%d)",
+					    items + 1, items2);
+					return -1;
+				}
 				key.specified = spec_order[i] | enabled;
 				datum.data = le32_to_cpu(buf32[items++]);
 				rc = insertf(a, &key, &datum, p);
@@ -543,7 +548,7 @@ int avtab_read_item(struct policy_file *fp, uint32_t vers, avtab_t * a,
 	if ((vers < POLICYDB_VERSION_XPERMS_IOCTL) &&
 			(key.specified & AVTAB_XPERMS)) {
 		ERR(fp->handle, "policy version %u does not support extended "
-				"permissions rules and one was specified\n", vers);
+				"permissions rules and one was specified", vers);
 		return -1;
 	} else if (key.specified & AVTAB_XPERMS) {
 		rc = next_entry(&buf8, fp, sizeof(uint8_t));
