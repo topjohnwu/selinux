@@ -2823,6 +2823,12 @@ int cil_constrain_to_policydb_helper(policydb_t *pdb, const struct cil_db *db, s
 		goto exit;
 	}
 
+	if (sepol_constrain->permissions == 0) {
+		/* No permissions, so don't insert rule. */
+		free(sepol_constrain);
+		return SEPOL_OK;
+	}
+
 	rc = __cil_constrain_expr_to_sepol_expr(pdb, db, expr, &sepol_expr);
 	if (rc != SEPOL_OK) {
 		goto exit;
@@ -3461,6 +3467,43 @@ int cil_genfscon_to_policydb(policydb_t *pdb, struct cil_sort *genfscons)
 		ocon_tail = new_ocon;
 
 		new_ocon->u.name = cil_strdup(cil_genfscon->path_str);
+
+		if (cil_genfscon->file_type != CIL_FILECON_ANY) {
+			class_datum_t *class_datum;
+			const char *class_name;
+			switch (cil_genfscon->file_type) {
+			case CIL_FILECON_FILE:
+				class_name = "file";
+				break;
+			case CIL_FILECON_DIR:
+				class_name = "dir";
+				break;
+			case CIL_FILECON_CHAR:
+				class_name = "chr_file";
+				break;
+			case CIL_FILECON_BLOCK:
+				class_name = "blk_file";
+				break;
+			case CIL_FILECON_SOCKET:
+				class_name = "sock_file";
+				break;
+			case CIL_FILECON_PIPE:
+				class_name = "fifo_file";
+				break;
+			case CIL_FILECON_SYMLINK:
+				class_name = "lnk_file";
+				break;
+			default:
+				rc = SEPOL_ERR;
+				goto exit;
+			}
+			class_datum = hashtab_search(pdb->p_classes.table, class_name);
+			if (!class_datum) {
+				rc = SEPOL_ERR;
+				goto exit;
+			}
+			new_ocon->v.sclass = class_datum->s.value;
+		}
 
 		rc = __cil_context_to_sepol_context(pdb, cil_genfscon->context, &new_ocon->context[0]);
 		if (rc != SEPOL_OK) {
@@ -4603,6 +4646,9 @@ static int __cil_print_neverallow_failure(const struct cil_db *db, struct cil_tr
 	char *neverallow_str;
 	char *allow_str;
 	enum cil_flavor avrule_flavor;
+	int num_matching = 0;
+	int count_matching = 0;
+	enum cil_log_level log_level = cil_get_log_level();
 
 	target.rule_kind = CIL_AVRULE_ALLOWED;
 	target.is_extended = cil_rule->is_extended;
@@ -4630,10 +4676,18 @@ static int __cil_print_neverallow_failure(const struct cil_db *db, struct cil_tr
 	}
 
 	cil_list_for_each(i2, matching) {
+		num_matching++;
+	}
+	cil_list_for_each(i2, matching) {
 		n2 = i2->data;
 		r2 = n2->data;
 		__cil_print_parents("    ", n2);
 		__cil_print_rule("      ", allow_str, r2);
+		count_matching++;
+		if (count_matching >= 4 && num_matching > 4 && log_level == CIL_ERR) {
+			cil_log(CIL_ERR, "    Only first 4 of %d matching rules shown (use \"-v\" to show all)\n", num_matching);
+			break;
+		}
 	}
 	cil_log(CIL_ERR,"\n");
 	cil_list_destroy(&matching, CIL_FALSE);
@@ -4826,6 +4880,7 @@ static int cil_check_type_bounds(const struct cil_db *db, policydb_t *pdb, void 
 			struct cil_avrule target;
 			struct cil_tree_node *n1 = NULL;
 			int count_bad = 0;
+			enum cil_log_level log_level = cil_get_log_level();
 
 			*violation = CIL_TRUE;
 
@@ -4872,16 +4927,16 @@ static int cil_check_type_bounds(const struct cil_db *db, policydb_t *pdb, void 
 						__cil_print_rule("      ", "allow", r2);
 					}
 					count_matching++;
-					if (count_matching >= 2) {
-						cil_log(CIL_ERR, "    Only first 2 of %d matching rules shown\n", num_matching);
+					if (count_matching >= 2 && num_matching > 2 && log_level == CIL_ERR) {
+						cil_log(CIL_ERR, "    Only first 2 of %d matching rules shown (use \"-v\" to show all)\n", num_matching);
 						break;
 					}
 				}
 				cil_list_destroy(&matching, CIL_FALSE);
 				cil_list_destroy(&target.perms.classperms, CIL_TRUE);
 				count_bad++;
-				if (count_bad >= 2) {
-					cil_log(CIL_ERR, "  Only first 2 of %d bad rules shown\n", numbad);
+				if (count_bad >= 4 && numbad > 4 && log_level == CIL_ERR) {
+					cil_log(CIL_ERR, "  Only first 4 of %d bad rules shown (use \"-v\" to show all)\n", numbad);
 					break;
 				}
 			}
