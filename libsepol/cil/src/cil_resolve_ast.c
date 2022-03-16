@@ -65,6 +65,7 @@ struct cil_args_resolve {
 	struct cil_list *sensitivityorder_lists;
 	struct cil_list *in_list_before;
 	struct cil_list *in_list_after;
+	struct cil_list *abstract_blocks;
 };
 
 static struct cil_name * __cil_insert_name(struct cil_db *db, hashtab_key_t key, struct cil_tree_node *ast_node)
@@ -752,6 +753,11 @@ int cil_resolve_classcommon(struct cil_tree_node *current, void *extra_args)
 
 	rc = cil_resolve_name(current, clscom->class_str, CIL_SYM_CLASSES, extra_args, &class_datum);
 	if (rc != SEPOL_OK) {
+		goto exit;
+	}
+	if (NODE(class_datum)->flavor != CIL_CLASS) {
+		cil_log(CIL_ERR, "Class %s is not a kernel class and cannot be associated with common %s\n", clscom->class_str, clscom->common_str);
+		rc = SEPOL_ERR;
 		goto exit;
 	}
 
@@ -2379,11 +2385,25 @@ exit:
 	return rc;
 }
 
+static void cil_mark_subtree_abstract(struct cil_tree_node *node)
+{
+	struct cil_block *block = node->data;
+
+	block->is_abstract = CIL_TRUE;
+
+	for (node = node->cl_head; node; node = node->next) {
+		if (node->flavor == CIL_BLOCK) {
+			cil_mark_subtree_abstract(node);
+		}
+	}
+}
+
 int cil_resolve_blockabstract(struct cil_tree_node *current, void *extra_args)
 {
 	struct cil_blockabstract *abstract = current->data;
 	struct cil_symtab_datum *block_datum = NULL;
 	struct cil_tree_node *block_node = NULL;
+	struct cil_args_resolve *args = extra_args;
 	int rc = SEPOL_ERR;
 
 	rc = cil_resolve_name(current, abstract->block_str, CIL_SYM_BLOCKS, extra_args, &block_datum);
@@ -2398,7 +2418,7 @@ int cil_resolve_blockabstract(struct cil_tree_node *current, void *extra_args)
 		goto exit;
 	}
 
-	((struct cil_block*)block_datum)->is_abstract = CIL_TRUE;
+	cil_list_append(args->abstract_blocks, CIL_NODE, block_node);
 
 	return SEPOL_OK;
 
@@ -4084,6 +4104,7 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 	extra_args.sensitivityorder_lists = NULL;
 	extra_args.in_list_before = NULL;
 	extra_args.in_list_after = NULL;
+	extra_args.abstract_blocks = NULL;
 
 	cil_list_init(&extra_args.to_destroy, CIL_NODE);
 	cil_list_init(&extra_args.sidorder_lists, CIL_LIST_ITEM);
@@ -4093,6 +4114,7 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 	cil_list_init(&extra_args.sensitivityorder_lists, CIL_LIST_ITEM);
 	cil_list_init(&extra_args.in_list_before, CIL_IN);
 	cil_list_init(&extra_args.in_list_after, CIL_IN);
+	cil_list_init(&extra_args.abstract_blocks, CIL_NODE);
 
 	for (pass = CIL_PASS_TIF; pass < CIL_PASS_NUM; pass++) {
 		extra_args.pass = pass;
@@ -4114,6 +4136,13 @@ int cil_resolve_ast(struct cil_db *db, struct cil_tree_node *current)
 				goto exit;
 			}
 			cil_list_destroy(&extra_args.in_list_after, CIL_FALSE);
+		}
+
+		if (pass == CIL_PASS_BLKABS) {
+			struct cil_list_item *item;
+			cil_list_for_each(item, extra_args.abstract_blocks) {
+				cil_mark_subtree_abstract(item->data);
+			}
 		}
 
 		if (pass == CIL_PASS_BLKIN_LINK) {
@@ -4234,6 +4263,7 @@ exit:
 	cil_list_destroy(&extra_args.to_destroy, CIL_FALSE);
 	cil_list_destroy(&extra_args.in_list_before, CIL_FALSE);
 	cil_list_destroy(&extra_args.in_list_after, CIL_FALSE);
+	cil_list_destroy(&extra_args.abstract_blocks, CIL_FALSE);
 
 	return rc;
 }
@@ -4255,9 +4285,13 @@ static int __cil_resolve_name_with_parents(struct cil_tree_node *node, char *nam
 		case CIL_ROOT:
 			goto exit;
 			break;
-		case CIL_BLOCK:
-			symtab = &((struct cil_block*)node->data)->symtab[sym_index];
-			rc = cil_symtab_get_datum(symtab, name, datum);
+		case CIL_BLOCK: {
+			struct cil_block *block = node->data;
+			if (!block->is_abstract) {
+				symtab = &block->symtab[sym_index];
+				rc = cil_symtab_get_datum(symtab, name, datum);
+			}
+		}
 			break;
 		case CIL_BLOCKINHERIT: {
 			struct cil_blockinherit *inherit = node->data;

@@ -25,6 +25,7 @@
 #include <sepol/policydb/conditional.h>
 
 #include "private.h"
+#include "debug.h"
 
 /* move all type rules to top of t/f lists to help kernel on evaluation */
 static void cond_optimize(cond_av_list_t ** l)
@@ -314,8 +315,7 @@ static int evaluate_cond_node(policydb_t * p, cond_node_t * node)
 	if (new_state != node->cur_state) {
 		node->cur_state = new_state;
 		if (new_state == -1)
-			printf
-			    ("expression result was undefined - disabling all rules.\n");
+			WARN(NULL, "expression result was undefined - disabling all rules.");
 		/* turn the rules on or off */
 		for (cur = node->true_list; cur != NULL; cur = cur->next) {
 			if (new_state <= 0) {
@@ -368,8 +368,7 @@ int cond_normalize_expr(policydb_t * p, cond_node_t * cn)
 		if (ne) {
 			ne->next = NULL;
 		} else {	/* ne should never be NULL */
-			printf
-			    ("Found expr with no bools and only a ! - this should never happen.\n");
+			ERR(NULL, "Found expr with no bools and only a ! - this should never happen.");
 			return -1;
 		}
 		/* swap the true and false lists */
@@ -421,9 +420,8 @@ int cond_normalize_expr(policydb_t * p, cond_node_t * cn)
 			}
 			k = cond_evaluate_expr(p, cn->expr);
 			if (k == -1) {
-				printf
-				    ("While testing expression, expression result "
-				     "was undefined - this should never happen.\n");
+				ERR(NULL, "While testing expression, expression result "
+				     "was undefined - this should never happen.");
 				return -1;
 			}
 			/* set the bit if expression evaluates true */
@@ -524,7 +522,7 @@ int cond_init_bool_indexes(policydb_t * p)
 	if (p->bool_val_to_struct)
 		free(p->bool_val_to_struct);
 	p->bool_val_to_struct = (cond_bool_datum_t **)
-	    malloc(p->p_bools.nprim * sizeof(cond_bool_datum_t *));
+	    mallocarray(p->p_bools.nprim, sizeof(cond_bool_datum_t *));
 	if (!p->bool_val_to_struct)
 		return -1;
 	return 0;
@@ -635,9 +633,8 @@ static int cond_insertf(avtab_t * a
 	 */
 	if (k->specified & AVTAB_TYPE) {
 		if (avtab_search(&p->te_avtab, k)) {
-			printf
-			    ("security: type rule already exists outside of a conditional.");
-			goto err;
+			WARN(NULL, "security: type rule already exists outside of a conditional.");
+			return -1;
 		}
 		/*
 		 * If we are reading the false list other will be a pointer to
@@ -652,9 +649,8 @@ static int cond_insertf(avtab_t * a
 			if (node_ptr) {
 				if (avtab_search_node_next
 				    (node_ptr, k->specified)) {
-					printf
-					    ("security: too many conflicting type rules.");
-					goto err;
+					ERR(NULL, "security: too many conflicting type rules.");
+					return -1;
 				}
 				found = 0;
 				for (cur = other; cur != NULL; cur = cur->next) {
@@ -664,30 +660,28 @@ static int cond_insertf(avtab_t * a
 					}
 				}
 				if (!found) {
-					printf
-					    ("security: conflicting type rules.\n");
-					goto err;
+					ERR(NULL, "security: conflicting type rules.");
+					return -1;
 				}
 			}
 		} else {
 			if (avtab_search(&p->te_cond_avtab, k)) {
-				printf
-				    ("security: conflicting type rules when adding type rule for true.\n");
-				goto err;
+				ERR(NULL, "security: conflicting type rules when adding type rule for true.");
+				return -1;
 			}
 		}
 	}
 
 	node_ptr = avtab_insert_nonunique(&p->te_cond_avtab, k, d);
 	if (!node_ptr) {
-		printf("security: could not insert rule.");
-		goto err;
+		ERR(NULL, "security: could not insert rule.");
+		return -1;
 	}
 	node_ptr->parse_context = (void *)1;
 
 	list = malloc(sizeof(cond_av_list_t));
 	if (!list)
-		goto err;
+		return -1;
 	memset(list, 0, sizeof(cond_av_list_t));
 
 	list->node = node_ptr;
@@ -697,11 +691,6 @@ static int cond_insertf(avtab_t * a
 		data->tail->next = list;
 	data->tail = list;
 	return 0;
-
-      err:
-	cond_av_list_destroy(data->head);
-	data->head = NULL;
-	return -1;
 }
 
 static int cond_read_av_list(policydb_t * p, void *fp,
@@ -730,8 +719,10 @@ static int cond_read_av_list(policydb_t * p, void *fp,
 	for (i = 0; i < len; i++) {
 		rc = avtab_read_item(fp, p->policyvers, &p->te_cond_avtab,
 				     cond_insertf, &data);
-		if (rc)
+		if (rc) {
+			cond_av_list_destroy(data.head);
 			return rc;
+		}
 
 	}
 
@@ -742,14 +733,12 @@ static int cond_read_av_list(policydb_t * p, void *fp,
 static int expr_isvalid(policydb_t * p, cond_expr_t * expr)
 {
 	if (expr->expr_type <= 0 || expr->expr_type > COND_LAST) {
-		printf
-		    ("security: conditional expressions uses unknown operator.\n");
+		WARN(NULL, "security: conditional expressions uses unknown operator.");
 		return 0;
 	}
 
 	if (expr->bool > p->p_bools.nprim) {
-		printf
-		    ("security: conditional expressions uses unknown bool.\n");
+		WARN(NULL, "security: conditional expressions uses unknown bool.");
 		return 0;
 	}
 	return 1;
