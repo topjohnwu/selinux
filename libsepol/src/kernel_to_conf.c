@@ -271,12 +271,15 @@ static int class_constraint_rules_to_strs(struct policydb *pdb, char *classkey,
 {
 	struct constraint_node *curr;
 	struct strs *strs;
-	const char *format_str, *flavor;
+	const char *flavor, *perm_prefix, *perm_suffix;
 	char *perms, *expr;
 	int is_mls;
 	int rc = 0;
 
 	for (curr = constraint_rules; curr != NULL; curr = curr->next) {
+		if (curr->permissions == 0) {
+			continue;
+		}
 		expr = constraint_expr_to_str(pdb, curr->expr, &is_mls);
 		if (!expr) {
 			rc = -1;
@@ -285,9 +288,11 @@ static int class_constraint_rules_to_strs(struct policydb *pdb, char *classkey,
 
 		perms = sepol_av_to_string(pdb, class->s.value, curr->permissions);
 		if (strchr(perms, ' ')) {
-			format_str = "%s %s { %s } %s;";
+			perm_prefix = "{ ";
+			perm_suffix = " }";
 		} else {
-			format_str = "%s %s %s %s";
+			perm_prefix = "";
+			perm_suffix = "";
 		}
 		if (is_mls) {
 			flavor = "mlsconstrain";
@@ -297,8 +302,10 @@ static int class_constraint_rules_to_strs(struct policydb *pdb, char *classkey,
 			strs = non_mls_list;
 		}
 
-		rc = strs_create_and_add(strs, format_str, 4,
-					 flavor, classkey, perms+1, expr);
+		rc = strs_create_and_add(strs, "%s %s %s%s%s %s;", 6,
+					 flavor, classkey,
+					 perm_prefix, perms+1, perm_suffix,
+					 expr);
 		free(expr);
 		if (rc != 0) {
 			goto exit;
@@ -358,7 +365,7 @@ static int constraint_rules_to_strs(struct policydb *pdb, struct strs *mls_strs,
 
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
-		if (class->constraints) {
+		if (class && class->constraints) {
 			name = pdb->p_class_val_to_name[i];
 			rc = class_constraint_rules_to_strs(pdb, name, class, class->constraints, mls_strs, non_mls_strs);
 			if (rc != 0) {
@@ -383,7 +390,7 @@ static int validatetrans_rules_to_strs(struct policydb *pdb, struct strs *mls_st
 
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
-		if (class->validatetrans) {
+		if (class && class->validatetrans) {
 			name = pdb->p_class_val_to_name[i];
 			rc = class_validatetrans_rules_to_strs(pdb, name, class->validatetrans, mls_strs, non_mls_strs);
 			if (rc != 0) {
@@ -551,6 +558,7 @@ static int write_class_and_common_rules_to_conf(FILE *out, struct policydb *pdb)
 	}
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
+		if (!class) continue;
 		name = class->comkey;
 		if (!name) continue;
 		common = hashtab_search(pdb->p_commons.table, name);
@@ -577,6 +585,7 @@ static int write_class_and_common_rules_to_conf(FILE *out, struct policydb *pdb)
 	/* class */
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
+		if (!class) continue;
 		name = pdb->p_class_val_to_name[i];
 		sepol_printf(out, "class %s", name);
 		if (class->comkey) {
@@ -702,6 +711,7 @@ static int write_default_rules_to_conf(FILE *out, struct policydb *pdb)
 	/* default_user */
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
+		if (!class) continue;
 		if (class->default_user != 0) {
 			rc = write_default_user_to_conf(out, pdb->p_class_val_to_name[i], class);
 			if (rc != 0) {
@@ -713,6 +723,7 @@ static int write_default_rules_to_conf(FILE *out, struct policydb *pdb)
 	/* default_role */
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
+		if (!class) continue;
 		if (class->default_role != 0) {
 			rc = write_default_role_to_conf(out, pdb->p_class_val_to_name[i], class);
 			if (rc != 0) {
@@ -724,6 +735,7 @@ static int write_default_rules_to_conf(FILE *out, struct policydb *pdb)
 	/* default_type */
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
+		if (!class) continue;
 		if (class->default_type != 0) {
 			rc = write_default_type_to_conf(out, pdb->p_class_val_to_name[i], class);
 			if (rc != 0) {
@@ -739,6 +751,7 @@ static int write_default_rules_to_conf(FILE *out, struct policydb *pdb)
 	/* default_range */
 	for (i=0; i < pdb->p_classes.nprim; i++) {
 		class = pdb->class_val_to_struct[i];
+		if (!class) continue;
 		if (class->default_range != 0) {
 			rc = write_default_range_to_conf(out, pdb->p_class_val_to_name[i], class);
 			if (rc != 0) {
@@ -908,7 +921,7 @@ static int write_category_rules_to_conf(FILE *out, struct policydb *pdb)
 	unsigned i, j, num;
 	int rc = 0;
 
-	rc = strs_init(&strs, pdb->p_levels.nprim);
+	rc = strs_init(&strs, pdb->p_cats.nprim);
 	if (rc != 0) {
 		goto exit;
 	}
@@ -1026,7 +1039,6 @@ static char *cats_ebitmap_to_str(struct ebitmap *cats, char **val_to_name)
 	struct ebitmap_node *node;
 	uint32_t i, start, range, first;
 	char *catsbuf = NULL, *p;
-	const char *fmt;
 	char sep;
 	int len, remaining;
 
@@ -1054,12 +1066,12 @@ static char *cats_ebitmap_to_str(struct ebitmap *cats, char **val_to_name)
 
 		if (range > 1) {
 			sep = (range == 2) ? ',' : '.';
-			fmt = first ? "%s%c%s" : ",%s%c%s";
-			len = snprintf(p, remaining, fmt,
+			len = snprintf(p, remaining, "%s%s%c%s",
+				       first ? "" : ",",
 				       val_to_name[start], sep, val_to_name[i]);
 		} else {
-			fmt = first ? "%s" : ",%s";
-			len = snprintf(p, remaining, fmt, val_to_name[start]);
+			len = snprintf(p, remaining, "%s%s", first ? "" : ",",
+				       val_to_name[start]);
 
 		}
 		if (len < 0 || len >= remaining) {
@@ -1201,7 +1213,7 @@ static int write_type_attributes_to_conf(FILE *out, struct policydb *pdb)
 
 	for (i=0; i < pdb->p_types.nprim; i++) {
 		type = pdb->type_val_to_struct[i];
-		if (type->flavor == TYPE_ATTRIB) {
+		if (type && type->flavor == TYPE_ATTRIB) {
 			rc = strs_add(strs, pdb->p_type_val_to_name[i]);
 			if (rc != 0) {
 				goto exit;
@@ -1331,7 +1343,7 @@ static int write_type_decl_rules_to_conf(FILE *out, struct policydb *pdb)
 
 	for (i=0; i < pdb->p_types.nprim; i++) {
 		type = pdb->type_val_to_struct[i];
-		if (type->flavor == TYPE_TYPE && type->primary) {
+		if (type && type->flavor == TYPE_TYPE && type->primary) {
 			rc = strs_add(strs, pdb->p_type_val_to_name[i]);
 			if (rc != 0) {
 				goto exit;
@@ -1451,7 +1463,7 @@ static int write_type_bounds_rules_to_conf(FILE *out, struct policydb *pdb)
 
 	for (i=0; i < pdb->p_types.nprim; i++) {
 		type = pdb->type_val_to_struct[i];
-		if (type->flavor == TYPE_TYPE) {
+		if (type && type->flavor == TYPE_TYPE) {
 			if (type->bounds > 0) {
 				rc = strs_add(strs, pdb->p_type_val_to_name[i]);
 				if (rc != 0) {
@@ -1574,7 +1586,7 @@ static int write_type_attribute_sets_to_conf(FILE *out, struct policydb *pdb)
 
 	for (i=0; i < pdb->p_types.nprim; i++) {
 		type = pdb->type_val_to_struct[i];
-		if (type->flavor != TYPE_TYPE || !type->primary) continue;
+		if (!type || type->flavor != TYPE_TYPE || !type->primary) continue;
 		if (ebitmap_cardinality(&pdb->type_attr_map[i]) == 1) continue;
 
 		rc = ebitmap_cpy(&attrmap, &pdb->type_attr_map[i]);
@@ -2318,6 +2330,7 @@ static int write_user_decl_rules_to_conf(FILE *out, struct policydb *pdb)
 	}
 
 	for (i=0; i < pdb->p_users.nprim; i++) {
+		if (!pdb->p_user_val_to_name[i]) continue;
 		rc = strs_add(strs, pdb->p_user_val_to_name[i]);
 		if (rc != 0) {
 			goto exit;
@@ -2513,6 +2526,8 @@ static int write_genfscon_rules_to_conf(FILE *out, struct policydb *pdb)
 	struct ocontext *ocon;
 	struct strs *strs;
 	char *fstype, *name, *ctx;
+	uint32_t sclass;
+	const char *file_type;
 	int rc;
 
 	rc = strs_init(&strs, 32);
@@ -2525,14 +2540,43 @@ static int write_genfscon_rules_to_conf(FILE *out, struct policydb *pdb)
 			fstype = genfs->fstype;
 			name = ocon->u.name;
 
+			sclass = ocon->v.sclass;
+			file_type = NULL;
+			if (sclass) {
+				const char *class_name = pdb->p_class_val_to_name[sclass-1];
+				if (strcmp(class_name, "file") == 0) {
+					file_type = "--";
+				} else if (strcmp(class_name, "dir") == 0) {
+					file_type = "-d";
+				} else if (strcmp(class_name, "chr_file") == 0) {
+					file_type = "-c";
+				} else if (strcmp(class_name, "blk_file") == 0) {
+					file_type = "-b";
+				} else if (strcmp(class_name, "sock_file") == 0) {
+					file_type = "-s";
+				} else if (strcmp(class_name, "fifo_file") == 0) {
+					file_type = "-p";
+				} else if (strcmp(class_name, "lnk_file") == 0) {
+					file_type = "-l";
+				} else {
+					rc = -1;
+					goto exit;
+				}
+			}
+
 			ctx = context_to_str(pdb, &ocon->context[0]);
 			if (!ctx) {
 				rc = -1;
 				goto exit;
 			}
 
-			rc = strs_create_and_add(strs, "genfscon %s \"%s\" %s", 3,
-						 fstype, name, ctx);
+			if (file_type) {
+				rc = strs_create_and_add(strs, "genfscon %s \"%s\" %s %s", 4,
+										 fstype, name, file_type, ctx);
+			} else {
+				rc = strs_create_and_add(strs, "genfscon %s \"%s\" %s", 3,
+										 fstype, name, ctx);
+			}
 			free(ctx);
 			if (rc != 0) {
 				goto exit;

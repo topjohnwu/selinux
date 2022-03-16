@@ -1232,24 +1232,34 @@ void cil_write_ast_node(FILE *out, struct cil_tree_node *node)
 		struct cil_filecon *filecon = node->data;
 		fprintf(out, "(filecon ");
 		fprintf(out, "\"%s\" ", filecon->path_str);
-		if (filecon->type == CIL_FILECON_FILE)
-			fprintf(out, "%s ", CIL_KEY_FILE);
-		else if (filecon->type == CIL_FILECON_DIR)
-			fprintf(out, "%s ", CIL_KEY_DIR);
-		else if (filecon->type == CIL_FILECON_CHAR)
-			fprintf(out, "%s ", CIL_KEY_CHAR);
-		else if (filecon->type == CIL_FILECON_BLOCK)
-			fprintf(out, "%s ", CIL_KEY_BLOCK);
-		else if (filecon->type == CIL_FILECON_SOCKET)
-			fprintf(out, "%s ", CIL_KEY_SOCKET);
-		else if (filecon->type == CIL_FILECON_PIPE)
-			fprintf(out, "%s ", CIL_KEY_PIPE);
-		else if (filecon->type == CIL_FILECON_SYMLINK)
-			fprintf(out, "%s ", CIL_KEY_SYMLINK);
-		else if (filecon->type == CIL_FILECON_ANY)
+		switch (filecon->type) {
+		case CIL_FILECON_ANY:
 			fprintf(out, "%s ", CIL_KEY_ANY);
-		else
+			break;
+		case CIL_FILECON_FILE:
+			fprintf(out, "%s ", CIL_KEY_FILE);
+			break;
+		case CIL_FILECON_DIR:
+			fprintf(out, "%s ", CIL_KEY_DIR);
+			break;
+		case CIL_FILECON_CHAR:
+			fprintf(out, "%s ", CIL_KEY_CHAR);
+			break;
+		case CIL_FILECON_BLOCK:
+			fprintf(out, "%s ", CIL_KEY_BLOCK);
+			break;
+		case CIL_FILECON_SOCKET:
+			fprintf(out, "%s ", CIL_KEY_SOCKET);
+			break;
+		case CIL_FILECON_PIPE:
+			fprintf(out, "%s ", CIL_KEY_PIPE);
+			break;
+		case CIL_FILECON_SYMLINK:
+			fprintf(out, "%s ", CIL_KEY_SYMLINK);
+			break;
+		default:
 			fprintf(out, "<?FILETYPE> ");
+		}
 		if (filecon->context)
 			write_context(out, filecon->context, CIL_TRUE);
 		else if (filecon->context_str)
@@ -1318,6 +1328,33 @@ void cil_write_ast_node(FILE *out, struct cil_tree_node *node)
 		struct cil_genfscon *genfscon = node->data;
 		fprintf(out, "(genfscon ");
 		fprintf(out, "%s \"%s\" ", genfscon->fs_str, genfscon->path_str);
+		if (genfscon->file_type != CIL_FILECON_ANY) {
+			switch (genfscon->file_type) {
+			case CIL_FILECON_FILE:
+				fprintf(out, "%s ", CIL_KEY_FILE);
+				break;
+			case CIL_FILECON_DIR:
+				fprintf(out, "%s ", CIL_KEY_DIR);
+				break;
+			case CIL_FILECON_CHAR:
+				fprintf(out, "%s ", CIL_KEY_CHAR);
+				break;
+			case CIL_FILECON_BLOCK:
+				fprintf(out, "%s ", CIL_KEY_BLOCK);
+				break;
+			case CIL_FILECON_SOCKET:
+				fprintf(out, "%s ", CIL_KEY_SOCKET);
+				break;
+			case CIL_FILECON_PIPE:
+				fprintf(out, "%s ", CIL_KEY_PIPE);
+				break;
+			case CIL_FILECON_SYMLINK:
+				fprintf(out, "%s ", CIL_KEY_SYMLINK);
+				break;
+			default:
+				fprintf(out, "<?FILETYPE> ");
+			}
+		}
 		if (genfscon->context)
 			write_context(out, genfscon->context, CIL_TRUE);
 		else

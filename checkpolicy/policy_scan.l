@@ -60,7 +60,14 @@ hexval	[0-9A-Fa-f]
 
 %%
 \n.*				{
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
 				  strncpy(linebuf[lno], yytext+1, 255);
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif
 				  linebuf[lno][254] = 0;
 				  lno = 1 - lno;
 				  policydb_lineno++;
@@ -308,11 +315,11 @@ GLBLUB				{ return(GLBLUB); }
 int yyerror(const char *msg)
 {
 	if (source_file[0])
-		fprintf(stderr, "%s:%ld:",
+		fprintf(stderr, "%s:%lu:",
 			source_file, source_lineno);
 	else
 		fprintf(stderr, "(unknown source)::");
-	fprintf(stderr, "ERROR '%s' at token '%s' on line %ld:\n%s\n%s\n",
+	fprintf(stderr, "ERROR '%s' at token '%s' on line %lu:\n%s\n%s\n",
 			msg,
 			yytext,
 			policydb_lineno,
@@ -327,11 +334,11 @@ int yywarn(const char *msg)
 		return yyerror(msg);
 
 	if (source_file[0])
-		fprintf(stderr, "%s:%ld:",
+		fprintf(stderr, "%s:%lu:",
 			source_file, source_lineno);
 	else
 		fprintf(stderr, "(unknown source)::");
-	fprintf(stderr, "WARNING '%s' at token '%s' on line %ld:\n%s\n%s\n",
+	fprintf(stderr, "WARNING '%s' at token '%s' on line %lu:\n%s\n%s\n",
 			msg,
 			yytext,
 			policydb_lineno,

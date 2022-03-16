@@ -1456,6 +1456,12 @@ int cil_userprefixes_to_string(struct cil_db *db, char **out, size_t *size)
 
 		buf_pos = snprintf(str_tmp, str_len, "user %s prefix %s;\n", user->datum.fqn,
 									userprefix->prefix_str);
+		if (buf_pos < 0) {
+			free(str_tmp);
+			*size = 0;
+			*out = NULL;
+			goto exit;
+		}
 		str_len -= buf_pos;
 		str_tmp += buf_pos;
 	}
@@ -1765,6 +1771,9 @@ int cil_filecons_to_string(struct cil_db *db, char **out, size_t *size)
 		str_tmp += buf_pos;
 
 		switch(filecon->type) {
+		case CIL_FILECON_ANY:
+			str_type = "";
+			break;
 		case CIL_FILECON_FILE:
 			str_type = "\t--";
 			break;
@@ -2530,7 +2539,7 @@ void cil_filecon_init(struct cil_filecon **filecon)
 	*filecon = cil_malloc(sizeof(**filecon));
 
 	(*filecon)->path_str = NULL;
-	(*filecon)->type = 0;
+	(*filecon)->type = CIL_FILECON_ANY;
 	(*filecon)->context_str = NULL;
 	(*filecon)->context = NULL;
 }
@@ -2574,6 +2583,7 @@ void cil_genfscon_init(struct cil_genfscon **genfscon)
 
 	(*genfscon)->fs_str = NULL;
 	(*genfscon)->path_str = NULL;
+	(*genfscon)->file_type = CIL_FILECON_ANY;
 	(*genfscon)->context_str = NULL;
 	(*genfscon)->context = NULL;
 }
