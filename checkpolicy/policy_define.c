@@ -3477,6 +3477,8 @@ static constraint_expr_t *constraint_expr_clone(const constraint_expr_t * expr)
 	return NULL;
 }
 
+#define PERMISSION_MASK(nprim) ((nprim) == PERM_SYMTAB_SIZE ? (~UINT32_C(0)) : ((UINT32_C(1) << (nprim)) - 1))
+
 int define_constraint(constraint_expr_t * expr)
 {
 	struct constraint_node *node;
@@ -3589,6 +3591,22 @@ int define_constraint(constraint_expr_t * expr)
 		ebitmap_for_each_positive_bit(&classmap, enode, i) {
 			cladatum = policydbp->class_val_to_struct[i];
 			node = cladatum->constraints;
+
+			if (strcmp(id, "*") == 0) {
+				node->permissions = PERMISSION_MASK(cladatum->permissions.nprim);
+				continue;
+			}
+
+			if (strcmp(id, "~") == 0) {
+				node->permissions = ~node->permissions & PERMISSION_MASK(cladatum->permissions.nprim);
+				if (node->permissions == 0) {
+					yywarn("omitting constraint with no permission set");
+					cladatum->constraints = node->next;
+					constraint_expr_destroy(node->expr);
+					free(node);
+				}
+				continue;
+			}
 
 			perdatum =
 			    (perm_datum_t *) hashtab_search(cladatum->
@@ -5290,6 +5308,14 @@ int define_ipv4_node_context()
 		goto out;
 	}
 
+	if (mask.s_addr != 0 && ((~mask.s_addr + 1) & ~mask.s_addr) != 0) {
+		yywarn("ipv4 mask is not contiguous");
+	}
+
+	if ((~mask.s_addr & addr.s_addr) != 0) {
+		yywarn("host bits in ipv4 address set");
+	}
+
 	newc = malloc(sizeof(ocontext_t));
 	if (!newc) {
 		yyerror("out of memory");
@@ -5323,6 +5349,40 @@ int define_ipv4_node_context()
 	rc = 0;
 out:
 	return rc;
+}
+
+static int ipv6_is_mask_contiguous(const struct in6_addr *mask)
+{
+	int filled = 1;
+	unsigned i;
+
+	for (i = 0; i < 16; i++) {
+		if ((((~mask->s6_addr[i] & 0xFF) + 1) & (~mask->s6_addr[i] & 0xFF)) != 0) {
+			return 0;
+		}
+		if (!filled && mask->s6_addr[i] != 0) {
+			return 0;
+		}
+
+		if (filled && mask->s6_addr[i] != 0xFF) {
+			filled = 0;
+		}
+	}
+
+	return 1;
+}
+
+static int ipv6_has_host_bits_set(const struct in6_addr *addr, const struct in6_addr *mask)
+{
+	unsigned i;
+
+	for (i = 0; i < 16; i++) {
+		if ((addr->s6_addr[i] & ~mask->s6_addr[i]) != 0) {
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 int define_ipv6_node_context(void)
@@ -5374,6 +5434,14 @@ int define_ipv6_node_context(void)
 		if (rc == 0)
 			rc = -1;
 		goto out;
+	}
+
+	if (!ipv6_is_mask_contiguous(&mask)) {
+		yywarn("ipv6 mask is not contiguous");
+	}
+
+	if (ipv6_has_host_bits_set(&addr, &mask)) {
+		yywarn("host bits in ipv6 address set");
 	}
 
 	newc = malloc(sizeof(ocontext_t));

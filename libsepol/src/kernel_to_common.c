@@ -18,6 +18,7 @@
 #include <sepol/policydb/hashtab.h>
 #include <sepol/policydb/symtab.h>
 
+#include "private.h"
 #include "kernel_to_common.h"
 
 
@@ -57,7 +58,7 @@ static char *create_str_helper(const char *fmt, int num, va_list vargs)
 	va_list vargs2;
 	char *str = NULL;
 	char *s;
-	size_t len;
+	size_t len, s_len;
 	int i, rc;
 
 	va_copy(vargs2, vargs);
@@ -66,7 +67,8 @@ static char *create_str_helper(const char *fmt, int num, va_list vargs)
 
 	for (i=0; i<num; i++) {
 		s = va_arg(vargs, char *);
-		len += strlen(s) - 2; /* -2 for each %s in fmt */
+		s_len = strlen(s);
+		len += s_len > 1 ? s_len - 2 : 0; /* -2 for each %s in fmt */
 	}
 
 	str = malloc(len);
@@ -106,6 +108,10 @@ int strs_init(struct strs **strs, size_t size)
 {
 	struct strs *new;
 
+	if (size == 0) {
+		size = 1;
+	}
+
 	*strs = NULL;
 
 	new = malloc(sizeof(struct strs));
@@ -114,7 +120,7 @@ int strs_init(struct strs **strs, size_t size)
 		return -1;
 	}
 
-	new->list = calloc(sizeof(char *), size);
+	new->list = calloc(size, sizeof(char *));
 	if (!new->list) {
 		sepol_log_err("Out of memory");
 		free(new);
@@ -159,9 +165,9 @@ int strs_add(struct strs *strs, char *s)
 {
 	if (strs->num + 1 > strs->size) {
 		char **new;
-		unsigned i = strs->size;
+		size_t i = strs->size;
 		strs->size *= 2;
-		new = realloc(strs->list, sizeof(char *)*strs->size);
+		new = reallocarray(strs->list, strs->size, sizeof(char *));
 		if (!new) {
 			sepol_log_err("Out of memory");
 			return -1;
@@ -212,15 +218,15 @@ char *strs_remove_last(struct strs *strs)
 	return strs->list[strs->num];
 }
 
-int strs_add_at_index(struct strs *strs, char *s, unsigned index)
+int strs_add_at_index(struct strs *strs, char *s, size_t index)
 {
 	if (index >= strs->size) {
 		char **new;
-		unsigned i = strs->size;
+		size_t i = strs->size;
 		while (index >= strs->size) {
 			strs->size *= 2;
 		}
-		new = realloc(strs->list, sizeof(char *)*strs->size);
+		new = reallocarray(strs->list, strs->size, sizeof(char *));
 		if (!new) {
 			sepol_log_err("Out of memory");
 			return -1;
@@ -237,7 +243,7 @@ int strs_add_at_index(struct strs *strs, char *s, unsigned index)
 	return 0;
 }
 
-char *strs_read_at_index(struct strs *strs, unsigned index)
+char *strs_read_at_index(struct strs *strs, size_t index)
 {
 	if (index >= strs->num) {
 		return NULL;
@@ -361,6 +367,9 @@ int ebitmap_to_strs(struct ebitmap *map, struct strs *strs, char **val_to_name)
 	int rc;
 
 	ebitmap_for_each_positive_bit(map, node, i) {
+		if (!val_to_name[i])
+			continue;
+
 		rc = strs_add(strs, val_to_name[i]);
 		if (rc != 0) {
 			return -1;

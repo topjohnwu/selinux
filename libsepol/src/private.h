@@ -44,7 +44,12 @@
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
-#define is_saturated(x) (x == (typeof(x))-1)
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+# define is_saturated(x) (x == (typeof(x))-1 || (x) > (1U << 16))
+#else
+# define is_saturated(x) (x == (typeof(x))-1)
+#endif
+
 #define zero_or_saturated(x) ((x == 0) || is_saturated(x))
 
 #define spaceship_cmp(a, b) (((a) > (b)) - ((a) < (b)))
@@ -78,3 +83,23 @@ extern int next_entry(void *buf, struct policy_file *fp, size_t bytes);
 extern size_t put_entry(const void *ptr, size_t size, size_t n,
 		        struct policy_file *fp);
 extern int str_read(char **strp, struct policy_file *fp, size_t len);
+
+static inline void* mallocarray(size_t nmemb, size_t size) {
+	if (size && nmemb > (size_t)-1 / size) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	return malloc(nmemb * size);
+}
+
+#ifndef HAVE_REALLOCARRAY
+static inline void* reallocarray(void *ptr, size_t nmemb, size_t size) {
+	if (size && nmemb > (size_t)-1 / size) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	return realloc(ptr, nmemb * size);
+}
+#endif
