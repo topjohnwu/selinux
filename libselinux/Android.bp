@@ -150,7 +150,7 @@ cc_library {
     ],
 
     target: {
-        linux_glibc: {
+        host_linux: {
             srcs: [
                 "src/android/android_host.c",
                 "src/avc.c",
@@ -162,49 +162,29 @@ cc_library {
                 "src/context.c",
                 "src/deny_unknown.c",
                 "src/enabled.c",
-                "src/fgetfilecon.c",
                 "src/getenforce.c",
                 "src/getfilecon.c",
                 "src/get_initial_context.c",
                 "src/init.c",
-                "src/lgetfilecon.c",
                 "src/load_policy.c",
-                "src/lsetfilecon.c",
                 "src/mapping.c",
                 "src/procattr.c",
                 "src/reject_unknown.c",
                 "src/sestatus.c",
-                "src/setenforce.c",
                 "src/setexecfilecon.c",
-                "src/setfilecon.c",
                 "src/stringrep.c",
+            ],
+        },
+        linux_glibc: {
+            srcs: [
+                "src/fgetfilecon.c",
+                "src/lgetfilecon.c",
+                "src/lsetfilecon.c",
+                "src/setfilecon.c",
             ],
         },
         linux_bionic: {
             enabled: true,
-            srcs: [
-                "src/android/android_host.c",
-                "src/avc.c",
-                "src/avc_internal.c",
-                "src/avc_sidtab.c",
-                "src/compute_av.c",
-                "src/compute_create.c",
-                "src/compute_member.c",
-                "src/context.c",
-                "src/deny_unknown.c",
-                "src/enabled.c",
-                "src/getenforce.c",
-                "src/getfilecon.c",
-                "src/get_initial_context.c",
-                "src/init.c",
-                "src/load_policy.c",
-                "src/mapping.c",
-                "src/procattr.c",
-                "src/reject_unknown.c",
-                "src/sestatus.c",
-                "src/setexecfilecon.c",
-                "src/stringrep.c",
-            ],
         },
 
         android: {
