@@ -152,7 +152,6 @@ cc_library {
     target: {
         host_linux: {
             srcs: [
-                "src/android/android_host.c",
                 "src/avc.c",
                 "src/avc_internal.c",
                 "src/avc_sidtab.c",
