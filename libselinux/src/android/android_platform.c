@@ -2,7 +2,8 @@
 #include <packagelistparser/packagelistparser.h>
 
 // For 'system', 'system_ext' (optional), 'apex' (optional), 'product' (optional),
-// 'vendor' (mandatory) and/or 'odm' (optional) .
+// 'vendor' (mandatory) and/or 'odm' (optional). Used for file_contexts and
+// seapp_contexts.
 #define MAX_FILE_CONTEXT_SIZE 6
 
 static const char *const sepolicy_file = "/sepolicy";
@@ -31,11 +32,8 @@ static const struct selinux_opt seopts_file_odm[] = {
     { SELABEL_OPT_PATH, "/odm_file_contexts" }
 };
 
-/*
- * XXX Where should this configuration file be located?
- * Needs to be accessible by zygote and installd when
- * setting credentials for app processes and setting permissions
- * on app data directories.
+/* Locations for the seapp_contexts files. The first existing entry available
+ * will be used.
  */
 static char const * const seapp_contexts_plat[] = {
 	"/system/etc/selinux/plat_seapp_contexts",
@@ -83,6 +81,8 @@ static struct selabel_handle* selinux_android_file_context(const struct selinux_
     return sehandle;
 }
 
+/* Returns a handle for the file contexts backend, initialized with the Android
+ * configuration */
 struct selabel_handle* selinux_android_file_context_handle(void)
 {
     struct selinux_opt seopts_file[MAX_FILE_CONTEXT_SIZE];
@@ -127,10 +127,15 @@ struct selabel_handle* selinux_android_file_context_handle(void)
     return selinux_android_file_context(seopts_file, size);
 }
 
+/* Which categories should be associated to the process */
 enum levelFrom {
+	/* None */
 	LEVELFROM_NONE,
+	/* The categories of the application */
 	LEVELFROM_APP,
+	/* The categories of the end-user */
 	LEVELFROM_USER,
+	/* Application and end-user */
 	LEVELFROM_ALL
 };
 
@@ -156,6 +161,9 @@ static void free_prefix_str(struct prefix_str *p)
 	free(p->str);
 }
 
+/* For a set of selectors, represents the contexts that should be applied to an
+ * app and its data. Each instance is based on a line in a seapp_contexts file.
+ * */
 struct seapp_context {
 	/* input selectors */
 	bool isSystemServer;
@@ -188,8 +196,10 @@ static void free_seapp_context(struct seapp_context *s)
 	free(s->level);
 }
 
+/* If any duplicate was found while sorting the entries */
 static bool seapp_contexts_dup = false;
 
+/* Compare two seapp_context. Used to sort all the entries found. */
 static int seapp_context_cmp(const void *A, const void *B)
 {
 	const struct seapp_context *const *sp1 = (const struct seapp_context *const *) A;
@@ -288,7 +298,9 @@ static int seapp_context_cmp(const void *A, const void *B)
 	return 0;
 }
 
+/* Array of all the seapp_context entries configured. */
 static struct seapp_context **seapp_contexts = NULL;
+/* Size of seapp_contexts */
 static int nspec = 0;
 
 static void free_seapp_contexts(void)
@@ -366,6 +378,7 @@ int selinux_android_seapp_context_reload(void)
 		}
 	}
 
+	/* Reset the current entries */
 	free_seapp_contexts();
 
 	nspec = 0;
@@ -654,16 +667,16 @@ oom:
 	goto out;
 }
 
-
+/* indirection to support pthread_once */
 static void seapp_context_init(void)
 {
-        selinux_android_seapp_context_reload();
+	selinux_android_seapp_context_reload();
 }
 
-static pthread_once_t once = PTHREAD_ONCE_INIT;
+static pthread_once_t seapp_once = PTHREAD_ONCE_INIT;
 
 void selinux_android_seapp_context_init(void) {
-	__selinux_once(once, seapp_context_init);
+	__selinux_once(seapp_once, seapp_context_init);
 }
 
 /*
@@ -672,8 +685,11 @@ void selinux_android_seapp_context_init(void) {
  */
 #define CAT_MAPPING_MAX_ID (0x1<<16)
 
+/* The kind of request when looking up an seapp_context. */
 enum seapp_kind {
+	/* Returns the SELinux type for the app data directory */
 	SEAPP_TYPE,
+	/* Returns the SELinux type for the app process */
 	SEAPP_DOMAIN
 };
 
@@ -720,6 +736,7 @@ static int seinfo_parse(char *dest, const char *src, size_t size)
 	return 0;
 }
 
+/* Sets the categories of ctx based on the level request */
 static int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, uid_t appid)
 {
 	char level[255];
@@ -753,6 +770,9 @@ static int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t u
 	return 0;
 }
 
+/* Search an app (or its data) based on its name and information within the list
+ * of known seapp_contexts. If found, sets the type and categories of ctx and
+ * returns 0. Returns -1 in case of error; -2 for out of memory */
 static int seapp_context_lookup(enum seapp_kind kind,
 				uid_t uid,
 				bool isSystemServer,
@@ -1043,8 +1063,11 @@ static void file_context_init(void)
 static pthread_once_t fc_once = PTHREAD_ONCE_INIT;
 
 #define PKGTAB_SIZE 256
+/* Hash table for pkg_info. It uses the package name as key. In case of
+ * collision, the next entry is the private_data attribute */
 static struct pkg_info *pkgTab[PKGTAB_SIZE];
 
+/* Returns a hash based on the package name */
 static unsigned int pkghash(const char *pkgname)
 {
     unsigned int h = 7;
@@ -1054,17 +1077,20 @@ static unsigned int pkghash(const char *pkgname)
     return h & (PKGTAB_SIZE - 1);
 }
 
+/* Adds the pkg_info entry to the hash table */
 static bool pkg_parse_callback(pkg_info *info, void *userdata) {
 
     (void) userdata;
 
     unsigned int hash = pkghash(info->name);
     if (pkgTab[hash])
+        /* Collision. Prepend the entry. */
         info->private_data = pkgTab[hash];
     pkgTab[hash] = info;
     return true;
 }
 
+/* Initialize the pkg_info hash table */
 static void package_info_init(void)
 {
 
@@ -1103,6 +1129,7 @@ static void package_info_init(void)
 
 static pthread_once_t pkg_once = PTHREAD_ONCE_INIT;
 
+/* Returns the pkg_info for a package with a specific name */
 struct pkg_info *package_info_lookup(const char *name)
 {
     struct pkg_info *info;
