@@ -1,5 +1,3 @@
-
-#include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -40,3 +38,9 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #define FC_DIGEST_SIZE SHA_DIGEST_LENGTH
+
+// Context files (file_contexts, service_contexts, etc) may be spread over
+// multiple partitions: system, apex, system_ext, product, vendor and/or odm.
+#define MAX_CONTEXT_PATHS 6
+// The maximum number of alternatives for a file on one partition.
+#define MAX_ALT_CONTEXT_PATHS 2

@@ -1,130 +1,87 @@
 #include "android_common.h"
+#include "android_internal.h"
 #include <packagelistparser/packagelistparser.h>
-
-// For 'system', 'system_ext' (optional), 'apex' (optional), 'product' (optional),
-// 'vendor' (mandatory) and/or 'odm' (optional). Used for file_contexts and
-// seapp_contexts.
-#define MAX_FILE_CONTEXT_SIZE 6
 
 static const char *const sepolicy_file = "/sepolicy";
 
-static const struct selinux_opt seopts_file_plat[] = {
-    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
-    { SELABEL_OPT_PATH, "/plat_file_contexts" }
-};
-static const struct selinux_opt seopts_file_apex[] = {
-    { SELABEL_OPT_PATH, "/dev/selinux/apex_file_contexts" }
-};
-static const struct selinux_opt seopts_file_system_ext[] = {
-    { SELABEL_OPT_PATH, "/system_ext/etc/selinux/system_ext_file_contexts" },
-    { SELABEL_OPT_PATH, "/system_ext_file_contexts" }
-};
-static const struct selinux_opt seopts_file_product[] = {
-    { SELABEL_OPT_PATH, "/product/etc/selinux/product_file_contexts" },
-    { SELABEL_OPT_PATH, "/product_file_contexts" }
-};
-static const struct selinux_opt seopts_file_vendor[] = {
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_file_contexts" },
-    { SELABEL_OPT_PATH, "/vendor_file_contexts" }
-};
-static const struct selinux_opt seopts_file_odm[] = {
-    { SELABEL_OPT_PATH, "/odm/etc/selinux/odm_file_contexts" },
-    { SELABEL_OPT_PATH, "/odm_file_contexts" }
-};
-
-/* Locations for the seapp_contexts files. The first existing entry available
- * will be used.
+/* Locations for the file_contexts files. For each partition, only the first
+ * existing entry will be used (for example, if
+ * /system/etc/selinux/plat_file_contexts exists, /plat_file_contexts will be
+ * ignored).
  */
-static char const * const seapp_contexts_plat[] = {
-	"/system/etc/selinux/plat_seapp_contexts",
-	"/plat_seapp_contexts"
-};
-static char const * const seapp_contexts_apex[] = {
-	"/dev/selinux/apex_seapp_contexts"
-};
-static char const * const seapp_contexts_system_ext[] = {
-	"/system_ext/etc/selinux/system_ext_seapp_contexts",
-	"/system_ext_seapp_contexts"
-};
-static char const * const seapp_contexts_product[] = {
-	"/product/etc/selinux/product_seapp_contexts",
-	"/product_seapp_contexts"
-};
-static char const * const seapp_contexts_vendor[] = {
-	"/vendor/etc/selinux/vendor_seapp_contexts",
-	"/vendor_seapp_contexts"
-};
-static char const * const seapp_contexts_odm[] = {
-	"/odm/etc/selinux/odm_seapp_contexts",
-	"/odm_seapp_contexts"
+static const char* const file_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+	{
+		"/system/etc/selinux/plat_file_contexts",
+		"/plat_file_contexts"
+	},
+	{
+		"/dev/selinux/apex_file_contexts",
+	},
+	{
+		"/system_ext/etc/selinux/system_ext_file_contexts",
+		"/system_ext_file_contexts"
+	},
+	{
+		"/product/etc/selinux/product_file_contexts",
+		"/product_file_contexts"
+	},
+	{
+		"/vendor/etc/selinux/vendor_file_contexts",
+		"/vendor_file_contexts"
+	},
+	{
+		"/odm/etc/selinux/odm_file_contexts",
+		"/odm_file_contexts"
+	}
 };
 
-static struct selabel_handle* selinux_android_file_context(const struct selinux_opt *opts,
-                                                    unsigned nopts)
-{
-    struct selabel_handle *sehandle;
-    struct selinux_opt fc_opts[nopts + 1];
-
-    memcpy(fc_opts, opts, nopts*sizeof(struct selinux_opt));
-    fc_opts[nopts].type = SELABEL_OPT_BASEONLY;
-    fc_opts[nopts].value = (char *)1;
-
-    sehandle = selabel_open(SELABEL_CTX_FILE, fc_opts, ARRAY_SIZE(fc_opts));
-    if (!sehandle) {
-        selinux_log(SELINUX_ERROR, "%s: Error getting file context handle (%s)\n",
-                __FUNCTION__, strerror(errno));
-        return NULL;
-    }
-
-    selinux_log(SELINUX_INFO, "SELinux: Loaded file_contexts\n");
-
-    return sehandle;
-}
+/* Locations for the seapp_contexts files. For each partition, only the first
+ * existing entry will be used (for example, if
+ * /system/etc/selinux/plat_seapp_contexts exists, /plat_seapp_contexts will be
+ * ignored).
+ */
+static const char* const seapp_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+	{
+		"/system/etc/selinux/plat_seapp_contexts",
+		"/plat_seapp_contexts"
+	},
+	{
+		"/dev/selinux/apex_seapp_contexts",
+	},
+	{
+		"/system_ext/etc/selinux/system_ext_seapp_contexts",
+		"/system_ext_seapp_contexts"
+	},
+	{
+		"/product/etc/selinux/product_seapp_contexts",
+		"/product_seapp_contexts"
+	},
+	{
+		"/vendor/etc/selinux/vendor_seapp_contexts",
+		"/vendor_seapp_contexts"
+	},
+	{
+		"/odm/etc/selinux/odm_seapp_contexts",
+		"/odm_seapp_contexts"
+	}
+};
 
 /* Returns a handle for the file contexts backend, initialized with the Android
  * configuration */
 struct selabel_handle* selinux_android_file_context_handle(void)
 {
-    struct selinux_opt seopts_file[MAX_FILE_CONTEXT_SIZE];
-    int size = 0;
-    unsigned int i;
-    for (i = 0; i < ARRAY_SIZE(seopts_file_plat); i++) {
-        if (access(seopts_file_plat[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_plat[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_apex); i++) {
-        if (access(seopts_file_apex[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_apex[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_system_ext); i++) {
-        if (access(seopts_file_system_ext[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_system_ext[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_product); i++) {
-        if (access(seopts_file_product[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_product[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_vendor); i++) {
-        if (access(seopts_file_vendor[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_vendor[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_odm); i++) {
-        if (access(seopts_file_odm[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_odm[i];
-            break;
-        }
-    }
-    return selinux_android_file_context(seopts_file, size);
+	const char* file_contexts[MAX_CONTEXT_PATHS];
+	struct selinux_opt opts[MAX_CONTEXT_PATHS + 1];
+	int npaths, nopts;
+
+	npaths = find_existing_files(file_context_paths, file_contexts);
+	paths_to_opts(file_contexts, npaths, opts);
+
+	opts[npaths].type = SELABEL_OPT_BASEONLY;
+	opts[npaths].value = (char *) 1;
+	nopts = npaths + 1;
+
+	return initialize_backend(SELABEL_CTX_FILE, "file", opts, nopts);
 }
 
 /* Which categories should be associated to the process */
@@ -340,43 +297,9 @@ int selinux_android_seapp_context_reload(void)
 	char *p, *name = NULL, *value = NULL, *saveptr;
 	size_t i, len, files_len = 0;
 	int ret;
-	const char* seapp_contexts_files[MAX_FILE_CONTEXT_SIZE];
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_plat); i++) {
-		if (access(seapp_contexts_plat[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_plat[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_apex); i++) {
-		if (access(seapp_contexts_apex[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_apex[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_system_ext); i++) {
-		if (access(seapp_contexts_system_ext[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_system_ext[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_product); i++) {
-		if (access(seapp_contexts_product[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_product[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_vendor); i++) {
-		if (access(seapp_contexts_vendor[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_vendor[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_odm); i++) {
-		if (access(seapp_contexts_odm[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_odm[i];
-			break;
-		}
-	}
+	const char* seapp_contexts_files[MAX_CONTEXT_PATHS];
+
+	files_len = find_existing_files(seapp_context_paths, seapp_contexts_files);
 
 	/* Reset the current entries */
 	free_seapp_contexts();
