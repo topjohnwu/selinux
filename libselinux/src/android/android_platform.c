@@ -1,136 +1,98 @@
 #include "android_common.h"
+#include "android_internal.h"
 #include <packagelistparser/packagelistparser.h>
-
-// For 'system', 'system_ext' (optional), 'apex' (optional), 'product' (optional),
-// 'vendor' (mandatory) and/or 'odm' (optional) .
-#define MAX_FILE_CONTEXT_SIZE 6
 
 static const char *const sepolicy_file = "/sepolicy";
 
-static const struct selinux_opt seopts_file_plat[] = {
-    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
-    { SELABEL_OPT_PATH, "/plat_file_contexts" }
-};
-static const struct selinux_opt seopts_file_apex[] = {
-    { SELABEL_OPT_PATH, "/dev/selinux/apex_file_contexts" }
-};
-static const struct selinux_opt seopts_file_system_ext[] = {
-    { SELABEL_OPT_PATH, "/system_ext/etc/selinux/system_ext_file_contexts" },
-    { SELABEL_OPT_PATH, "/system_ext_file_contexts" }
-};
-static const struct selinux_opt seopts_file_product[] = {
-    { SELABEL_OPT_PATH, "/product/etc/selinux/product_file_contexts" },
-    { SELABEL_OPT_PATH, "/product_file_contexts" }
-};
-static const struct selinux_opt seopts_file_vendor[] = {
-    { SELABEL_OPT_PATH, "/vendor/etc/selinux/vendor_file_contexts" },
-    { SELABEL_OPT_PATH, "/vendor_file_contexts" }
-};
-static const struct selinux_opt seopts_file_odm[] = {
-    { SELABEL_OPT_PATH, "/odm/etc/selinux/odm_file_contexts" },
-    { SELABEL_OPT_PATH, "/odm_file_contexts" }
-};
-
-/*
- * XXX Where should this configuration file be located?
- * Needs to be accessible by zygote and installd when
- * setting credentials for app processes and setting permissions
- * on app data directories.
+/* Locations for the file_contexts files. For each partition, only the first
+ * existing entry will be used (for example, if
+ * /system/etc/selinux/plat_file_contexts exists, /plat_file_contexts will be
+ * ignored).
  */
-static char const * const seapp_contexts_plat[] = {
-	"/system/etc/selinux/plat_seapp_contexts",
-	"/plat_seapp_contexts"
-};
-static char const * const seapp_contexts_apex[] = {
-	"/dev/selinux/apex_seapp_contexts"
-};
-static char const * const seapp_contexts_system_ext[] = {
-	"/system_ext/etc/selinux/system_ext_seapp_contexts",
-	"/system_ext_seapp_contexts"
-};
-static char const * const seapp_contexts_product[] = {
-	"/product/etc/selinux/product_seapp_contexts",
-	"/product_seapp_contexts"
-};
-static char const * const seapp_contexts_vendor[] = {
-	"/vendor/etc/selinux/vendor_seapp_contexts",
-	"/vendor_seapp_contexts"
-};
-static char const * const seapp_contexts_odm[] = {
-	"/odm/etc/selinux/odm_seapp_contexts",
-	"/odm_seapp_contexts"
+static const char* const file_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+	{
+		"/system/etc/selinux/plat_file_contexts",
+		"/plat_file_contexts"
+	},
+	{
+		"/dev/selinux/apex_file_contexts",
+	},
+	{
+		"/system_ext/etc/selinux/system_ext_file_contexts",
+		"/system_ext_file_contexts"
+	},
+	{
+		"/product/etc/selinux/product_file_contexts",
+		"/product_file_contexts"
+	},
+	{
+		"/vendor/etc/selinux/vendor_file_contexts",
+		"/vendor_file_contexts"
+	},
+	{
+		"/odm/etc/selinux/odm_file_contexts",
+		"/odm_file_contexts"
+	}
 };
 
-static struct selabel_handle* selinux_android_file_context(const struct selinux_opt *opts,
-                                                    unsigned nopts)
-{
-    struct selabel_handle *sehandle;
-    struct selinux_opt fc_opts[nopts + 1];
+/* Locations for the seapp_contexts files. For each partition, only the first
+ * existing entry will be used (for example, if
+ * /system/etc/selinux/plat_seapp_contexts exists, /plat_seapp_contexts will be
+ * ignored).
+ */
+static const char* const seapp_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+	{
+		"/system/etc/selinux/plat_seapp_contexts",
+		"/plat_seapp_contexts"
+	},
+	{
+		"/dev/selinux/apex_seapp_contexts",
+	},
+	{
+		"/system_ext/etc/selinux/system_ext_seapp_contexts",
+		"/system_ext_seapp_contexts"
+	},
+	{
+		"/product/etc/selinux/product_seapp_contexts",
+		"/product_seapp_contexts"
+	},
+	{
+		"/vendor/etc/selinux/vendor_seapp_contexts",
+		"/vendor_seapp_contexts"
+	},
+	{
+		"/odm/etc/selinux/odm_seapp_contexts",
+		"/odm_seapp_contexts"
+	}
+};
 
-    memcpy(fc_opts, opts, nopts*sizeof(struct selinux_opt));
-    fc_opts[nopts].type = SELABEL_OPT_BASEONLY;
-    fc_opts[nopts].value = (char *)1;
-
-    sehandle = selabel_open(SELABEL_CTX_FILE, fc_opts, ARRAY_SIZE(fc_opts));
-    if (!sehandle) {
-        selinux_log(SELINUX_ERROR, "%s: Error getting file context handle (%s)\n",
-                __FUNCTION__, strerror(errno));
-        return NULL;
-    }
-
-    selinux_log(SELINUX_INFO, "SELinux: Loaded file_contexts\n");
-
-    return sehandle;
-}
-
+/* Returns a handle for the file contexts backend, initialized with the Android
+ * configuration */
 struct selabel_handle* selinux_android_file_context_handle(void)
 {
-    struct selinux_opt seopts_file[MAX_FILE_CONTEXT_SIZE];
-    int size = 0;
-    unsigned int i;
-    for (i = 0; i < ARRAY_SIZE(seopts_file_plat); i++) {
-        if (access(seopts_file_plat[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_plat[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_apex); i++) {
-        if (access(seopts_file_apex[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_apex[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_system_ext); i++) {
-        if (access(seopts_file_system_ext[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_system_ext[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_product); i++) {
-        if (access(seopts_file_product[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_product[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_vendor); i++) {
-        if (access(seopts_file_vendor[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_vendor[i];
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(seopts_file_odm); i++) {
-        if (access(seopts_file_odm[i].value, R_OK) != -1) {
-            seopts_file[size++] = seopts_file_odm[i];
-            break;
-        }
-    }
-    return selinux_android_file_context(seopts_file, size);
+	const char* file_contexts[MAX_CONTEXT_PATHS];
+	struct selinux_opt opts[MAX_CONTEXT_PATHS + 1];
+	int npaths, nopts;
+
+	npaths = find_existing_files(file_context_paths, file_contexts);
+	paths_to_opts(file_contexts, npaths, opts);
+
+	opts[npaths].type = SELABEL_OPT_BASEONLY;
+	opts[npaths].value = (char *) 1;
+	nopts = npaths + 1;
+
+	return initialize_backend(SELABEL_CTX_FILE, "file", opts, nopts);
 }
 
+/* Which categories should be associated to the process */
 enum levelFrom {
+	/* None */
 	LEVELFROM_NONE,
+	/* The categories of the application */
 	LEVELFROM_APP,
+	/* The categories of the end-user */
 	LEVELFROM_USER,
+	/* Application and end-user */
 	LEVELFROM_ALL
 };
 
@@ -156,6 +118,9 @@ static void free_prefix_str(struct prefix_str *p)
 	free(p->str);
 }
 
+/* For a set of selectors, represents the contexts that should be applied to an
+ * app and its data. Each instance is based on a line in a seapp_contexts file.
+ * */
 struct seapp_context {
 	/* input selectors */
 	bool isSystemServer;
@@ -188,8 +153,10 @@ static void free_seapp_context(struct seapp_context *s)
 	free(s->level);
 }
 
+/* If any duplicate was found while sorting the entries */
 static bool seapp_contexts_dup = false;
 
+/* Compare two seapp_context. Used to sort all the entries found. */
 static int seapp_context_cmp(const void *A, const void *B)
 {
 	const struct seapp_context *const *sp1 = (const struct seapp_context *const *) A;
@@ -288,7 +255,9 @@ static int seapp_context_cmp(const void *A, const void *B)
 	return 0;
 }
 
+/* Array of all the seapp_context entries configured. */
 static struct seapp_context **seapp_contexts = NULL;
+/* Size of seapp_contexts */
 static int nspec = 0;
 
 static void free_seapp_contexts(void)
@@ -328,44 +297,11 @@ int selinux_android_seapp_context_reload(void)
 	char *p, *name = NULL, *value = NULL, *saveptr;
 	size_t i, len, files_len = 0;
 	int ret;
-	const char* seapp_contexts_files[MAX_FILE_CONTEXT_SIZE];
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_plat); i++) {
-		if (access(seapp_contexts_plat[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_plat[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_apex); i++) {
-		if (access(seapp_contexts_apex[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_apex[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_system_ext); i++) {
-		if (access(seapp_contexts_system_ext[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_system_ext[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_product); i++) {
-		if (access(seapp_contexts_product[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_product[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_vendor); i++) {
-		if (access(seapp_contexts_vendor[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_vendor[i];
-			break;
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(seapp_contexts_odm); i++) {
-		if (access(seapp_contexts_odm[i], R_OK) != -1) {
-			seapp_contexts_files[files_len++] = seapp_contexts_odm[i];
-			break;
-		}
-	}
+	const char* seapp_contexts_files[MAX_CONTEXT_PATHS];
 
+	files_len = find_existing_files(seapp_context_paths, seapp_contexts_files);
+
+	/* Reset the current entries */
 	free_seapp_contexts();
 
 	nspec = 0;
@@ -654,16 +590,16 @@ oom:
 	goto out;
 }
 
-
+/* indirection to support pthread_once */
 static void seapp_context_init(void)
 {
-        selinux_android_seapp_context_reload();
+	selinux_android_seapp_context_reload();
 }
 
-static pthread_once_t once = PTHREAD_ONCE_INIT;
+static pthread_once_t seapp_once = PTHREAD_ONCE_INIT;
 
 void selinux_android_seapp_context_init(void) {
-	__selinux_once(once, seapp_context_init);
+	__selinux_once(seapp_once, seapp_context_init);
 }
 
 /*
@@ -672,8 +608,11 @@ void selinux_android_seapp_context_init(void) {
  */
 #define CAT_MAPPING_MAX_ID (0x1<<16)
 
+/* The kind of request when looking up an seapp_context. */
 enum seapp_kind {
+	/* Returns the SELinux type for the app data directory */
 	SEAPP_TYPE,
+	/* Returns the SELinux type for the app process */
 	SEAPP_DOMAIN
 };
 
@@ -720,6 +659,7 @@ static int seinfo_parse(char *dest, const char *src, size_t size)
 	return 0;
 }
 
+/* Sets the categories of ctx based on the level request */
 static int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, uid_t appid)
 {
 	char level[255];
@@ -753,6 +693,9 @@ static int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t u
 	return 0;
 }
 
+/* Search an app (or its data) based on its name and information within the list
+ * of known seapp_contexts. If found, sets the type and categories of ctx and
+ * returns 0. Returns -1 in case of error; -2 for out of memory */
 static int seapp_context_lookup(enum seapp_kind kind,
 				uid_t uid,
 				bool isSystemServer,
@@ -1043,8 +986,11 @@ static void file_context_init(void)
 static pthread_once_t fc_once = PTHREAD_ONCE_INIT;
 
 #define PKGTAB_SIZE 256
+/* Hash table for pkg_info. It uses the package name as key. In case of
+ * collision, the next entry is the private_data attribute */
 static struct pkg_info *pkgTab[PKGTAB_SIZE];
 
+/* Returns a hash based on the package name */
 static unsigned int pkghash(const char *pkgname)
 {
     unsigned int h = 7;
@@ -1054,17 +1000,20 @@ static unsigned int pkghash(const char *pkgname)
     return h & (PKGTAB_SIZE - 1);
 }
 
+/* Adds the pkg_info entry to the hash table */
 static bool pkg_parse_callback(pkg_info *info, void *userdata) {
 
     (void) userdata;
 
     unsigned int hash = pkghash(info->name);
     if (pkgTab[hash])
+        /* Collision. Prepend the entry. */
         info->private_data = pkgTab[hash];
     pkgTab[hash] = info;
     return true;
 }
 
+/* Initialize the pkg_info hash table */
 static void package_info_init(void)
 {
 
@@ -1103,6 +1052,7 @@ static void package_info_init(void)
 
 static pthread_once_t pkg_once = PTHREAD_ONCE_INIT;
 
+/* Returns the pkg_info for a package with a specific name */
 struct pkg_info *package_info_lookup(const char *name)
 {
     struct pkg_info *info;
