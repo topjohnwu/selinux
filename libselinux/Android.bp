@@ -201,19 +201,6 @@ cc_library {
 
             version_script: "exported.map.txt",
         },
-
-        vendor: {
-            exclude_srcs: [
-                "src/android/android_platform.c",
-            ],
-            srcs: [
-                "src/android/android_vendor.c",
-            ],
-            cflags: ["-DNO_FILE_BACKEND"],
-            exclude_shared_libs: ["libpackagelistparser"],
-            exclude_static_libs: ["libpackagelistparser"],
-            version_script: "exported_vendor.map",
-        },
     },
 
     static: {
