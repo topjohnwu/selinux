@@ -731,9 +731,9 @@ static int seapp_context_lookup(enum seapp_kind kind,
 		seinfo = parsedseinfo;
 	}
 
-	userid = uid / AID_USER;
-	appid = uid % AID_USER;
-	if (appid < AID_APP) {
+	userid = uid / AID_USER_OFFSET;
+	appid = uid % AID_USER_OFFSET;
+	if (appid < AID_APP_START) {
             /*
              * This code is Android specific, bionic guarantees that
              * calls to non-reentrant getpwuid() are thread safe.
@@ -749,7 +749,7 @@ static int seapp_context_lookup(enum seapp_kind kind,
 
 	} else if (appid < AID_SDK_SANDBOX_PROCESS_START) {
 		username = "_app";
-		appid -= AID_APP;
+		appid -= AID_APP_START;
 	} else if (appid < AID_ISOLATED_START) {
 		username = "_sdksandbox";
 		appid -= AID_SDK_SANDBOX_PROCESS_START;
