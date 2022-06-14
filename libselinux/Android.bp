@@ -45,6 +45,9 @@ common_CFLAGS = [
     "-Wno-error=missing-noreturn",
     "-Wno-error=unused-function",
     "-Wno-error=unused-variable",
+    "-DUSE_PCRE2",
+    // 1003 corresponds to auditd, from system/core/logd/event.logtags
+    "-DAUDITD_LOG_TAG=1003",
 ]
 
 cc_defaults {
@@ -53,15 +56,49 @@ cc_defaults {
     cflags: common_CFLAGS,
 
     srcs: [
+        "src/android/android.c",
+        "src/avc.c",
+        "src/avc_internal.c",
+        "src/avc_sidtab.c",
         "src/booleans.c",
         "src/callbacks.c",
+        "src/canonicalize_context.c",
+        "src/checkAccess.c",
+        "src/check_context.c",
+        "src/compute_av.c",
+        "src/compute_create.c",
+        "src/compute_member.c",
+        "src/context.c",
+        "src/deny_unknown.c",
+        "src/disable.c",
+        "src/enabled.c",
+        "src/fgetfilecon.c",
         "src/freecon.c",
-        "src/label_backends_android.c",
+        "src/fsetfilecon.c",
+        "src/get_initial_context.c",
+        "src/getenforce.c",
+        "src/getfilecon.c",
+        "src/getpeercon.c",
+        "src/init.c",
         "src/label.c",
+        "src/label_backends_android.c",
+        "src/label_file.c",
         "src/label_support.c",
+        "src/lgetfilecon.c",
+        "src/load_policy.c",
+        "src/lsetfilecon.c",
+        "src/mapping.c",
         "src/matchpathcon.c",
+        "src/policyvers.c",
+        "src/procattr.c",
+        "src/regex.c",
+        "src/reject_unknown.c",
+        "src/sestatus.c",
+        "src/setenforce.c",
+        "src/setfilecon.c",
         "src/setrans_client.c",
         "src/sha1.c",
+        "src/stringrep.c",
     ],
 
     target: {
@@ -70,60 +107,49 @@ cc_defaults {
                 "-DBUILD_HOST",
             ],
         },
-
         android: {
             srcs: [
-                "src/android/android.c",
-                "src/avc.c",
-                "src/avc_internal.c",
-                "src/avc_sidtab.c",
-                "src/canonicalize_context.c",
-                "src/checkAccess.c",
-                "src/check_context.c",
-                "src/compute_av.c",
-                "src/compute_create.c",
-                "src/compute_member.c",
-                "src/context.c",
-                "src/deny_unknown.c",
-                "src/disable.c",
-                "src/enabled.c",
-                "src/fgetfilecon.c",
-                "src/fsetfilecon.c",
-                "src/getenforce.c",
-                "src/getfilecon.c",
-                "src/get_initial_context.c",
-                "src/getpeercon.c",
-                "src/init.c",
-                "src/lgetfilecon.c",
-                "src/load_policy.c",
-                "src/lsetfilecon.c",
-                "src/mapping.c",
-                "src/policyvers.c",
-                "src/procattr.c",
-                "src/reject_unknown.c",
-                "src/sestatus.c",
-                "src/setenforce.c",
-                "src/setfilecon.c",
-                "src/stringrep.c",
+                "src/android/android_platform.c",
             ],
+            static: {
+                whole_static_libs: [
+                    "libpackagelistparser",
+                ],
+            },
 
-            shared_libs: [
-                "liblog",
-            ],
+            shared: {
+                shared_libs: [
+                    "libpackagelistparser",
+                ],
+            },
             system_shared_libs: ["libc"],
-
-            header_libs: ["libcutils_headers"],
-
-            local_include_dirs: [ "src" ],
-
-            // 1003 corresponds to auditd, from system/core/logd/event.logtags
-            cflags: [
-                "-DAUDITD_LOG_TAG=1003",
-            ],
-        }
+        },
     },
 
-    local_include_dirs: ["include"],
+    shared_libs: [
+        "liblog",
+    ],
+
+    static: {
+        whole_static_libs: [
+            "libpcre2",
+        ],
+    },
+
+    shared: {
+        shared_libs: [
+            "libpcre2",
+        ],
+    },
+    header_libs: [
+        "libbase_headers",
+        "libcutils_headers",
+        "liblog_headers",
+    ],
+    local_include_dirs: [
+        "include",
+        "src",
+    ],
     export_include_dirs: ["include"],
 
     stl: "none",
@@ -140,74 +166,16 @@ cc_library {
     ramdisk_available: true,
     vendor_ramdisk_available: true,
     recovery_available: true,
-
     host_supported: true,
-    cflags: ["-DUSE_PCRE2"],
-
-    srcs: [
-        "src/label_file.c",
-        "src/regex.c",
-    ],
 
     target: {
-        host_linux: {
-            srcs: [
-                "src/avc.c",
-                "src/avc_internal.c",
-                "src/avc_sidtab.c",
-                "src/compute_av.c",
-                "src/compute_create.c",
-                "src/compute_member.c",
-                "src/context.c",
-                "src/deny_unknown.c",
-                "src/enabled.c",
-                "src/getenforce.c",
-                "src/getfilecon.c",
-                "src/get_initial_context.c",
-                "src/init.c",
-                "src/load_policy.c",
-                "src/mapping.c",
-                "src/procattr.c",
-                "src/reject_unknown.c",
-                "src/sestatus.c",
-                "src/setexecfilecon.c",
-                "src/stringrep.c",
-            ],
-        },
-        linux_glibc: {
-            srcs: [
-                "src/fgetfilecon.c",
-                "src/lgetfilecon.c",
-                "src/lsetfilecon.c",
-                "src/setfilecon.c",
-            ],
-        },
         linux_bionic: {
             enabled: true,
         },
 
         android: {
-            srcs: [
-                "src/android/android_platform.c",
-            ],
-
-            static: {
-                whole_static_libs: ["libpackagelistparser"],
-            },
-
-            shared: {
-                shared_libs: ["libpackagelistparser"],
-            },
-
             version_script: "exported.map.txt",
         },
-    },
-
-    static: {
-        whole_static_libs: ["libpcre2"],
-    },
-    shared: {
-        shared_libs: ["libpcre2"],
     },
 
     stubs: {
@@ -216,17 +184,35 @@ cc_library {
     },
 }
 
+cc_test_host {
+    name: "libselinux_test",
+    defaults: ["libselinux_defaults"],
+    srcs: ["src/android/android_unittest.cpp"],
+
+    cflags: [
+      // regex.h will conflict with the default regex.h from libc.
+      // Skip regex for gtest.
+      "-DGTEST_HAS_POSIX_RE=0",
+      "-DANDROID_UNIT_TESTING",
+    ],
+    whole_static_libs: [
+        "libpcre2",
+        "libbase",
+    ],
+
+    // Use default stl.
+    stl:""
+}
+
 cc_binary_host {
     name: "sefcontext_compile",
     defaults: ["libselinux_defaults"],
-    cflags: ["-DUSE_PCRE2"],
     srcs: ["utils/sefcontext_compile.c"],
 
     static_libs: [
         "libselinux",
         "libsepol",
     ],
-    whole_static_libs: ["libpcre2"],
 }
 
 rust_bindgen {
