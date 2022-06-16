@@ -124,6 +124,9 @@ cc_defaults {
             },
             system_shared_libs: ["libc"],
         },
+        darwin: {
+            enabled: false,
+        },
     },
 
     shared_libs: [
