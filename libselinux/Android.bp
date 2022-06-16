@@ -184,26 +184,6 @@ cc_library {
     },
 }
 
-cc_test_host {
-    name: "libselinux_test",
-    defaults: ["libselinux_defaults"],
-    srcs: ["src/android/android_unittest.cpp"],
-
-    cflags: [
-      // regex.h will conflict with the default regex.h from libc.
-      // Skip regex for gtest.
-      "-DGTEST_HAS_POSIX_RE=0",
-      "-DANDROID_UNIT_TESTING",
-    ],
-    whole_static_libs: [
-        "libpcre2",
-        "libbase",
-    ],
-
-    // Use default stl.
-    stl:""
-}
-
 cc_binary_host {
     name: "sefcontext_compile",
     defaults: ["libselinux_defaults"],
