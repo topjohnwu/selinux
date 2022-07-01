@@ -2,11 +2,6 @@
 
 #include "android_common.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
 /* Within each set of files, adds the first file that is accessible to `paths`.
  * Returns the number of accessible files. */
 size_t find_existing_files(
@@ -27,14 +22,3 @@ struct selabel_handle* initialize_backend(
 	const char* name,
 	const struct selinux_opt* opts,
 	size_t nopts);
-
-/* Initialize a backend using a set of context paths */
-struct selabel_handle* context_handle(
-		unsigned int backend,
-		const char* const context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS],
-		const char* name);
-
-
-#ifdef __cplusplus
-}
-#endif

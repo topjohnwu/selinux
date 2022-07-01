@@ -128,10 +128,11 @@ struct selabel_handle* initialize_backend(
 		return sehandle;
 }
 
-struct selabel_handle* context_handle(
+/* Initialize a backend using a set of context paths */
+static struct selabel_handle* context_handle(
 		unsigned int backend,
 		const char* const context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS],
-		const char* name)
+		char *name)
 {
 	const char* existing_paths[MAX_CONTEXT_PATHS];
 	struct selinux_opt opts[MAX_CONTEXT_PATHS];
