@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cil_binary.h"
 #include "cil_build_ast.h"
 #include "cil_internal.h"
 #include "cil_strpool.h"
@@ -22,6 +23,12 @@ struct version_args {
 	struct cil_db *db;
 	hashtab_t vers_map;
 	const char *num;
+};
+
+struct policydb_amend_args {
+	const struct cil_db *db;
+	policydb_t *pdb;
+	void **type_value_to_cil;
 };
 
 enum plat_flavor {
@@ -929,5 +936,177 @@ int cil_android_attributize(struct cil_db *tgtdb, struct cil_db *srcdb, const ch
 	}
 exit:
 	ver_map_destroy(ver_map_tab);
+	return rc;
+}
+
+static int define_symbols(struct cil_tree_node *node, uint32_t *finished __attribute__((unused)), void *extra_args)
+{
+	int rc = SEPOL_OK;
+	struct cil_type *type = NULL;
+	struct cil_typeattribute *typeattribute = NULL;
+	struct policydb_amend_args *args = extra_args;
+	policydb_t *pdb = args->pdb;
+	void **type_value_to_cil = args->type_value_to_cil;
+
+	switch (node->flavor) {
+	case CIL_TYPE:
+		rc = cil_type_to_policydb(pdb, node->data, type_value_to_cil);
+		// symtab_insert returns 1 when the symbol already exists
+		if (rc == 1) {
+			type = node->data;
+			cil_log(CIL_WARN, "Type with symbol \"%s\" already exists.\n", type->datum.fqn);
+			rc = SEPOL_OK;
+		}
+		break;
+	case CIL_TYPEATTRIBUTE:
+		rc = cil_typeattribute_to_policydb(pdb, node->data, type_value_to_cil);
+		// symtab_insert returns 1 when the symbol already exists
+		if (rc == 1) {
+			typeattribute = node->data;
+			cil_log(CIL_WARN, "Typeattribute with symbol \"%s\" already exists.\n", typeattribute->datum.fqn);
+			rc = SEPOL_OK;
+		}
+		break;
+	case CIL_ROLE:
+	case CIL_POLICYCAP:
+	case CIL_USER:
+	case CIL_BOOL:
+	case CIL_CATALIAS:
+	case CIL_SENS: // Unsupported symbol statements.
+	default:
+		break;
+	}
+
+	return rc;
+}
+
+static int expand_symbols(struct cil_tree_node *node, uint32_t *finished __attribute__((unused)), void *extra_args)
+{
+	int rc = SEPOL_OK;
+	struct policydb_amend_args *args = extra_args;
+	const struct cil_db *db = args->db;
+	policydb_t *pdb = args->pdb;
+
+	switch (node->flavor) {
+	case CIL_TYPEATTRIBUTE:
+		rc = cil_typeattribute_to_bitmap(pdb, db, node->data);
+		break;
+	case CIL_ROLE:
+	case CIL_AVRULE:
+	case CIL_AVRULEX:
+	case CIL_TYPE:
+	case CIL_TYPEALIAS:
+	case CIL_TYPEPERMISSIVE:
+	case CIL_SENSALIAS:
+	case CIL_USER:
+	case CIL_TYPE_RULE:
+	case CIL_ROLETRANSITION:
+	case CIL_ROLEATTRIBUTESET:
+	case CIL_NAMETYPETRANSITION:
+	case CIL_CONSTRAIN:
+	case CIL_MLSCONSTRAIN:
+	case CIL_VALIDATETRANS:
+	case CIL_MLSVALIDATETRANS:
+	case CIL_RANGETRANSITION:
+	case CIL_DEFAULTUSER:
+	case CIL_DEFAULTROLE:
+	case CIL_DEFAULTTYPE:
+	case CIL_DEFAULTRANGE: // Unsupported symbol statements.
+	default:
+		break;
+	}
+
+	return rc;
+}
+
+static int apply_rules(struct cil_tree_node *node, uint32_t *finished __attribute__((unused)), void *extra_args)
+{
+	int rc = SEPOL_OK;
+	struct cil_avrule *rule = NULL;
+	struct policydb_amend_args *args = extra_args;
+	const struct cil_db *db = args->db;
+	policydb_t *pdb = args->pdb;
+
+	switch (node->flavor) {
+	case CIL_AVRULE:
+		rule = node->data;
+		if (rule->rule_kind != CIL_AVRULE_NEVERALLOW) {
+			rc = cil_avrule_to_policydb(pdb, db, node->data);
+		}
+		else {
+			cil_log(CIL_WARN, "Found a neverallow rule.\n");
+		}
+		break;
+	case CIL_BOOLEANIF:
+	case CIL_AVRULEX:
+	case CIL_ROLEALLOW: // Unsupported rule statement.
+	default:
+		break;
+	}
+
+	return rc;
+}
+
+int cil_amend_policydb(struct cil_db *db, sepol_policydb_t *policydb)
+{
+	int rc = SEPOL_ERR;
+	policydb_t *pdb = &policydb->p;
+
+	if (db == NULL || policydb == NULL) {
+		if (db == NULL) {
+			cil_log(CIL_ERR, "db == NULL\n");
+		}
+		else if (policydb == NULL) {
+			cil_log(CIL_ERR, "policydb == NULL\n");
+		}
+		return rc;
+	}
+
+	// type_value_to_cil should be able to map the new types in the cil_db, the
+	// existing types in the pdb, and the redefinitions from the cil_db.
+	// Since libsepol values start at 1, we allocate extra memory instead of shifting every value.
+	void **type_value_to_cil = calloc(db->num_types_and_attrs + pdb->p_types.nprim + 1,
+									  sizeof(*type_value_to_cil));
+	if (!type_value_to_cil)
+		goto exit;
+
+	struct policydb_amend_args extra_args;
+	extra_args.db = db;
+	extra_args.pdb = pdb;
+	extra_args.type_value_to_cil = type_value_to_cil;
+
+	// 1) Add types and attributes symbols to policy_db.
+	unsigned int types_size = pdb->p_types.nprim;
+	rc = cil_tree_walk(db->ast->root, define_symbols, NULL, NULL, &extra_args);
+	if(rc != SEPOL_OK) {
+		cil_log(CIL_ERR, "Error adding symbols to policydb.\n");
+		goto exit;
+	}
+	if (pdb->p_types.nprim > types_size) {
+		// We introduced new types, we need to expand the type<->attr maps.
+		pdb->type_attr_map = cil_realloc(pdb->type_attr_map, pdb->p_types.nprim * sizeof(ebitmap_t));
+		pdb->attr_type_map = cil_realloc(pdb->attr_type_map, pdb->p_types.nprim * sizeof(ebitmap_t));
+		for (unsigned int i = types_size; i < pdb->p_types.nprim; i++) {
+			ebitmap_init(&pdb->type_attr_map[i]);
+			ebitmap_init(&pdb->attr_type_map[i]);
+		}
+	}
+
+	// 2) Expand typeattribute symbols.
+	rc = cil_tree_walk(db->ast->root, expand_symbols, NULL, NULL, &extra_args);
+	if(rc != SEPOL_OK) {
+		cil_log(CIL_ERR, "Error expanding symbols.\n");
+		goto exit;
+	}
+
+	// 3) Apply rule statements.
+	rc = cil_tree_walk(db->ast->root, apply_rules, NULL, NULL, &extra_args);
+	if(rc != SEPOL_OK) {
+		cil_log(CIL_ERR, "Error applying rules.\n");
+		goto exit;
+	}
+
+exit:
+	free(type_value_to_cil);
 	return rc;
 }
