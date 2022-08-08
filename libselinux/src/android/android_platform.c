@@ -1142,13 +1142,14 @@ static int extract_userid(const char **pathname, unsigned int *userid)
 
 /* Extract the pkgname and userid from a path.
  * On success, the caller is responsible for free'ing pkgname.
- * Returns 0 on success, -1 on error, -2 on invalid arguments
+ * Returns 0 on success, -1 on invalid path, -2 on error.
  */
 static int extract_pkgname_and_userid(const char *pathname, char **pkgname, unsigned int *userid)
 {
     char *end = NULL;
 
     if (pkgname == NULL || *pkgname != NULL || userid == NULL) {
+      errno = EINVAL;
       return -2;
     }
 
@@ -1158,9 +1159,8 @@ static int extract_pkgname_and_userid(const char *pathname, char **pkgname, unsi
     } else if (!strncmp(pathname, DATA_USER_PREFIX, sizeof(DATA_USER_PREFIX)-1)) {
         pathname += sizeof(DATA_USER_PREFIX) - 1;
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
+        if (rc)
+            return -1;
         if (*pathname == '/')
             pathname++;
         else
@@ -1168,9 +1168,8 @@ static int extract_pkgname_and_userid(const char *pathname, char **pkgname, unsi
     } else if (!strncmp(pathname, DATA_USER_DE_PREFIX, sizeof(DATA_USER_DE_PREFIX)-1)) {
         pathname += sizeof(DATA_USER_DE_PREFIX) - 1;
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
+        if (rc)
+            return -1;
         if (*pathname == '/')
             pathname++;
         else
@@ -1178,9 +1177,8 @@ static int extract_pkgname_and_userid(const char *pathname, char **pkgname, unsi
     } else if (!fnmatch(EXPAND_USER_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME)) {
         pathname += sizeof(EXPAND_USER_PATH);
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
+        if (rc)
+            return -1;
         if (*pathname == '/')
             pathname++;
         else
@@ -1188,9 +1186,8 @@ static int extract_pkgname_and_userid(const char *pathname, char **pkgname, unsi
     } else if (!fnmatch(EXPAND_USER_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME)) {
         pathname += sizeof(EXPAND_USER_DE_PATH);
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
+        if (rc)
+            return -1;
         if (*pathname == '/')
             pathname++;
         else
@@ -1198,44 +1195,40 @@ static int extract_pkgname_and_userid(const char *pathname, char **pkgname, unsi
     } else if (!strncmp(pathname, DATA_MISC_CE_PREFIX, sizeof(DATA_MISC_CE_PREFIX)-1)) {
         pathname += sizeof(DATA_MISC_CE_PREFIX) - 1;
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
-        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+        if (rc)
+            return -1;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1))
             pathname += sizeof("/sdksandbox/") - 1;
-        } else
+        else
             return -1;
     } else if (!strncmp(pathname, DATA_MISC_DE_PREFIX, sizeof(DATA_MISC_DE_PREFIX)-1)) {
         pathname += sizeof(DATA_MISC_DE_PREFIX) - 1;
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
-        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+        if (rc)
+            return -1;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1))
             pathname += sizeof("/sdksandbox/") - 1;
-        } else
+        else
             return -1;
     } else if (!fnmatch(EXPAND_SDK_CE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME)) {
         pathname += sizeof(EXPAND_MNT_PATH_PREFIX) - 1;
         pathname += sizeof("misc_ce/") - 1;
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
-        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+        if (rc)
+            return -1;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1))
             pathname += sizeof("/sdksandbox/") - 1;
-        } else
+        else
             return -1;
     } else if (!fnmatch(EXPAND_SDK_DE_PATH, pathname, FNM_LEADING_DIR|FNM_PATHNAME)) {
         pathname += sizeof(EXPAND_MNT_PATH_PREFIX) - 1;
         pathname += sizeof("misc_de/") - 1;
         int rc = extract_userid(&pathname, userid);
-        if (rc) {
-           return -1;
-        }
-        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1)) {
+        if (rc)
+            return -1;
+        if (!strncmp(pathname, "/sdksandbox/", sizeof("/sdksandbox/")-1))
             pathname += sizeof("/sdksandbox/") - 1;
-        } else
+        else
             return -1;
     } else
         return -1;
@@ -1245,7 +1238,7 @@ static int extract_pkgname_and_userid(const char *pathname, char **pkgname, unsi
 
     *pkgname = strdup(pathname);
     if (!(*pkgname))
-        return -1;
+        return -2;
 
     // Trim pkgname.
     for (end = *pkgname; *end && *end != '/'; end++);
@@ -1268,7 +1261,11 @@ static int pkgdir_selabel_lookup(const char *pathname,
 
     rc = extract_pkgname_and_userid(pathname, &pkgname, &userid_from_path);
     if (rc) {
-      return -1;
+      /* Invalid path, we skip it */
+      if (rc == -1) {
+        return 0;
+      }
+      return rc;
     }
 
     if (!seinfo) {
