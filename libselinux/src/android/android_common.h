@@ -13,14 +13,10 @@
 #include <sys/stat.h>
 #include <sys/xattr.h>
 #include <fcntl.h>
-#include <fts.h>
 #include <selinux/selinux.h>
 #include <selinux/context.h>
 #include <selinux/android.h>
 #include <selinux/label.h>
-#ifndef __ANDROID_VNDK__
-#include <private/android_filesystem_config.h>
-#endif
 #include <log/log.h>
 #include "policy.h"
 #include "callbacks.h"
@@ -31,9 +27,6 @@
 #include <sys/vfs.h>
 #include <linux/magic.h>
 #include <libgen.h>
-
-#define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
-#include <sys/_system_properties.h>
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
