@@ -147,14 +147,18 @@ static void init_lib(void) __attribute__ ((constructor));
 static void init_lib(void)
 {
 	selinux_page_size = sysconf(_SC_PAGE_SIZE);
+#ifndef ANDROID_UNIT_TESTING
 	init_selinuxmnt();
 #ifndef ANDROID
 	has_selinux_config = (access(SELINUXCONFIG, F_OK) == 0);
+#endif
 #endif
 }
 
 static void fini_lib(void) __attribute__ ((destructor));
 static void fini_lib(void)
 {
+#ifndef ANDROID_UNIT_TESTING
 	fini_selinuxmnt();
+#endif
 }
