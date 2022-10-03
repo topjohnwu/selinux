@@ -16,7 +16,7 @@
 #endif  // LOG_EVENT_STRING
 #endif  // __ANDROID_VNDK__
 
-static const char* const service_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+static const path_alts_t service_context_paths = { .paths = {
 	{
 		"/system/etc/selinux/plat_service_contexts",
 		"/plat_service_contexts"
@@ -36,9 +36,9 @@ static const char* const service_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEX
 		"/vendor/etc/selinux/vendor_service_contexts",
 		"/vendor_service_contexts"
 	}
-};
+}};
 
-static const char* const hwservice_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+static const path_alts_t hwservice_context_paths = { .paths = {
 	{
 		"/system/etc/selinux/plat_hwservice_contexts",
 		"/plat_hwservice_contexts"
@@ -59,16 +59,16 @@ static const char* const hwservice_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONT
 		"/odm/etc/selinux/odm_hwservice_contexts",
 		"/odm_hwservice_contexts"
 	},
-};
+}};
 
-static const char* const vndservice_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+static const path_alts_t vndservice_context_paths = { .paths = {
 	{
 		"/vendor/etc/selinux/vndservice_contexts",
 		"/vndservice_contexts"
 	}
-};
+}};
 
-static const char* const keystore2_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+static const path_alts_t keystore2_context_paths = { .paths = {
 	{
 		"/system/etc/selinux/plat_keystore2_key_contexts",
 		"/plat_keystore2_key_contexts"
@@ -85,16 +85,16 @@ static const char* const keystore2_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONT
 		"/vendor/etc/selinux/vendor_keystore2_key_contexts",
 		"/vendor_keystore2_key_contexts"
 	}
-};
+}};
 
 size_t find_existing_files(
-		const char* const path_sets[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS],
+		const path_alts_t *path_sets,
 		const char* paths[MAX_CONTEXT_PATHS])
 {
 	size_t i, j, len = 0;
 	for (i = 0; i < MAX_CONTEXT_PATHS; i++) {
 		for (j = 0; j < MAX_ALT_CONTEXT_PATHS; j++) {
-			const char* file = path_sets[i][j];
+			const char* file = path_sets->paths[i][j];
 			if (file && access(file, R_OK) != -1) {
 				paths[len++] = file;
 				/* Within each set, only the first valid entry is used */
@@ -140,8 +140,8 @@ struct selabel_handle* initialize_backend(
 
 struct selabel_handle* context_handle(
 		unsigned int backend,
-		const char* const context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS],
-		const char* name)
+		const path_alts_t *context_paths,
+		const char *name)
 {
 	const char* existing_paths[MAX_CONTEXT_PATHS];
 	struct selinux_opt opts[MAX_CONTEXT_PATHS];
@@ -155,22 +155,22 @@ struct selabel_handle* context_handle(
 
 struct selabel_handle* selinux_android_service_context_handle(void)
 {
-	return context_handle(SELABEL_CTX_ANDROID_SERVICE, service_context_paths, "service");
+	return context_handle(SELABEL_CTX_ANDROID_SERVICE, &service_context_paths, "service");
 }
 
 struct selabel_handle* selinux_android_hw_service_context_handle(void)
 {
-	return context_handle(SELABEL_CTX_ANDROID_SERVICE, hwservice_context_paths, "hwservice");
+	return context_handle(SELABEL_CTX_ANDROID_SERVICE, &hwservice_context_paths, "hwservice");
 }
 
 struct selabel_handle* selinux_android_vendor_service_context_handle(void)
 {
-	return context_handle(SELABEL_CTX_ANDROID_SERVICE, vndservice_context_paths, "vndservice");
+	return context_handle(SELABEL_CTX_ANDROID_SERVICE, &vndservice_context_paths, "vndservice");
 }
 
 struct selabel_handle* selinux_android_keystore2_key_context_handle(void)
 {
-	return context_handle(SELABEL_CTX_ANDROID_KEYSTORE2_KEY, keystore2_context_paths, "keystore2");
+	return context_handle(SELABEL_CTX_ANDROID_KEYSTORE2_KEY, &keystore2_context_paths, "keystore2");
 }
 
 int selinux_log_callback(int type, const char *fmt, ...)
