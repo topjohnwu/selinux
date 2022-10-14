@@ -1,9 +1,4 @@
 #include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <fnmatch.h>
-#include <fts.h>
-#include <libgen.h>
 #include <limits.h>
 #include <linux/magic.h>
 #include <pwd.h>
@@ -11,25 +6,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/vfs.h>
-#include <sys/xattr.h>
 #include <unistd.h>
 
-#include <log/log.h>
-#include <packagelistparser/packagelistparser.h>
 #include <private/android_filesystem_config.h>
 #include <selinux/android.h>
 #include <selinux/context.h>
 #include <selinux/selinux.h>
 
-#define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
-#include <sys/_system_properties.h>
-
 #include "android_internal.h"
 #include "callbacks.h"
-#include "label_internal.h"
 #include "selinux_internal.h"
 
 /* Locations for the file_contexts files. For each partition, only the first
@@ -111,18 +96,6 @@ struct selabel_handle* selinux_android_file_context_handle(void)
 
 	return initialize_backend(SELABEL_CTX_FILE, "file", opts, nopts);
 }
-
-/* Which categories should be associated to the process */
-enum levelFrom {
-	/* None */
-	LEVELFROM_NONE,
-	/* The categories of the application */
-	LEVELFROM_APP,
-	/* The categories of the end-user */
-	LEVELFROM_USER,
-	/* Application and end-user */
-	LEVELFROM_ALL
-};
 
 #if DEBUG
 static char const * const levelFromName[] = {
@@ -636,14 +609,6 @@ void selinux_android_seapp_context_init(void) {
  */
 #define CAT_MAPPING_MAX_ID (0x1<<16)
 
-/* The kind of request when looking up an seapp_context. */
-enum seapp_kind {
-	/* Returns the SELinux type for the app data directory */
-	SEAPP_TYPE,
-	/* Returns the SELinux type for the app process */
-	SEAPP_DOMAIN
-};
-
 #define PRIVILEGED_APP_STR ":privapp"
 #define EPHEMERAL_APP_STR ":ephemeralapp"
 #define TARGETSDKVERSION_STR ":targetSdkVersion="
@@ -688,7 +653,7 @@ static int seinfo_parse(char *dest, const char *src, size_t size)
 }
 
 /* Sets the categories of ctx based on the level request */
-static int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, uid_t appid)
+int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, uid_t appid)
 {
 	char level[255];
 	switch (levelFrom) {
@@ -721,10 +686,7 @@ static int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t u
 	return 0;
 }
 
-/* Search an app (or its data) based on its name and information within the list
- * of known seapp_contexts. If found, sets the type and categories of ctx and
- * returns 0. Returns -1 in case of error; -2 for out of memory */
-static int seapp_context_lookup(enum seapp_kind kind,
+int seapp_context_lookup(enum seapp_kind kind,
 				uid_t uid,
 				bool isSystemServer,
 				const char *seinfo,

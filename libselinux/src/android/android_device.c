@@ -6,7 +6,6 @@
 #include <libgen.h>
 #include <limits.h>
 #include <linux/magic.h>
-#include <pwd.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
