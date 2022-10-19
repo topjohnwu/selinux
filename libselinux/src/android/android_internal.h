@@ -64,6 +64,15 @@ int seapp_context_lookup(enum seapp_kind kind,
 				const char *pkgname,
 				context_t ctx);
 
+/* Similar to seapp_context_lookup, but does not implicitly load and use the
+ * default context files. It should only be used for unit tests. */
+int seapp_context_lookup_internal(enum seapp_kind kind,
+				uid_t uid,
+				bool isSystemServer,
+				const char *seinfo,
+				const char *pkgname,
+				context_t ctx);
+
 /* Which categories should be associated to the process */
 enum levelFrom {
 	/* None */
@@ -79,6 +88,9 @@ enum levelFrom {
 /* Sets the categories of ctx based on the level request */
 int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, uid_t appid);
 
+/* Similar to seapp_context_reload, but does not implicitly load the default
+ * context files. It should only be used for unit tests. */
+int seapp_context_reload_internal(const path_alts_t *context_paths);
 #ifdef __cplusplus
 }
 #endif
