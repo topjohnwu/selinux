@@ -37,7 +37,7 @@
  * /system/etc/selinux/plat_file_contexts exists, /plat_file_contexts will be
  * ignored).
  */
-static const char* const file_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+static const path_alts_t file_context_paths = { .paths = {
 	{
 		"/system/etc/selinux/plat_file_contexts",
 		"/plat_file_contexts"
@@ -61,14 +61,14 @@ static const char* const file_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_P
 		"/odm/etc/selinux/odm_file_contexts",
 		"/odm_file_contexts"
 	}
-};
+}};
 
 /* Locations for the seapp_contexts files. For each partition, only the first
  * existing entry will be used (for example, if
  * /system/etc/selinux/plat_seapp_contexts exists, /plat_seapp_contexts will be
  * ignored).
  */
-static const char* const seapp_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS] = {
+static const path_alts_t seapp_context_paths = { .paths = {
 	{
 		"/system/etc/selinux/plat_seapp_contexts",
 		"/plat_seapp_contexts"
@@ -92,7 +92,7 @@ static const char* const seapp_context_paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_
 		"/odm/etc/selinux/odm_seapp_contexts",
 		"/odm_seapp_contexts"
 	}
-};
+}};
 
 /* Returns a handle for the file contexts backend, initialized with the Android
  * configuration */
@@ -102,7 +102,7 @@ struct selabel_handle* selinux_android_file_context_handle(void)
 	struct selinux_opt opts[MAX_CONTEXT_PATHS + 1];
 	int npaths, nopts;
 
-	npaths = find_existing_files(file_context_paths, file_contexts);
+	npaths = find_existing_files(&file_context_paths, file_contexts);
 	paths_to_opts(file_contexts, npaths, opts);
 
 	opts[npaths].type = SELABEL_OPT_BASEONLY;
@@ -327,7 +327,7 @@ int selinux_android_seapp_context_reload(void)
 	int ret;
 	const char* seapp_contexts_files[MAX_CONTEXT_PATHS];
 
-	files_len = find_existing_files(seapp_context_paths, seapp_contexts_files);
+	files_len = find_existing_files(&seapp_context_paths, seapp_contexts_files);
 
 	/* Reset the current entries */
 	free_seapp_contexts();
