@@ -288,7 +288,7 @@ static int32_t get_minTargetSdkVersion(const char *value)
 	}
 }
 
-int selinux_android_seapp_context_reload(void)
+int seapp_context_reload_internal(const path_alts_t *context_paths)
 {
 	FILE *fp = NULL;
 	char line_buf[BUFSIZ];
@@ -300,7 +300,7 @@ int selinux_android_seapp_context_reload(void)
 	int ret;
 	const char* seapp_contexts_files[MAX_CONTEXT_PATHS];
 
-	files_len = find_existing_files(&seapp_context_paths, seapp_contexts_files);
+	files_len = find_existing_files(context_paths, seapp_contexts_files);
 
 	/* Reset the current entries */
 	free_seapp_contexts();
@@ -591,6 +591,11 @@ oom:
 	goto out;
 }
 
+int selinux_android_seapp_context_reload(void)
+{
+	return seapp_context_reload_internal(&seapp_context_paths);
+}
+
 /* indirection to support pthread_once */
 static void seapp_context_init(void)
 {
@@ -692,7 +697,7 @@ int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, 
  */
 struct passwd *(*seapp_getpwuid)(__uid_t uid) = getpwuid;
 
-int seapp_context_lookup(enum seapp_kind kind,
+int seapp_context_lookup_internal(enum seapp_kind kind,
 				uid_t uid,
 				bool isSystemServer,
 				const char *seinfo,
@@ -711,7 +716,6 @@ int seapp_context_lookup(enum seapp_kind kind,
 	bool fromRunAs = false;
 	char parsedseinfo[BUFSIZ];
 
-	selinux_android_seapp_context_init();
 
 	if (seinfo) {
 		if (seinfo_parse(parsedseinfo, seinfo, BUFSIZ))
@@ -840,4 +844,16 @@ err:
 	return -1;
 oom:
 	return -2;
+}
+
+int seapp_context_lookup(enum seapp_kind kind,
+				uid_t uid,
+				bool isSystemServer,
+				const char *seinfo,
+				const char *pkgname,
+				context_t ctx)
+{
+	// Ensure the default context files are loaded.
+	selinux_android_seapp_context_init();
+	return seapp_context_lookup_internal(kind, uid, isSystemServer, seinfo, pkgname, ctx);
 }
