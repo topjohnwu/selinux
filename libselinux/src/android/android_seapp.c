@@ -658,7 +658,7 @@ int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, 
 	char level[255];
 	switch (levelFrom) {
 	case LEVELFROM_NONE:
-        	strlcpy(level, "s0", sizeof level);
+		strncpy(level, "s0", sizeof level);
 		break;
 	case LEVELFROM_APP:
 		snprintf(level, sizeof level, "s0:c%u,c%u",
@@ -685,6 +685,12 @@ int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, 
 	}
 	return 0;
 }
+
+/*
+ * This code is Android specific, bionic guarantees that
+ * calls to non-reentrant getpwuid() are thread safe.
+ */
+struct passwd *(*seapp_getpwuid)(__uid_t uid) = getpwuid;
 
 int seapp_context_lookup(enum seapp_kind kind,
 				uid_t uid,
@@ -726,19 +732,10 @@ int seapp_context_lookup(enum seapp_kind kind,
 	userid = uid / AID_USER_OFFSET;
 	appid = uid % AID_USER_OFFSET;
 	if (appid < AID_APP_START) {
-            /*
-             * This code is Android specific, bionic guarantees that
-             * calls to non-reentrant getpwuid() are thread safe.
-             */
-#ifndef __BIONIC__
-#warning "This code assumes that getpwuid is thread safe, only true with Bionic!"
-#endif
-		pwd = getpwuid(appid);
+		pwd = seapp_getpwuid(appid);
 		if (!pwd)
 			goto err;
-
 		username = pwd->pw_name;
-
 	} else if (appid < AID_SDK_SANDBOX_PROCESS_START) {
 		username = "_app";
 		appid -= AID_APP_START;
