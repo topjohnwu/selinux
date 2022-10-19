@@ -1,4 +1,14 @@
-#include "android_common.h"
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <log/log.h>
+#include <selinux/android.h>
+#include <selinux/label.h>
+
+#include "android_internal.h"
+#include "callbacks.h"
 
 #ifdef __ANDROID_VNDK__
 #ifndef LOG_EVENT_STRING

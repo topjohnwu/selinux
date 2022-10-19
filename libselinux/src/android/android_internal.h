@@ -1,11 +1,18 @@
+#pragma once
+
 #include <sys/types.h>
 
-#include "android_common.h"
+#include <selinux/selinux.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// Context files (file_contexts, service_contexts, etc) may be spread over
+// multiple partitions: system, apex, system_ext, product, vendor and/or odm.
+#define MAX_CONTEXT_PATHS 6
+// The maximum number of alternatives for a file on one partition.
+#define MAX_ALT_CONTEXT_PATHS 2
 
 /* Within each set of files, adds the first file that is accessible to `paths`.
  * Returns the number of accessible files. */
