@@ -1,7 +1,9 @@
 #pragma once
 
+#include <stdbool.h>
 #include <sys/types.h>
 
+#include <selinux/context.h>
 #include <selinux/selinux.h>
 
 #ifdef __cplusplus
@@ -44,6 +46,38 @@ struct selabel_handle* context_handle(
 		const path_alts_t *context_paths,
 		const char* name);
 
+/* The kind of request when looking up an seapp_context. */
+enum seapp_kind {
+	/* Returns the SELinux type for the app data directory */
+	SEAPP_TYPE,
+	/* Returns the SELinux type for the app process */
+	SEAPP_DOMAIN
+};
+
+/* Search an app (or its data) based on its name and information within the list
+ * of known seapp_contexts. If found, sets the type and categories of ctx and
+ * returns 0. Returns -1 in case of error; -2 for out of memory */
+int seapp_context_lookup(enum seapp_kind kind,
+				uid_t uid,
+				bool isSystemServer,
+				const char *seinfo,
+				const char *pkgname,
+				context_t ctx);
+
+/* Which categories should be associated to the process */
+enum levelFrom {
+	/* None */
+	LEVELFROM_NONE,
+	/* The categories of the application */
+	LEVELFROM_APP,
+	/* The categories of the end-user */
+	LEVELFROM_USER,
+	/* Application and end-user */
+	LEVELFROM_ALL
+};
+
+/* Sets the categories of ctx based on the level request */
+int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, uid_t appid);
 
 #ifdef __cplusplus
 }
