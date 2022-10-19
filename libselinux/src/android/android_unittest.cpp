@@ -4,6 +4,7 @@
 #include <android-base/stringprintf.h>
 
 #include "android_internal.h"
+#include "label_internal.h"
 
 using android::base::StringPrintf;
 using android::base::WriteStringToFile;

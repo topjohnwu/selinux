@@ -1,10 +1,36 @@
-#include "android_internal.h"
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <fnmatch.h>
 #include <fts.h>
+#include <libgen.h>
+#include <limits.h>
+#include <linux/magic.h>
+#include <pwd.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/vfs.h>
+#include <sys/xattr.h>
+#include <unistd.h>
+
+#include <log/log.h>
 #include <packagelistparser/packagelistparser.h>
 #include <private/android_filesystem_config.h>
+#include <selinux/android.h>
+#include <selinux/context.h>
+#include <selinux/selinux.h>
 
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
 #include <sys/_system_properties.h>
+
+#include "android_internal.h"
+#include "callbacks.h"
+#include "label_internal.h"
+#include "selinux_internal.h"
 
 /* Locations for the file_contexts files. For each partition, only the first
  * existing entry will be used (for example, if
