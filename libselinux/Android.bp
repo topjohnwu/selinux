@@ -57,6 +57,7 @@ cc_defaults {
 
     srcs: [
         "src/android/android.c",
+        "src/android/android_seapp.c",
         "src/avc.c",
         "src/avc_internal.c",
         "src/avc_sidtab.c",
@@ -110,7 +111,6 @@ cc_defaults {
         android: {
             srcs: [
                 "src/android/android_device.c",
-                "src/android/android_seapp.c",
             ],
             static: {
                 whole_static_libs: [
