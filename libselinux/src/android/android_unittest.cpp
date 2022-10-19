@@ -81,3 +81,32 @@ TEST_F(AndroidSELinuxTest, FailLoadingServiceContext)
 		SELABEL_CTX_ANDROID_SERVICE, &service_paths, "test_service");
 	EXPECT_EQ(handle, nullptr);
 }
+
+TEST_F(AndroidSELinuxTest, LoadAndLookupSeAppContext)
+{
+	string seapp_contexts =
+		StringPrintf("%s/seapp_contexts", tdir_.path);
+
+	WriteStringToFile(
+		"# some comment\n"
+		"user=_app seinfo=platform domain=platform_app type=app_data_file levelFrom=user\n",
+	seapp_contexts);
+
+	const path_alts_t seapp_paths = { .paths = {
+		{ seapp_contexts.c_str() }
+	}};
+
+	EXPECT_EQ(seapp_context_reload_internal(&seapp_paths), 0);
+
+	context_t ctx = context_new("u:r:unknown");
+	int ret = seapp_context_lookup_internal(SEAPP_DOMAIN, 10001, false, "platform", "com.android.test1", ctx);
+	EXPECT_EQ(ret, 0);
+	EXPECT_STREQ(context_str(ctx), "u:r:platform_app:s0:c512,c768");
+	context_free(ctx);
+
+	ctx = context_new("u:r:unknown_data_file");
+	ret = seapp_context_lookup_internal(SEAPP_TYPE, 10001, false, "platform", "com.android.test1", ctx);
+	EXPECT_EQ(ret, 0);
+	EXPECT_STREQ(context_str(ctx), "u:r:app_data_file:s0:c512,c768");
+	context_free(ctx);
+}
