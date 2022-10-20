@@ -695,7 +695,7 @@ int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, 
  * This code is Android specific, bionic guarantees that
  * calls to non-reentrant getpwuid() are thread safe.
  */
-struct passwd *(*seapp_getpwuid)(__uid_t uid) = getpwuid;
+struct passwd *(*seapp_getpwuid)(uid_t uid) = getpwuid;
 
 int seapp_context_lookup_internal(enum seapp_kind kind,
 				uid_t uid,
