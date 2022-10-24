@@ -35,6 +35,9 @@ static const path_alts_t service_context_paths = { .paths = {
 	{
 		"/vendor/etc/selinux/vendor_service_contexts",
 		"/vendor_service_contexts"
+	},
+	{
+		"/odm/etc/selinux/odm_service_contexts",
 	}
 }};
 
