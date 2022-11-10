@@ -25,6 +25,7 @@
 
 #include "policydb_internal.h"
 #include <sepol/policydb/context.h>
+#include <sepol/policydb/policydb.h>
 #include "handle.h"
 
 extern int mls_from_string(sepol_handle_t * handle,
@@ -56,8 +57,8 @@ extern int mls_convert_context(policydb_t * oldp,
 			       policydb_t * newp, context_struct_t * context);
 
 extern int mls_compute_sid(policydb_t * policydb,
-			   context_struct_t * scontext,
-			   context_struct_t * tcontext,
+			   const context_struct_t * scontext,
+			   const context_struct_t * tcontext,
 			   sepol_security_class_t tclass,
 			   uint32_t specified, context_struct_t * newcontext);
 

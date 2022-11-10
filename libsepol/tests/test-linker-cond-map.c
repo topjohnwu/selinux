@@ -18,6 +18,7 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include "test-linker-cond-map.h"
 #include "parse_util.h"
 #include "helpers.h"
 #include "test-common.h"
@@ -54,7 +55,7 @@ typedef struct test_cond_expr {
 	uint32_t expr_type;
 } test_cond_expr_t;
 
-void test_cond_expr_mapping(policydb_t * p, avrule_decl_t * d, test_cond_expr_t * bools, int len)
+static void test_cond_expr_mapping(policydb_t * p, avrule_decl_t * d, test_cond_expr_t * bools, int len)
 {
 	int i;
 	cond_expr_t *expr;
@@ -75,7 +76,7 @@ void test_cond_expr_mapping(policydb_t * p, avrule_decl_t * d, test_cond_expr_t 
 	}
 }
 
-void test_bool_state(policydb_t * p, const char *bool, int state)
+static void test_bool_state(policydb_t * p, const char *bool, int state)
 {
 	cond_bool_datum_t *b;
 

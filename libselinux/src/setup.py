@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 
-from distutils.core import Extension, setup
+from setuptools import Extension, setup
 
 setup(
     name="selinux",
-    version="3.3",
+    version="3.4",
     description="SELinux python 3 bindings",
     author="SELinux Project",
     author_email="selinux@vger.kernel.org",

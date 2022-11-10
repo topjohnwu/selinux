@@ -95,7 +95,6 @@ static int process_line(struct selabel_handle *rec,
 
 	items = read_spec_entries(line_buf, &errbuf, 2, &prop, &context);
 	if (items < 0) {
-		items = errno;
 		if (errbuf) {
 			selinux_log(SELINUX_ERROR,
 				    "%s:  line %u error due to: %s\n", path,
@@ -105,7 +104,6 @@ static int process_line(struct selabel_handle *rec,
 				    "%s:  line %u error due to: %m\n", path,
 				    lineno);
 		}
-		errno = items;
 		return -1;
 	}
 

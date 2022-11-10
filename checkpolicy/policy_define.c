@@ -1634,6 +1634,15 @@ static int define_compute_type_helper(int which, avrule_t ** rule)
 	}
 	add = 1;
 	while ((id = queue_remove(id_queue))) {
+		if (strcmp(id, "self") == 0) {
+			free(id);
+			if (add == 0) {
+				yyerror("-self is not supported");
+				goto bad;
+			}
+			avrule->flags |= RULE_SELF;
+			continue;
+		}
 		if (set_types(&avrule->ttypes, id, &add, 0))
 			goto bad;
 	}
@@ -2362,11 +2371,12 @@ static int avrule_cpy(avrule_t *dest, const avrule_t *src)
 	src_perms = src->perms;
 	while (src_perms) {
 		dest_perms = (class_perm_node_t *) calloc(1, sizeof(class_perm_node_t));
-		class_perm_node_init(dest_perms);
 		if (!dest_perms) {
 			yyerror("out of memory");
 			return -1;
 		}
+		class_perm_node_init(dest_perms);
+
 		if (!dest->perms)
 			dest->perms = dest_perms;
 		else
@@ -3300,7 +3310,7 @@ int define_filename_trans(void)
 	type_datum_t *typdatum;
 	uint32_t otype;
 	unsigned int c, s, t;
-	int add, rc;
+	int add, self, rc;
 
 	if (pass == 1) {
 		/* stype */
@@ -3333,8 +3343,18 @@ int define_filename_trans(void)
 			goto bad;
 	}
 
-	add =1;
+	self = 0;
+	add = 1;
 	while ((id = queue_remove(id_queue))) {
+		if (strcmp(id, "self") == 0) {
+			free(id);
+			if (add == 0) {
+				yyerror("-self is not supported");
+				goto bad;
+			}
+			self = 1;
+			continue;
+		}
 		if (set_types(&ttypes, id, &add, 0))
 			goto bad;
 	}
@@ -3396,6 +3416,24 @@ int define_filename_trans(void)
 					goto bad;
 				}
 			}
+			if (self) {
+				rc = policydb_filetrans_insert(
+					policydbp, s+1, s+1, c+1, name,
+					NULL, otype, NULL
+				);
+				if (rc != SEPOL_OK) {
+					if (rc == SEPOL_EEXIST) {
+						yyerror2("duplicate filename transition for: filename_trans %s %s %s:%s",
+							name,
+							policydbp->p_type_val_to_name[s],
+							policydbp->p_type_val_to_name[s],
+							policydbp->p_class_val_to_name[c]);
+						goto bad;
+					}
+					yyerror("out of memory");
+					goto bad;
+				}
+			}
 		}
 	
 		/* Now add the real rule since we didn't find any duplicates */
@@ -3418,6 +3456,7 @@ int define_filename_trans(void)
 		}
 		ftr->tclass = c + 1;
 		ftr->otype = otype;
+		ftr->flags = self ? RULE_SELF : 0;
 	}
 
 	free(name);
@@ -3627,7 +3666,7 @@ int define_constraint(constraint_expr_t * expr)
 				}
 				if (!perdatum) {
 					yyerror2("permission %s is not"
-						 " defined", id);
+						 " defined for class %s", id, policydbp->p_class_val_to_name[i]);
 					free(id);
 					ebitmap_destroy(&classmap);
 					return -1;
@@ -4866,7 +4905,7 @@ bad:
 	return -1;
 }
 
-int define_devicetree_context()
+int define_devicetree_context(void)
 {
 	ocontext_t *newc, *c, *l, *head;
 
@@ -5257,7 +5296,7 @@ int define_netif_context(void)
 	return 0;
 }
 
-int define_ipv4_node_context()
+int define_ipv4_node_context(void)
 {	
 	char *id;
 	int rc = 0;
