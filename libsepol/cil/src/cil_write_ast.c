@@ -546,6 +546,7 @@ static const char *macro_param_flavor_to_string(enum cil_flavor flavor)
 	return str;
 }
 
+/* ANDROID: not used.
 static void cil_write_src_info_node(FILE *out, struct cil_tree_node *node)
 {
 	struct cil_src_info *info = node->data;
@@ -557,6 +558,7 @@ static void cil_write_src_info_node(FILE *out, struct cil_tree_node *node)
 		fprintf(out, ";;* <?SRC_INFO_KIND> %u %s\n", info->hll_line, info->path);
 	}
 }
+*/
 
 void cil_write_ast_node(FILE *out, struct cil_tree_node *node)
 {
