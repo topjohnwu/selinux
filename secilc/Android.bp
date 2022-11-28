@@ -11,7 +11,7 @@ license {
         "SPDX-license-identifier-BSD",
     ],
     license_text: [
-        "COPYING",
+        "LICENSE",
     ],
 }
 
