@@ -23,16 +23,17 @@ from setools.typeattrquery import TypeAttributeQuery
 from setools.typequery import TypeQuery
 from setools.userquery import UserQuery
 
-PROGNAME = "policycoreutils"
+PROGNAME = "selinux-python"
 try:
     import gettext
     kwargs = {}
     if sys.version_info < (3,):
         kwargs['unicode'] = True
-    gettext.install(PROGNAME,
+    t = gettext.translation(PROGNAME,
                     localedir="/usr/share/locale",
-                    codeset='utf-8',
-                    **kwargs)
+                    **kwargs,
+                    fallback=True)
+    _ = t.gettext
 except:
     try:
         import builtins

@@ -2,11 +2,11 @@
 
 # Author: Thomas Liu <tliu@redhat.com>
 # Author: Dan Walsh <dwalsh@redhat.com>
-from distutils.core import setup
+from setuptools import setup
 
 setup(
     name="sepolicy",
-    version="3.3",
+    version="3.4",
     description="Python SELinux Policy Analyses bindings",
     author="Daniel Walsh",
     author_email="dwalsh@redhat.com",
