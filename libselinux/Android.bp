@@ -94,6 +94,7 @@ cc_defaults {
         "src/procattr.c",
         "src/regex.c",
         "src/reject_unknown.c",
+        "src/selinux_internal.c",
         "src/sestatus.c",
         "src/setenforce.c",
         "src/setfilecon.c",
