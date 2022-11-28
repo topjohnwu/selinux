@@ -104,6 +104,15 @@ extern int sepol_string_to_av_perm(sepol_security_class_t tclass,
 					sepol_access_vector_t *av);
 
 /*
+ * Return a string representation of the permission av bit associated with
+ * tclass.
+ * Returns a pointer to an internal buffer, overridden by the next call to
+ * this function or sepol_av_to_string().
+ */
+ extern const char *sepol_av_perm_to_string(sepol_security_class_t tclass,
+					sepol_access_vector_t av);
+
+/*
  * Compute a SID to use for labeling a new object in the 
  * class `tclass' based on a SID pair.  
  */
@@ -146,7 +155,7 @@ extern int sepol_sid_to_context(sepol_security_id_t sid,	/* IN */
  * Return a SID associated with the security context that
  * has the string representation specified by `scontext'.
  */
-extern int sepol_context_to_sid(const sepol_security_context_t scontext,	/* IN */
+extern int sepol_context_to_sid(sepol_const_security_context_t scontext,	/* IN */
 				size_t scontext_len,	/* IN */
 				sepol_security_id_t * out_sid);	/* OUT */
 

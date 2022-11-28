@@ -1097,16 +1097,18 @@ static int class_write(hashtab_key_t key, hashtab_datum_t datum, void *ptr)
 	     p->policyvers >= POLICYDB_VERSION_NEW_OBJECT_DEFAULTS) ||
 	    (p->policy_type == POLICY_BASE &&
 	     p->policyvers >= MOD_POLICYDB_VERSION_NEW_OBJECT_DEFAULTS)) {
+		char default_range = cladatum->default_range;
+
 		buf[0] = cpu_to_le32(cladatum->default_user);
 		buf[1] = cpu_to_le32(cladatum->default_role);
-		if (!glblub_version && cladatum->default_range == DEFAULT_GLBLUB) {
+		if (!glblub_version && default_range == DEFAULT_GLBLUB) {
 			WARN(fp->handle,
-                             "class %s default_range set to GLBLUB but policy version is %d (%d required), discarding",
-                             p->p_class_val_to_name[cladatum->s.value - 1], p->policyvers,
-                             p->policy_type == POLICY_KERN? POLICYDB_VERSION_GLBLUB:MOD_POLICYDB_VERSION_GLBLUB);
-                        cladatum->default_range = 0;
-                }
-		buf[2] = cpu_to_le32(cladatum->default_range);
+			     "class %s default_range set to GLBLUB but policy version is %d (%d required), discarding",
+			     p->p_class_val_to_name[cladatum->s.value - 1], p->policyvers,
+			     p->policy_type == POLICY_KERN? POLICYDB_VERSION_GLBLUB:MOD_POLICYDB_VERSION_GLBLUB);
+			default_range = 0;
+		}
+		buf[2] = cpu_to_le32(default_range);
 		items = put_entry(buf, sizeof(uint32_t), 3, fp);
 		if (items != 3)
 			return POLICYDB_ERROR;
@@ -1745,6 +1747,14 @@ static int avrule_write(policydb_t *p, avrule_t * avrule,
 	uint32_t buf[32], len;
 	class_perm_node_t *cur;
 
+	if (p->policyvers < MOD_POLICYDB_VERSION_SELF_TYPETRANS &&
+	    (avrule->specified & AVRULE_TYPE) &&
+	    (avrule->flags & RULE_SELF)) {
+		ERR(fp->handle,
+		    "Module contains a self rule not supported by the target module policy version");
+		return POLICYDB_ERROR;
+	}
+
 	items = 0;
 	buf[items++] = cpu_to_le32(avrule->specified);
 	buf[items++] = cpu_to_le32(avrule->flags);
@@ -1929,11 +1939,12 @@ static int role_allow_rule_write(role_allow_rule_t * r, struct policy_file *fp)
 	return POLICYDB_SUCCESS;
 }
 
-static int filename_trans_rule_write(filename_trans_rule_t * t, struct policy_file *fp)
+static int filename_trans_rule_write(policydb_t *p, filename_trans_rule_t *t,
+				     struct policy_file *fp)
 {
 	int nel = 0;
-	size_t items;
-	uint32_t buf[2], len;
+	size_t items, entries;
+	uint32_t buf[3], len;
 	filename_trans_rule_t *ftr;
 
 	for (ftr = t; ftr; ftr = ftr->next)
@@ -1962,9 +1973,20 @@ static int filename_trans_rule_write(filename_trans_rule_t * t, struct policy_fi
 
 		buf[0] = cpu_to_le32(ftr->tclass);
 		buf[1] = cpu_to_le32(ftr->otype);
+		buf[2] = cpu_to_le32(ftr->flags);
 
-		items = put_entry(buf, sizeof(uint32_t), 2, fp);
-		if (items != 2)
+		if (p->policyvers >= MOD_POLICYDB_VERSION_SELF_TYPETRANS) {
+			entries = 3;
+		} else if (!(ftr->flags & RULE_SELF)) {
+			entries = 2;
+		} else {
+			ERR(fp->handle,
+			    "Module contains a self rule not supported by the target module policy version");
+			return POLICYDB_ERROR;
+		}
+
+		items = put_entry(buf, sizeof(uint32_t), entries, fp);
+		if (items != entries)
 			return POLICYDB_ERROR;
 	}
 	return POLICYDB_SUCCESS;
@@ -2039,7 +2061,7 @@ static int avrule_decl_write(avrule_decl_t * decl, int num_scope_syms,
 	}
 
 	if (p->policyvers >= MOD_POLICYDB_VERSION_FILENAME_TRANS &&
-	    filename_trans_rule_write(decl->filename_trans_rules, fp))
+	    filename_trans_rule_write(p, decl->filename_trans_rules, fp))
 		return POLICYDB_ERROR;
 
 	if (p->policyvers >= MOD_POLICYDB_VERSION_RANGETRANS &&
@@ -2117,7 +2139,7 @@ static int scope_write(hashtab_key_t key, hashtab_datum_t datum, void *ptr)
 		 * buffer.  this would have been easier with C99's
 		 * dynamic arrays... */
 		rc = POLICYDB_ERROR;
-		dyn_buf = mallocarray(items, sizeof(*dyn_buf));
+		dyn_buf = calloc(items, sizeof(*dyn_buf));
 		if (!dyn_buf)
 			goto err;
 		buf = dyn_buf;

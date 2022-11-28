@@ -393,6 +393,8 @@ static int typealias_list_create(struct policydb *pdb)
 	}
 
 	typealias_lists = calloc(max_decl_id + 1, sizeof(*typealias_lists));
+	if (!typealias_lists)
+		goto exit;
 	typealias_lists_len = max_decl_id + 1;
 
 	rc = hashtab_map(pdb->p_types.table, typealiases_gather_map, pdb);
@@ -430,7 +432,7 @@ static int stack_init(struct stack **stack)
 		goto exit;
 	}
 
-	s->stack = mallocarray(STACK_SIZE, sizeof(*s->stack));
+	s->stack = calloc(STACK_SIZE, sizeof(*s->stack));
 	if (s->stack == NULL) {
 		goto exit;
 	}
@@ -622,7 +624,7 @@ exit:
 	return rc;
 }
 
-#define next_bit_in_range(i, p) ((i + 1 < sizeof(p)*8) && xperm_test((i + 1), p))
+#define next_bit_in_range(i, p) (((i) + 1 < sizeof(p)*8) && xperm_test(((i) + 1), p))
 
 static int xperms_to_cil(const av_extended_perms_t *xperms)
 {
@@ -1008,7 +1010,7 @@ static int ebitmap_to_names(struct ebitmap *map, char **vals_to_names, char ***n
 		goto exit;
 	}
 
-	name_arr = mallocarray(num, sizeof(*name_arr));
+	name_arr = calloc(num, sizeof(*name_arr));
 	if (name_arr == NULL) {
 		log_err("Out of memory");
 		rc = -1;
@@ -1620,6 +1622,13 @@ static int filename_trans_to_cil(int indent, struct policydb *pdb, struct filena
 					    rule->name,
 					    pdb->p_type_val_to_name[rule->otype - 1]);
 			}
+			if (rule->flags & RULE_SELF) {
+				cil_println(indent, "(typetransition %s self %s \"%s\" %s)",
+					    stypes[stype],
+					    pdb->p_class_val_to_name[rule->tclass - 1],
+					    rule->name,
+					    pdb->p_type_val_to_name[rule->otype - 1]);
+			}
 		}
 
 		names_destroy(&stypes, &num_stypes);
@@ -1792,6 +1801,10 @@ static int constraint_expr_to_string(struct policydb *pdb, struct constraint_exp
 				}
 				if (num_names == 0) {
 					names = strdup("NO_IDENTIFIER");
+					if (!names) {
+						rc = -1;
+						goto exit;
+					}
 				} else {
 					rc = name_list_to_string(name_list, num_names, &names);
 					if (rc != 0) {
@@ -2556,6 +2569,11 @@ static int ocontext_isid_to_cil(struct policydb *pdb, const char *const *sid_to_
 			goto exit;
 		}
 		item->sid_key = strdup(sid);
+		if (!item->sid_key) {
+			log_err("Out of memory");
+			rc = -1;
+			goto exit;
+		}
 		item->next = head;
 		head = item;
 	}

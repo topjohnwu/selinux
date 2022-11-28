@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -Es
+#!/usr/bin/python3 -EsI
 # Copyright (C) 2005 Red Hat
 # see file 'COPYING' for use and warranty information
 #
@@ -30,17 +30,18 @@ import getopt
 import selinux
 import seobject
 
-PROGNAME = "policycoreutils"
+PROGNAME = "selinux-python"
 try:
     import gettext
     kwargs = {}
     if sys.version_info < (3,):
         kwargs['unicode'] = True
-    gettext.install(PROGNAME,
+    t = gettext.translation(PROGNAME,
                     localedir="/usr/share/locale",
-                    codeset='utf-8',
-                    **kwargs)
-except ImportError:
+                    **kwargs,
+                    fallback=True)
+    _ = t.gettext
+except:
     try:
         import builtins
         builtins.__dict__['_'] = str
