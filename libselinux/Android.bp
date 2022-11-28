@@ -110,6 +110,9 @@ cc_defaults {
             ],
         },
         android: {
+            cflags: [
+                "-DHAVE_STRLCPY"
+            ],
             srcs: [
                 "src/android/android_device.c",
             ],
