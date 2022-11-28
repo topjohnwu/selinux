@@ -41,16 +41,17 @@ import os
 import re
 import unicodedata
 
-PROGNAME = "policycoreutils"
+PROGNAME = "selinux-python"
 try:
     import gettext
     kwargs = {}
     if sys.version_info < (3,):
         kwargs['unicode'] = True
-    gettext.install(PROGNAME,
+    t = gettext.translation(PROGNAME,
                     localedir="/usr/share/locale",
-                    codeset='utf-8',
-                    **kwargs)
+                    **kwargs,
+                    fallback=True)
+    _ = t.gettext
 except:
     try:
         import builtins
@@ -76,7 +77,7 @@ def cmp(a, b):
         return 1
     return (a > b) - (a < b)
 
-import distutils.sysconfig
+import sysconfig
 ADVANCED_LABEL = (_("Advanced >>"), _("Advanced <<"))
 ADVANCED_SEARCH_LABEL = (_("Advanced Search >>"), _("Advanced Search <<"))
 OUTBOUND_PAGE = 0
@@ -129,7 +130,7 @@ class SELinuxGui():
         self.application = app
         self.filter_txt = ""
         builder = Gtk.Builder()  # BUILDER OBJ
-        self.code_path = distutils.sysconfig.get_python_lib(plat_specific=False) + "/sepolicy/"
+        self.code_path = sysconfig.get_python_lib(plat_specific=False) + "/sepolicy/"
         glade_file = self.code_path + "sepolicy.glade"
         builder.add_from_file(glade_file)
         self.outer_notebook = builder.get_object("outer_notebook")
@@ -1309,9 +1310,9 @@ class SELinuxGui():
                 filename = i['filename']
             else:
                 filename = None
-            self.transitions_files_inital_data_insert(i['target'], i['class'], i['transtype'], filename)
+            self.transitions_files_initial_data_insert(i['target'], i['class'], i['transtype'], filename)
 
-    def transitions_files_inital_data_insert(self, path, tclass, dest, name):
+    def transitions_files_initial_data_insert(self, path, tclass, dest, name):
         iter = self.transitions_file_liststore.append()
         self.transitions_file_liststore.set_value(iter, 0, path)
         self.transitions_file_liststore.set_value(iter, 1, tclass)

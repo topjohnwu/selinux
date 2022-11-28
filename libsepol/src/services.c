@@ -394,7 +394,7 @@ static int constraint_expr_eval_reason(context_struct_t *scontext,
 	role_datum_t *r1, *r2;
 	mls_level_t *l1, *l2;
 	constraint_expr_t *e;
-	int s[CEXPR_MAXDEPTH];
+	int s[CEXPR_MAXDEPTH] = {};
 	int sp = -1;
 	char tmp_buf[128];
 
@@ -712,7 +712,7 @@ mls_ops:
 	 * Generate the same number of answer buffer entries as expression
 	 * buffers (as there will never be more).
 	 */
-	answer_list = mallocarray(expr_count, sizeof(*answer_list));
+	answer_list = calloc(expr_count, sizeof(*answer_list));
 	if (!answer_list) {
 		ERR(NULL, "failed to allocate answer stack");
 		rc = -ENOMEM;
@@ -803,7 +803,7 @@ mls_ops:
 				if (len < 0 || len >= reason_buf_len - reason_buf_used) {
 					new_buf_len = reason_buf_len + REASON_BUF_SIZE;
 					*new_buf = realloc(*r_buf, new_buf_len);
-					if (!new_buf) {
+					if (!*new_buf) {
 						ERR(NULL, "failed to realloc reason buffer");
 						goto out1;
 					}
@@ -894,7 +894,8 @@ static void type_attribute_bounds_av(context_struct_t *scontext,
 	/* mask violated permissions */
 	avd->allowed &= ~masked;
 
-	*reason |= SEPOL_COMPUTEAV_BOUNDS;
+	if (reason)
+		*reason |= SEPOL_COMPUTEAV_BOUNDS;
 }
 
 /*
@@ -1233,6 +1234,12 @@ out:
 	return STATUS_ERR;
 }
 
+ const char *sepol_av_perm_to_string(sepol_security_class_t tclass,
+					sepol_access_vector_t av)
+{
+	return sepol_av_to_string(policydb, tclass, av);
+}
+
 /*
  * Write the security context string representation of 
  * the context associated with `sid' into a dynamically
@@ -1263,7 +1270,7 @@ int sepol_sid_to_context(sepol_security_id_t sid,
  * Return a SID associated with the security context that
  * has the string representation specified by `scontext'.
  */
-int sepol_context_to_sid(const sepol_security_context_t scontext,
+int sepol_context_to_sid(sepol_const_security_context_t scontext,
 				size_t scontext_len, sepol_security_id_t * sid)
 {
 
@@ -2163,12 +2170,11 @@ int sepol_get_user_sids(sepol_security_id_t fromsid,
 	}
 	usercon.user = user->s.value;
 
-	mysids = mallocarray(maxnel, sizeof(sepol_security_id_t));
+	mysids = calloc(maxnel, sizeof(sepol_security_id_t));
 	if (!mysids) {
 		rc = -ENOMEM;
 		goto out;
 	}
-	memset(mysids, 0, maxnel * sizeof(sepol_security_id_t));
 
 	ebitmap_for_each_positive_bit(&user->roles.roles, rnode, i) {
 		role = policydb->role_val_to_struct[i];
@@ -2198,17 +2204,12 @@ int sepol_get_user_sids(sepol_security_id_t fromsid,
 				mysids[mynel++] = sid;
 			} else {
 				maxnel += SIDS_NEL;
-				mysids2 =
-				    mallocarray(maxnel,
-					   sizeof(sepol_security_id_t));
-
+				mysids2 = calloc(maxnel, sizeof(sepol_security_id_t));
 				if (!mysids2) {
 					rc = -ENOMEM;
 					free(mysids);
 					goto out;
 				}
-				memset(mysids2, 0,
-				       maxnel * sizeof(sepol_security_id_t));
 				memcpy(mysids2, mysids,
 				       mynel * sizeof(sepol_security_id_t));
 				free(mysids);

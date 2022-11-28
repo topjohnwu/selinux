@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -Es
+#!/usr/bin/python3 -EsI
 # Copyright (C) 2012-2013 Red Hat
 # AUTHOR: Miroslav Grepl <mgrepl@redhat.com>
 # AUTHOR: David Quigley <selinux@davequigley.com>
@@ -30,16 +30,17 @@ import seobject
 import sys
 import traceback
 
-PROGNAME = "policycoreutils"
+PROGNAME = "selinux-python"
 try:
     import gettext
     kwargs = {}
     if sys.version_info < (3,):
         kwargs['unicode'] = True
-    gettext.install(PROGNAME,
+    t = gettext.translation(PROGNAME,
                     localedir="/usr/share/locale",
-                    codeset='utf-8',
-                    **kwargs)
+                    **kwargs,
+                    fallback=True)
+    _ = t.gettext
 except:
     try:
         import builtins
@@ -852,10 +853,29 @@ def handleImport(args):
     trans = seobject.semanageRecords(args)
     trans.start()
 
+    deleteCommands = []
+    commands = []
+    # separate commands for deletion from the rest so they can be
+    # applied in a separate transaction
     for l in sys.stdin.readlines():
         if len(l.strip()) == 0:
             continue
+        if "-d" in l or "-D" in l:
+            deleteCommands.append(l)
+        else:
+            commands.append(l)
 
+    if deleteCommands:
+        importHelper(deleteCommands)
+        trans.finish()
+        trans.start()
+
+    importHelper(commands)
+    trans.finish()
+
+
+def importHelper(commands):
+    for l in commands:
         try:
             commandParser = createCommandParser()
             args = commandParser.parse_args(mkargv(l))
@@ -868,8 +888,6 @@ def handleImport(args):
             sys.exit(1)
         except KeyboardInterrupt:
             sys.exit(0)
-
-    trans.finish()
 
 
 def setupImportParser(subparsers):
@@ -953,8 +971,8 @@ def do_parser():
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
         sys.exit(1)
-    except IOError as e:
-        sys.stderr.write("%s: %s\n" % (e.__class__.__name__, str(e)))
+    except OSError as e:
+        sys.stderr.write("%s: %s\n" % (e.__class__.__name__, e.args[1]))
         sys.exit(1)
     except KeyboardInterrupt:
         sys.exit(0)
@@ -963,9 +981,6 @@ def do_parser():
         sys.exit(1)
     except KeyError as e:
         sys.stderr.write("%s: %s\n" % (e.__class__.__name__, e.args[0]))
-        sys.exit(1)
-    except OSError as e:
-        sys.stderr.write("%s: %s\n" % (e.__class__.__name__, e.args[1]))
         sys.exit(1)
     except RuntimeError as e:
         sys.stderr.write("%s: %s\n" % (e.__class__.__name__, e.args[0]))

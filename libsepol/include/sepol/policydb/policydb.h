@@ -251,9 +251,9 @@ typedef struct class_perm_node {
 	struct class_perm_node *next;
 } class_perm_node_t;
 
-#define xperm_test(x, p) (UINT32_C(1) & (p[x >> 5] >> (x & 0x1f)))
-#define xperm_set(x, p) (p[x >> 5] |= (UINT32_C(1) << (x & 0x1f)))
-#define xperm_clear(x, p) (p[x >> 5] &= ~(UINT32_C(1) << (x & 0x1f)))
+#define xperm_test(x, p) (UINT32_C(1) & ((p)[(x) >> 5] >> ((x) & 0x1f)))
+#define xperm_set(x, p) ((p)[(x) >> 5] |= (UINT32_C(1) << ((x) & 0x1f)))
+#define xperm_clear(x, p) ((p)[(x) >> 5] &= ~(UINT32_C(1) << ((x) & 0x1f)))
 #define EXTENDED_PERMS_LEN 8
 
 typedef struct av_extended_perms {
@@ -314,6 +314,7 @@ typedef struct role_allow_rule {
 } role_allow_rule_t;
 
 typedef struct filename_trans_rule {
+	uint32_t flags; /* may have RULE_SELF set */
 	type_set_t stypes;
 	type_set_t ttypes;
 	uint32_t tclass;
@@ -781,9 +782,10 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 #define MOD_POLICYDB_VERSION_XPERMS_IOCTL  18
 #define MOD_POLICYDB_VERSION_INFINIBAND		19
 #define MOD_POLICYDB_VERSION_GLBLUB		20
+#define MOD_POLICYDB_VERSION_SELF_TYPETRANS	21
 
 #define MOD_POLICYDB_VERSION_MIN MOD_POLICYDB_VERSION_BASE
-#define MOD_POLICYDB_VERSION_MAX MOD_POLICYDB_VERSION_GLBLUB
+#define MOD_POLICYDB_VERSION_MAX MOD_POLICYDB_VERSION_SELF_TYPETRANS
 
 #define POLICYDB_CONFIG_MLS    1
 
@@ -793,9 +795,9 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 
 #define policydb_has_boundary_feature(p)			\
 	(((p)->policy_type == POLICY_KERN			\
-	  && p->policyvers >= POLICYDB_VERSION_BOUNDARY) ||	\
+	  && (p)->policyvers >= POLICYDB_VERSION_BOUNDARY) ||	\
 	 ((p)->policy_type != POLICY_KERN			\
-	  && p->policyvers >= MOD_POLICYDB_VERSION_BOUNDARY))
+	  && (p)->policyvers >= MOD_POLICYDB_VERSION_BOUNDARY))
 
 /* the config flags related to unknown classes/perms are bits 2 and 3 */
 #define DENY_UNKNOWN	SEPOL_DENY_UNKNOWN
