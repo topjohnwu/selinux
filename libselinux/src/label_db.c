@@ -31,7 +31,7 @@
  * For example:
  * ----------------------------------------
  * #
- * # It is an example specfile for database obejcts
+ * # It is an example specfile for database objects
  * #
  * db_database  template1           system_u:object_r:sepgsql_db_t:s0
  *
@@ -293,6 +293,11 @@ db_init(const struct selinux_opt *opts, unsigned nopts,
 		return NULL;
 	}
 	rec->spec_file = strdup(path);
+	if (!rec->spec_file) {
+                free(catalog);
+                fclose(filp);
+                return NULL;
+	}
 
 	/*
 	 * Parse for each lines
@@ -322,18 +327,19 @@ db_init(const struct selinux_opt *opts, unsigned nopts,
 		if (process_line(path, line_buf, ++line_num, catalog) < 0)
 			goto out_error;
 	}
-	free(line_buf);
 
 	if (digest_add_specfile(rec->digest, filp, NULL, sb.st_size, path) < 0)
 		goto out_error;
 
 	digest_gen_hash(rec->digest);
 
+	free(line_buf);
 	fclose(filp);
 
 	return catalog;
 
 out_error:
+	free(line_buf);
 	for (i = 0; i < catalog->nspec; i++) {
 		spec_t	       *spec = &catalog->specs[i];
 
