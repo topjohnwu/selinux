@@ -226,7 +226,7 @@ rust_bindgen {
     name: "libselinux_bindgen",
     wrapper_src: "rust/selinux.h",
     crate_name: "selinux_bindgen",
-    visibility: ["//frameworks/native/libs/binder/rust/tests", "//system/security/keystore2:__subpackages__", "//packages/modules/Virtualization/virtualizationservice"],
+    visibility: ["//frameworks/native/libs/binder/rust/tests", "//system/security/keystore2:__subpackages__", "//packages/modules/Virtualization:__subpackages__"],
     source_stem: "bindings",
     local_include_dirs: ["include"],
 
