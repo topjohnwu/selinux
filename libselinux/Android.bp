@@ -40,7 +40,6 @@ common_CFLAGS = [
     "-DNO_MEDIA_BACKEND",
     "-DNO_X_BACKEND",
     "-DNO_DB_BACKEND",
-    "-DAGGRESSIVE_FREE_AFTER_REGEX_MATCH",
     "-Wall",
     "-Werror",
     "-Wno-error=missing-noreturn",
