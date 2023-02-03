@@ -13,6 +13,7 @@ extern int selinux_page_size ;
 #pragma weak pthread_key_create
 #pragma weak pthread_key_delete
 #pragma weak pthread_setspecific
+#pragma weak pthread_getspecific
 
 /* Call handler iff the first call.  */
 #define __selinux_once(ONCE_CONTROL, INIT_FUNCTION)	\
@@ -40,6 +41,9 @@ extern int selinux_page_size ;
 		if (pthread_setspecific != NULL)		\
 			pthread_setspecific(KEY, VALUE);	\
 	} while (0)
+
+#define __selinux_getspecific(KEY)				\
+	(pthread_getspecific != NULL ? pthread_getspecific(KEY) : NULL)
 
 /* selabel_lookup() is only thread safe if we're compiled with pthreads */
 
