@@ -9,11 +9,11 @@ third_party {
     type: GIT
     value: "https://github.com/SELinuxProject/selinux.git"
   }
-  version: "3.5-rc2"
+  version: "3.5"
   license_type: RESTRICTED
   last_upgrade_date {
     year: 2023
-    month: 2
-    day: 16
+    month: 3
+    day: 20
   }
 }
