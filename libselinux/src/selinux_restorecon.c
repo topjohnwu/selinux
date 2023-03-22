@@ -432,10 +432,11 @@ static pthread_mutex_t fl_mutex = PTHREAD_MUTEX_INITIALIZER;
  * that matched.
  */
 static int filespec_add(ino_t ino, const char *con, const char *file,
-			struct rest_flags *flags)
+			const struct rest_flags *flags)
 {
 	file_spec_t *prevfl, *fl;
-	int h, ret;
+	uint32_t h;
+	int ret;
 	struct stat64 sb;
 
 	__pthread_mutex_lock(&fl_mutex);
@@ -524,7 +525,8 @@ unlock_1:
 static void filespec_eval(void)
 {
 	file_spec_t *fl;
-	int h, used, nel, len, longest;
+	uint32_t h;
+	size_t used, nel, len, longest;
 
 	if (!fl_head)
 		return;
@@ -544,7 +546,7 @@ static void filespec_eval(void)
 	}
 
 	selinux_log(SELINUX_INFO,
-		     "filespec hash table stats: %d elements, %d/%d buckets used, longest chain length %d\n",
+		     "filespec hash table stats: %zu elements, %zu/%zu buckets used, longest chain length %zu\n",
 		     nel, used, HASH_BUCKETS, longest);
 }
 #else
@@ -559,7 +561,7 @@ static void filespec_eval(void)
 static void filespec_destroy(void)
 {
 	file_spec_t *fl, *tmp;
-	int h;
+	uint32_t h;
 
 	if (!fl_head)
 		return;
@@ -624,15 +626,13 @@ out:
 }
 
 static int restorecon_sb(const char *pathname, const struct stat *sb,
-			    struct rest_flags *flags, bool first)
+			    const struct rest_flags *flags, bool first)
 {
 	char *newcon = NULL;
 	char *curcon = NULL;
 	char *newtypecon = NULL;
 	int rc;
-	bool updated = false;
 	const char *lookup_path = pathname;
-	float pc;
 
 	if (rootpath) {
 		if (strncmp(rootpath, lookup_path, rootpathlen) != 0) {
@@ -647,10 +647,10 @@ static int restorecon_sb(const char *pathname, const struct stat *sb,
 	if (rootpath != NULL && lookup_path[0] == '\0')
 		/* this is actually the root dir of the alt root. */
 		rc = selabel_lookup_raw(fc_sehandle, &newcon, "/",
-						    sb->st_mode);
+						    sb->st_mode & S_IFMT);
 	else
 		rc = selabel_lookup_raw(fc_sehandle, &newcon, lookup_path,
-						    sb->st_mode);
+						    sb->st_mode & S_IFMT);
 
 	if (rc < 0) {
 		if (errno == ENOENT) {
@@ -670,7 +670,7 @@ static int restorecon_sb(const char *pathname, const struct stat *sb,
 		fc_count++;
 		if (fc_count % STAR_COUNT == 0) {
 			if (flags->mass_relabel && efile_count > 0) {
-				pc = (fc_count < efile_count) ? (100.0 *
+				float pc = (fc_count < efile_count) ? (100.0 *
 					     fc_count / efile_count) : 100;
 				fprintf(stdout, "\r%-.1f%%", (double)pc);
 			} else {
@@ -710,6 +710,8 @@ static int restorecon_sb(const char *pathname, const struct stat *sb,
 	}
 
 	if (curcon == NULL || strcmp(curcon, newcon) != 0) {
+		bool updated = false;
+
 		if (!flags->set_specctx && curcon &&
 				    (is_context_customizable(curcon) > 0)) {
 			if (flags->verbose) {
