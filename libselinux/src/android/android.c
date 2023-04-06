@@ -176,57 +176,55 @@ struct selabel_handle* selinux_android_keystore2_key_context_handle(void)
 	return context_handle(SELABEL_CTX_ANDROID_KEYSTORE2_KEY, &keystore2_context_paths, "keystore2");
 }
 
+static void __selinux_log_callback(bool add_to_event_log, int type, const char *fmt, va_list ap) {
+	int priority;
+	char *strp;
+
+	switch(type) {
+	case SELINUX_WARNING:
+		priority = ANDROID_LOG_WARN;
+		break;
+	case SELINUX_INFO:
+		priority = ANDROID_LOG_INFO;
+		break;
+	default:
+		priority = ANDROID_LOG_ERROR;
+		break;
+	}
+
+	int len = vasprintf(&strp, fmt, ap);
+	if (len < 0) {
+		return;
+	}
+
+	/* libselinux log messages usually contain a new line character, while
+	 * Android LOG() does not expect it. Remove it to avoid empty lines in
+	 * the log buffers.
+	 */
+	if (len > 0 && strp[len - 1] == '\n') {
+		strp[len - 1] = '\0';
+	}
+	LOG_PRI(priority, "SELinux", "%s", strp);
+	if (add_to_event_log) {
+		LOG_EVENT_STRING(AUDITD_LOG_TAG, strp);
+	}
+	free(strp);
+}
+
 int selinux_log_callback(int type, const char *fmt, ...)
 {
-    va_list ap;
-    int priority;
-    char *strp;
-
-    switch(type) {
-    case SELINUX_WARNING:
-        priority = ANDROID_LOG_WARN;
-        break;
-    case SELINUX_INFO:
-        priority = ANDROID_LOG_INFO;
-        break;
-    default:
-        priority = ANDROID_LOG_ERROR;
-        break;
-    }
-
-    va_start(ap, fmt);
-    if (vasprintf(&strp, fmt, ap) != -1) {
-        LOG_PRI(priority, "SELinux", "%s", strp);
-        LOG_EVENT_STRING(AUDITD_LOG_TAG, strp);
-        free(strp);
-    }
-    va_end(ap);
-    return 0;
+	va_list ap;
+	va_start(ap, fmt);
+	__selinux_log_callback(true, type, fmt, ap);
+	va_end(ap);
+	return 0;
 }
 
 int selinux_vendor_log_callback(int type, const char *fmt, ...)
 {
-    va_list ap;
-    int priority;
-    char *strp;
-
-    switch(type) {
-    case SELINUX_WARNING:
-        priority = ANDROID_LOG_WARN;
-        break;
-    case SELINUX_INFO:
-        priority = ANDROID_LOG_INFO;
-        break;
-    default:
-        priority = ANDROID_LOG_ERROR;
-        break;
-    }
-
-    va_start(ap, fmt);
-    if (vasprintf(&strp, fmt, ap) != -1) {
-        LOG_PRI(priority, "SELinux", "%s", strp);
-        free(strp);
-    }
-    va_end(ap);
-    return 0;
+	va_list ap;
+	va_start(ap, fmt);
+	__selinux_log_callback(false, type, fmt, ap);
+	va_end(ap);
+	return 0;
 }
