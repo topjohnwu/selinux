@@ -633,8 +633,10 @@ static int selinux_android_restorecon_common(const char* pathname_orig,
         ftsflags |= FTS_XDEV;
     }
 
-    if (is_selinux_enabled() <= 0)
+    if (is_selinux_enabled() <= 0) {
+        selinux_log(SELINUX_WARNING, "SELinux: SELinux is disabled, skipping restorecon");
         return 0;
+    }
 
     __selinux_once(fc_once, file_context_init);
 
