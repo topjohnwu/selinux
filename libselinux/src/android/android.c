@@ -94,11 +94,26 @@ size_t find_existing_files(
 		const path_alts_t *path_sets,
 		const char* paths[MAX_CONTEXT_PATHS])
 {
+	return find_existing_files_with_partitions(
+		path_sets,
+		paths,
+		NULL
+	);
+}
+
+size_t find_existing_files_with_partitions(
+		const path_alts_t *path_sets,
+		const char* paths[MAX_CONTEXT_PATHS],
+		const char* partitions[MAX_CONTEXT_PATHS])
+{
 	size_t i, j, len = 0;
 	for (i = 0; i < MAX_CONTEXT_PATHS; i++) {
 		for (j = 0; j < MAX_ALT_CONTEXT_PATHS; j++) {
 			const char* file = path_sets->paths[i][j];
 			if (file && access(file, R_OK) != -1) {
+				if (partitions) {
+					partitions[len] = path_sets->partitions[i];
+				}
 				paths[len++] = file;
 				/* Within each set, only the first valid entry is used */
 				break;
