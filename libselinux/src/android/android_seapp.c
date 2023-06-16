@@ -48,8 +48,8 @@ static const path_alts_t file_context_paths = { .paths = {
 	}
 }};
 
-/* Locations for the seapp_contexts files. For each partition, only the first
- * existing entry will be used (for example, if
+/* Locations for the seapp_contexts files, and corresponding partitions. For
+ * each partition, only the first existing entry will be used (for example, if
  * /system/etc/selinux/plat_seapp_contexts exists, /plat_seapp_contexts will be
  * ignored).
  */
@@ -77,6 +77,13 @@ static const path_alts_t seapp_context_paths = { .paths = {
 		"/odm/etc/selinux/odm_seapp_contexts",
 		"/odm_seapp_contexts"
 	}
+}, .partitions= {
+	"system",
+	"system", // regard APEX sepolicy as system
+	"system_ext",
+	"product",
+	"vendor",
+	"odm"
 }};
 
 /* Returns a handle for the file contexts backend, initialized with the Android
@@ -141,6 +148,7 @@ struct seapp_context {
 	char *type;
 	char *level;
 	enum levelFrom levelFrom;
+	const char* partition;
 };
 
 static void free_seapp_context(struct seapp_context *s)
@@ -303,8 +311,9 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 	size_t i, len, files_len = 0;
 	int ret;
 	const char* seapp_contexts_files[MAX_CONTEXT_PATHS];
+	const char* seapp_contexts_partitions[MAX_CONTEXT_PATHS];
 
-	files_len = find_existing_files(context_paths, seapp_contexts_files);
+	files_len = find_existing_files_with_partitions(context_paths, seapp_contexts_files, seapp_contexts_partitions);
 
 	/* Reset the current entries */
 	free_seapp_contexts();
@@ -555,6 +564,7 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 				goto err;
 			}
 
+			cur->partition = seapp_contexts_partitions[i];
 			seapp_contexts[nspec] = cur;
 			nspec++;
 			lineno++;
@@ -643,6 +653,7 @@ void selinux_android_seapp_context_init(void) {
 #define APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR ":isSdkSandboxNext"
 #define EPHEMERAL_APP_STR ":ephemeralapp"
 #define TARGETSDKVERSION_STR ":targetSdkVersion="
+#define PARTITION_STR ":partition="
 #define FROM_RUNAS_STR ":fromRunAs"
 static int32_t get_app_targetSdkVersion(const char *seinfo)
 {
@@ -663,6 +674,39 @@ static int32_t get_app_targetSdkVersion(const char *seinfo)
 	}
 	return 0; /* default to 0 when targetSdkVersion= is not present in seinfo */
 }
+
+// returns true if found, false if not found or error
+static bool get_partition(const char *seinfo, char partition[], size_t size)
+{
+	if (size == 0) return false;
+
+	const char *substr = strstr(seinfo, PARTITION_STR);
+	if (substr == NULL) return false;
+
+	const char *src = substr + strlen(PARTITION_STR);
+	const char *p = strchr(src, ':');
+	size_t len = p ? p - src : strlen(src);
+	if (len > size - 1) return -1;
+	strncpy(partition, src, len);
+	partition[len] = '\0';
+
+	return true;
+}
+
+static bool is_platform(const char *partition) {
+	// system, system_ext, product are regarded as "platform", whereas vendor
+	// and odm are regarded as vendor.
+	if (strcmp(partition, "system") == 0) return true;
+	if (strcmp(partition, "system_ext") == 0) return true;
+	if (strcmp(partition, "product") == 0) return true;
+	return false;
+}
+
+static bool check_preinstalled_app_partition(const char *spec, const char *app) {
+	// We forbid system/system_ext/product installed apps from being labeled with vendor sepolicy.
+	return !is_platform(spec) && is_platform(app);
+}
+
 
 static int seinfo_parse(char *dest, const char *src, size_t size)
 {
@@ -742,6 +786,8 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 	bool isSdkSandboxNext = false;
 	int32_t targetSdkVersion = 0;
 	bool fromRunAs = false;
+	bool isPreinstalledApp = false;
+	char partition[BUFSIZ];
 	char parsedseinfo[BUFSIZ];
 
 	if (seinfo) {
@@ -753,6 +799,7 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		isSdkSandboxNext = strstr(seinfo, APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR) ? true : false;
 		fromRunAs = strstr(seinfo, FROM_RUNAS_STR) ? true : false;
 		targetSdkVersion = get_app_targetSdkVersion(seinfo);
+		isPreinstalledApp = get_partition(seinfo, partition, BUFSIZ);
 		if (targetSdkVersion < 0) {
 			selinux_log(SELINUX_ERROR,
 					"%s:  Invalid targetSdkVersion passed for app with uid %d, seinfo %s, name %s\n",
@@ -849,6 +896,14 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		}
 
 		if (cur->levelFrom != LEVELFROM_NONE) {
+			if (isPreinstalledApp
+					&& !check_preinstalled_app_partition(cur->partition, partition)) {
+				// TODO(b/280547417): make this an error after fixing violations
+				selinux_log(SELINUX_ERROR,
+					"%s:  App %s preinstalled to %s can't be labeled with %s sepolicy",
+					__FUNCTION__, pkgname, partition, cur->partition);
+			}
+
 			int res = set_range_from_level(ctx, cur->levelFrom, userid, appid);
 			if (res != 0) {
 				return res;
