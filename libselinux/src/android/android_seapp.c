@@ -164,16 +164,12 @@ static void free_seapp_context(struct seapp_context *s)
 	free(s->level);
 }
 
-/* If any duplicate was found while sorting the entries */
-static bool seapp_contexts_dup = false;
-
 /* Compare two seapp_context. Used to sort all the entries found. */
 static int seapp_context_cmp(const void *A, const void *B)
 {
 	const struct seapp_context *const *sp1 = (const struct seapp_context *const *) A;
 	const struct seapp_context *const *sp2 = (const struct seapp_context *const *) B;
 	const struct seapp_context *s1 = *sp1, *s2 = *sp2;
-	bool dup;
 
 	/* Give precedence to isSystemServer=true. */
 	if (s1->isSystemServer != s2->isSystemServer)
@@ -237,32 +233,6 @@ static int seapp_context_cmp(const void *A, const void *B)
 	/* Give precedence to fromRunAs=true. */
 	if (s1->fromRunAs != s2->fromRunAs)
 		return (s1->fromRunAs ? -1 : 1);
-
-	/*
-	 * Check for a duplicated entry on the input selectors.
-	 * We already compared isSystemServer above.
-	 * We also have already checked that both entries specify the same
-	 * string fields, so if s1 has a non-NULL string, then so does s2.
-	 */
-	dup = (!s1->user.str || !strcmp(s1->user.str, s2->user.str)) &&
-		(!s1->seinfo || !strcmp(s1->seinfo, s2->seinfo)) &&
-		(!s1->name.str || !strcmp(s1->name.str, s2->name.str)) &&
-		(s1->isPrivAppSet && s1->isPrivApp == s2->isPrivApp) &&
-		(s1->isSystemServer && s1->isSystemServer == s2->isSystemServer) &&
-		(s1->isEphemeralAppSet && s1->isEphemeralApp == s2->isEphemeralApp) &&
-		(s1->isIsolatedComputeApp && s1->isIsolatedComputeApp == s2->isIsolatedComputeApp) &&
-		(s1->isSdkSandboxNext && s1->isSdkSandboxNext == s2->isSdkSandboxNext);
-
-	if (dup) {
-		seapp_contexts_dup = true;
-		selinux_log(SELINUX_ERROR, "seapp_contexts:  Duplicated entry\n");
-		if (s1->user.str)
-			selinux_log(SELINUX_ERROR, " user=%s\n", s1->user.str);
-		if (s1->seinfo)
-			selinux_log(SELINUX_ERROR, " seinfo=%s\n", s1->seinfo);
-		if (s1->name.str)
-			selinux_log(SELINUX_ERROR, " name=%s\n", s1->name.str);
-	}
 
 	/* Anything else has equal precedence. */
 	return 0;
@@ -576,8 +546,38 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 	qsort(seapp_contexts, nspec, sizeof(struct seapp_context *),
 	      seapp_context_cmp);
 
-	if (seapp_contexts_dup)
-		goto err_no_log;
+	for (int i = 0; i < nspec; i++) {
+		const struct seapp_context *s1 = seapp_contexts[i];
+		for (int j = i + 1; j < nspec; j++) {
+			const struct seapp_context *s2 = seapp_contexts[j];
+			if (seapp_context_cmp(&s1, &s2) != 0)
+				break;
+			/*
+			* Check for a duplicated entry on the input selectors.
+			* We already compared isSystemServer with seapp_context_cmp.
+			* We also have already checked that both entries specify the same
+			* string fields, so if s1 has a non-NULL string, then so does s2.
+			*/
+			bool dup = (!s1->user.str || !strcmp(s1->user.str, s2->user.str)) &&
+				(!s1->seinfo || !strcmp(s1->seinfo, s2->seinfo)) &&
+				(!s1->name.str || !strcmp(s1->name.str, s2->name.str)) &&
+				(!s1->isPrivAppSet || s1->isPrivApp == s2->isPrivApp) &&
+				(!s1->isEphemeralAppSet || s1->isEphemeralApp == s2->isEphemeralApp) &&
+				(s1->isIsolatedComputeApp == s2->isIsolatedComputeApp) &&
+				(s1->isSdkSandboxNext == s2->isSdkSandboxNext);
+
+			if (dup) {
+				selinux_log(SELINUX_ERROR, "seapp_contexts:  Duplicated entry\n");
+				if (s1->user.str)
+					selinux_log(SELINUX_ERROR, " user=%s\n", s1->user.str);
+				if (s1->seinfo)
+					selinux_log(SELINUX_ERROR, " seinfo=%s\n", s1->seinfo);
+				if (s1->name.str)
+					selinux_log(SELINUX_ERROR, " name=%s\n", s1->name.str);
+				goto err_no_log;
+			}
+		}
+	}
 
 #if DEBUG
 	{
