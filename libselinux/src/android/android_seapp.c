@@ -702,9 +702,10 @@ static bool is_platform(const char *partition) {
 	return false;
 }
 
-static bool check_preinstalled_app_partition(const char *spec, const char *app) {
+static bool is_preinstalled_app_partition_valid(const char *app_policy, const char *app_partition) {
 	// We forbid system/system_ext/product installed apps from being labeled with vendor sepolicy.
-	return !is_platform(spec) && is_platform(app);
+	// So, either the app shouldn't be platform, or the spec should be platform.
+	return !(is_platform(app_partition) && !is_platform(app_policy));
 }
 
 
@@ -896,14 +897,6 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		}
 
 		if (cur->levelFrom != LEVELFROM_NONE) {
-			if (isPreinstalledApp
-					&& !check_preinstalled_app_partition(cur->partition, partition)) {
-				// TODO(b/280547417): make this an error after fixing violations
-				selinux_log(SELINUX_ERROR,
-					"%s:  App %s preinstalled to %s can't be labeled with %s sepolicy",
-					__FUNCTION__, pkgname, partition, cur->partition);
-			}
-
 			int res = set_range_from_level(ctx, cur->levelFrom, userid, appid);
 			if (res != 0) {
 				return res;
@@ -911,6 +904,14 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		} else if (cur->level) {
 			if (context_range_set(ctx, cur->level))
 				goto oom;
+		}
+
+		if (isPreinstalledApp
+				&& !is_preinstalled_app_partition_valid(cur->partition, partition)) {
+			// TODO(b/280547417): make this an error after fixing violations
+			selinux_log(SELINUX_ERROR,
+				"%s:  App %s preinstalled to %s can't be labeled with %s sepolicy",
+				__FUNCTION__, pkgname, partition, cur->partition);
 		}
 
 		break;
