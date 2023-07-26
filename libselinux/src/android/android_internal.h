@@ -17,6 +17,7 @@ extern "C" {
 #define MAX_ALT_CONTEXT_PATHS 2
 typedef struct path_alts {
 	const char *paths[MAX_CONTEXT_PATHS][MAX_ALT_CONTEXT_PATHS];
+	const char *partitions[MAX_CONTEXT_PATHS];
 } path_alts_t;
 
 /* Within each set of files, adds the first file that is accessible to `paths`.
@@ -24,6 +25,14 @@ typedef struct path_alts {
 size_t find_existing_files(
 	const path_alts_t *path_sets,
 	const char *paths[MAX_CONTEXT_PATHS]);
+
+/* Within each set of files, adds the first file that is accessible to `paths`.
+ * Returns the number of accessible files. Also returns the partitions where
+ * the files exist. */
+size_t find_existing_files_with_partitions(
+	const path_alts_t *path_sets,
+	const char *paths[MAX_CONTEXT_PATHS],
+	const char *partitions[MAX_CONTEXT_PATHS]);
 
 /* Converts an array of file paths into an array of options for selabel_open.
  * opts must be at least as large as paths. */
