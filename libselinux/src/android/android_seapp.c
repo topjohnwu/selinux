@@ -164,6 +164,15 @@ static void free_seapp_context(struct seapp_context *s)
 	free(s->level);
 }
 
+static bool is_platform(const char *partition) {
+	// system, system_ext, product are regarded as "platform", whereas vendor
+	// and odm are regarded as vendor.
+	if (strcmp(partition, "system") == 0) return true;
+	if (strcmp(partition, "system_ext") == 0) return true;
+	if (strcmp(partition, "product") == 0) return true;
+	return false;
+}
+
 /* Compare two seapp_context. Used to sort all the entries found. */
 static int seapp_context_cmp(const void *A, const void *B)
 {
@@ -233,6 +242,12 @@ static int seapp_context_cmp(const void *A, const void *B)
 	/* Give precedence to fromRunAs=true. */
 	if (s1->fromRunAs != s2->fromRunAs)
 		return (s1->fromRunAs ? -1 : 1);
+
+	/* Give precedence to platform side contexts */
+	bool isS1Platform = is_platform(s1->partition);
+	bool isS2Platform = is_platform(s2->partition);
+	if (isS1Platform != isS2Platform)
+		return (isS1Platform ? -1 : 1);
 
 	/* Anything else has equal precedence. */
 	return 0;
@@ -574,6 +589,8 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 					selinux_log(SELINUX_ERROR, " seinfo=%s\n", s1->seinfo);
 				if (s1->name.str)
 					selinux_log(SELINUX_ERROR, " name=%s\n", s1->name.str);
+				if (s1->partition)
+					selinux_log(SELINUX_ERROR, " partition=%s\n", s1->partition);
 				goto err_no_log;
 			}
 		}
@@ -691,15 +708,6 @@ static bool get_partition(const char *seinfo, char partition[], size_t size)
 	partition[len] = '\0';
 
 	return true;
-}
-
-static bool is_platform(const char *partition) {
-	// system, system_ext, product are regarded as "platform", whereas vendor
-	// and odm are regarded as vendor.
-	if (strcmp(partition, "system") == 0) return true;
-	if (strcmp(partition, "system_ext") == 0) return true;
-	if (strcmp(partition, "product") == 0) return true;
-	return false;
 }
 
 static bool is_preinstalled_app_partition_valid(const char *app_policy, const char *app_partition) {
