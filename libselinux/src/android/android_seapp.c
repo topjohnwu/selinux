@@ -917,7 +917,7 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		if (isPreinstalledApp
 				&& !is_preinstalled_app_partition_valid(cur->partition, partition)) {
 			// TODO(b/280547417): make this an error after fixing violations
-			selinux_log(SELINUX_ERROR,
+			selinux_log(SELINUX_WARNING,
 				"%s:  App %s preinstalled to %s can't be labeled with %s sepolicy",
 				__FUNCTION__, pkgname, partition, cur->partition);
 		}
