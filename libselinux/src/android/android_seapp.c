@@ -52,6 +52,9 @@ static const path_alts_t file_context_paths = { .paths = {
  * each partition, only the first existing entry will be used (for example, if
  * /system/etc/selinux/plat_seapp_contexts exists, /plat_seapp_contexts will be
  * ignored).
+ *
+ * PLEASE KEEP IN SYNC WITH:
+ * hostsidetests/security/src/android/security/cts/SELinuxHostTest.java
  */
 static const path_alts_t seapp_context_paths = { .paths = {
 	{
