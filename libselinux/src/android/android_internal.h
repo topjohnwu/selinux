@@ -11,8 +11,8 @@ extern "C" {
 #endif
 
 // Context files (file_contexts, service_contexts, etc) may be spread over
-// multiple partitions: system, apex, system_ext, product, vendor and/or odm.
-#define MAX_CONTEXT_PATHS 6
+// multiple partitions: system, system_ext, product, vendor and/or odm.
+#define MAX_CONTEXT_PATHS 5
 // The maximum number of alternatives for a file on one partition.
 #define MAX_ALT_CONTEXT_PATHS 2
 typedef struct path_alts {

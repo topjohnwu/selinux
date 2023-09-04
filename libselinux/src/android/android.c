@@ -22,9 +22,6 @@ static const path_alts_t service_context_paths = { .paths = {
 		"/plat_service_contexts"
 	},
 	{
-		"/dev/selinux/apex_service_contexts"
-	},
-	{
 		"/system_ext/etc/selinux/system_ext_service_contexts",
 		"/system_ext_service_contexts"
 	},
