@@ -28,9 +28,6 @@ static const path_alts_t file_context_paths = { .paths = {
 		"/plat_file_contexts"
 	},
 	{
-		"/dev/selinux/apex_file_contexts",
-	},
-	{
 		"/system_ext/etc/selinux/system_ext_file_contexts",
 		"/system_ext_file_contexts"
 	},
@@ -62,9 +59,6 @@ static const path_alts_t seapp_context_paths = { .paths = {
 		"/plat_seapp_contexts"
 	},
 	{
-		"/dev/selinux/apex_seapp_contexts",
-	},
-	{
 		"/system_ext/etc/selinux/system_ext_seapp_contexts",
 		"/system_ext_seapp_contexts"
 	},
@@ -82,7 +76,6 @@ static const path_alts_t seapp_context_paths = { .paths = {
 	}
 }, .partitions= {
 	"system",
-	"system", // regard APEX sepolicy as system
 	"system_ext",
 	"product",
 	"vendor",
