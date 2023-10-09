@@ -479,9 +479,6 @@ static int validate_simpletype(uint32_t value, const policydb_t *p, validate_t f
 	if (!type)
 		goto bad;
 
-	if (type->flavor == TYPE_ATTRIB)
-		goto bad;
-
 	return 0;
 
 bad:
