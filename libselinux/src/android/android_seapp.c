@@ -138,6 +138,7 @@ struct seapp_context {
 	int32_t minTargetSdkVersion;
 	bool fromRunAs;
 	bool isIsolatedComputeApp;
+	bool isSdkSandboxAudit;
 	bool isSdkSandboxNext;
 	/* outputs */
 	char *domain;
@@ -518,6 +519,15 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 						free_seapp_context(cur);
 						goto err;
 					}
+				} else if (!strcasecmp(name, "isSdkSandboxAudit")) {
+					if (!strcasecmp(value, "true"))
+						cur->isSdkSandboxAudit = true;
+					else if (!strcasecmp(value, "false"))
+						cur->isSdkSandboxAudit = false;
+					else {
+						free_seapp_context(cur);
+						goto err;
+					}
 				} else if (!strcasecmp(name, "isSdkSandboxNext")) {
 					if (!strcasecmp(value, "true"))
 						cur->isSdkSandboxNext = true;
@@ -525,9 +535,9 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 						cur->isSdkSandboxNext = false;
 					else {
 						free_seapp_context(cur);
-              goto err;
-            }
-        } else {
+						goto err;
+					}
+				} else {
 					free_seapp_context(cur);
 					goto err;
 				}
@@ -575,6 +585,7 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 				(!s1->isPrivAppSet || s1->isPrivApp == s2->isPrivApp) &&
 				(!s1->isEphemeralAppSet || s1->isEphemeralApp == s2->isEphemeralApp) &&
 				(s1->isIsolatedComputeApp == s2->isIsolatedComputeApp) &&
+				(s1->isSdkSandboxAudit == s2->isSdkSandboxAudit) &&
 				(s1->isSdkSandboxNext == s2->isSdkSandboxNext);
 
 			if (dup) {
@@ -597,8 +608,10 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 		int i;
 		for (i = 0; i < nspec; i++) {
 			cur = seapp_contexts[i];
-			selinux_log(SELINUX_INFO, "%s:  isSystemServer=%s isEphemeralApp=%s isIsolatedComputeApp=%s isSdkSandboxNext=%s user=%s seinfo=%s "
-					"name=%s isPrivApp=%s minTargetSdkVersion=%d fromRunAs=%s -> domain=%s type=%s level=%s levelFrom=%s",
+			selinux_log(SELINUX_INFO, "%s:  isSystemServer=%s isEphemeralApp=%s "
+				"isIsolatedComputeApp=%s isSdkSandboxAudit=%s isSdkSandboxNext=%s "
+				"user=%s seinfo=%s name=%s isPrivApp=%s minTargetSdkVersion=%d "
+				"fromRunAs=%s -> domain=%s type=%s level=%s levelFrom=%s",
 				__FUNCTION__,
 				cur->isSystemServer ? "true" : "false",
 				cur->isEphemeralAppSet ? (cur->isEphemeralApp ? "true" : "false") : "null",
@@ -608,6 +621,7 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 				cur->minTargetSdkVersion,
 				cur->fromRunAs ? "true" : "false",
 				cur->isIsolatedComputeApp ? "true" : "false",
+				cur->isSdkSandboxAudit ? "true" : "false",
 				cur->isSdkSandboxNext ? "true" : "false",
 				cur->domain, cur->type, cur->level,
 				levelFromName[cur->levelFrom]);
@@ -663,6 +677,7 @@ void selinux_android_seapp_context_init(void) {
 
 #define PRIVILEGED_APP_STR ":privapp"
 #define ISOLATED_COMPUTE_APP_STR ":isolatedComputeApp"
+#define APPLY_SDK_SANDBOX_AUDIT_RESTRICTIONS_STR ":isSdkSandboxAudit"
 #define APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR ":isSdkSandboxNext"
 #define EPHEMERAL_APP_STR ":ephemeralapp"
 #define TARGETSDKVERSION_STR ":targetSdkVersion="
@@ -788,6 +803,7 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 	bool isPrivApp = false;
 	bool isEphemeralApp = false;
 	bool isIsolatedComputeApp = false;
+	bool isSdkSandboxAudit = false;
 	bool isSdkSandboxNext = false;
 	int32_t targetSdkVersion = 0;
 	bool fromRunAs = false;
@@ -801,6 +817,7 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		isPrivApp = strstr(seinfo, PRIVILEGED_APP_STR) ? true : false;
 		isEphemeralApp = strstr(seinfo, EPHEMERAL_APP_STR) ? true : false;
 		isIsolatedComputeApp = strstr(seinfo, ISOLATED_COMPUTE_APP_STR) ? true : false;
+		isSdkSandboxAudit = strstr(seinfo, APPLY_SDK_SANDBOX_AUDIT_RESTRICTIONS_STR) ? true : false;
 		isSdkSandboxNext = strstr(seinfo, APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR) ? true : false;
 		fromRunAs = strstr(seinfo, FROM_RUNAS_STR) ? true : false;
 		targetSdkVersion = get_app_targetSdkVersion(seinfo);
@@ -882,6 +899,9 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 			continue;
 
 		if (cur->isIsolatedComputeApp != isIsolatedComputeApp)
+			continue;
+
+		if (cur->isSdkSandboxAudit != isSdkSandboxAudit)
 			continue;
 
 		if (cur->isSdkSandboxNext != isSdkSandboxNext)
