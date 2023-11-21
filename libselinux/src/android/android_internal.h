@@ -100,6 +100,25 @@ int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, 
 /* Similar to seapp_context_reload, but does not implicitly load the default
  * context files. It should only be used for unit tests. */
 int seapp_context_reload_internal(const path_alts_t *context_paths);
+
+#define SEINFO_BUFSIZ 256
+/* A parsed seinfo */
+struct parsed_seinfo {
+	char base[SEINFO_BUFSIZ];
+#define IS_PRIV_APP             (1 << 0)
+#define IS_FROM_RUN_AS          (1 << 1)
+#define IS_EPHEMERAL_APP        (1 << 2)
+#define IS_ISOLATED_COMPUTE_APP (1 << 3)
+#define IS_SDK_SANDBOX_AUDIT    (1 << 4)
+#define IS_SDK_SANDBOX_NEXT     (1 << 5)
+	int32_t is;
+	bool isPreinstalledApp;
+	char partition[SEINFO_BUFSIZ];
+	int32_t targetSdkVersion;
+};
+
+/* Parses an seinfo string. Returns -1 if an error occurred. */
+int parse_seinfo(const char* seinfo, struct parsed_seinfo* info);
 #ifdef __cplusplus
 }
 #endif
