@@ -110,3 +110,65 @@ TEST_F(AndroidSELinuxTest, LoadAndLookupSeAppContext)
 	EXPECT_STREQ(context_str(ctx), "u:r:app_data_file:s0:c512,c768");
 	context_free(ctx);
 }
+
+TEST(AndroidSeAppTest, ParseValidSeInfo)
+{
+	struct parsed_seinfo info;
+	memset(&info, 0, sizeof(info));
+
+	string seinfo = "default:privapp:targetSdkVersion=10000:partition=system:complete";
+	int ret = parse_seinfo(seinfo.c_str(), &info);
+
+	EXPECT_EQ(ret, 0);
+	EXPECT_STREQ(info.base, "default");
+	EXPECT_EQ(info.targetSdkVersion, 10000);
+	EXPECT_EQ(info.is, IS_PRIV_APP);
+	EXPECT_EQ(info.isPreinstalledApp, true);
+	EXPECT_STREQ(info.partition, "system");
+
+	seinfo = "platform:ephemeralapp:partition=system:complete";
+	ret = parse_seinfo(seinfo.c_str(), &info);
+
+	EXPECT_EQ(ret, 0);
+	EXPECT_STREQ(info.base, "platform");
+	EXPECT_EQ(info.targetSdkVersion, 0);
+	EXPECT_EQ(info.is, IS_EPHEMERAL_APP);
+	EXPECT_EQ(info.isPreinstalledApp, true);
+	EXPECT_STREQ(info.partition, "system");
+
+	seinfo = "bluetooth";
+	ret = parse_seinfo(seinfo.c_str(), &info);
+
+	EXPECT_EQ(ret, 0);
+	EXPECT_STREQ(info.base, "bluetooth");
+	EXPECT_EQ(info.targetSdkVersion, 0);
+	EXPECT_EQ(info.isPreinstalledApp, false);
+	EXPECT_EQ(info.is, 0);
+}
+
+TEST(AndroidSeAppTest, ParseInvalidSeInfo)
+{
+	struct parsed_seinfo info;
+
+	string seinfo = "default:targetSdkVersion:complete";
+	int ret = parse_seinfo(seinfo.c_str(), &info);
+	EXPECT_EQ(ret, -1);
+
+	seinfo = "default:targetSdkVersion=:complete";
+	ret = parse_seinfo(seinfo.c_str(), &info);
+	EXPECT_EQ(ret, -1);
+}
+
+TEST(AndroidSeAppTest, ParseOverflow)
+{
+	struct parsed_seinfo info;
+
+	string seinfo = std::string(255, 'x');
+	int ret = parse_seinfo(seinfo.c_str(), &info);
+	EXPECT_EQ(ret, 0);
+	EXPECT_STREQ(info.base, seinfo.c_str());
+
+	seinfo = std::string(256, 'x');
+	ret = parse_seinfo(seinfo.c_str(), &info);
+	EXPECT_EQ(ret, -1);
+}

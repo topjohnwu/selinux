@@ -675,76 +675,20 @@ void selinux_android_seapp_context_init(void) {
  */
 #define CAT_MAPPING_MAX_ID (0x1<<16)
 
-#define PRIVILEGED_APP_STR ":privapp"
-#define ISOLATED_COMPUTE_APP_STR ":isolatedComputeApp"
-#define APPLY_SDK_SANDBOX_AUDIT_RESTRICTIONS_STR ":isSdkSandboxAudit"
-#define APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR ":isSdkSandboxNext"
-#define EPHEMERAL_APP_STR ":ephemeralapp"
-#define TARGETSDKVERSION_STR ":targetSdkVersion="
-#define PARTITION_STR ":partition="
-#define FROM_RUNAS_STR ":fromRunAs"
-static int32_t get_app_targetSdkVersion(const char *seinfo)
-{
-	char *substr = strstr(seinfo, TARGETSDKVERSION_STR);
-	long targetSdkVersion;
-	char *endptr;
-	if (substr != NULL) {
-		substr = substr + strlen(TARGETSDKVERSION_STR);
-		if (substr != NULL) {
-			targetSdkVersion = strtol(substr, &endptr, 10);
-			if (('\0' != *endptr && ':' != *endptr)
-					|| (targetSdkVersion < 0) || (targetSdkVersion > INT32_MAX)) {
-				return -1; /* malformed targetSdkVersion value in seinfo */
-			} else {
-				return (int32_t) targetSdkVersion;
-			}
-		}
-	}
-	return 0; /* default to 0 when targetSdkVersion= is not present in seinfo */
-}
-
-// returns true if found, false if not found or error
-static bool get_partition(const char *seinfo, char partition[], size_t size)
-{
-	if (size == 0) return false;
-
-	const char *substr = strstr(seinfo, PARTITION_STR);
-	if (substr == NULL) return false;
-
-	const char *src = substr + strlen(PARTITION_STR);
-	const char *p = strchr(src, ':');
-	size_t len = p ? p - src : strlen(src);
-	if (len > size - 1) return -1;
-	strncpy(partition, src, len);
-	partition[len] = '\0';
-
-	return true;
-}
+#define PRIVILEGED_APP_STR "privapp"
+#define ISOLATED_COMPUTE_APP_STR "isolatedComputeApp"
+#define APPLY_SDK_SANDBOX_AUDIT_RESTRICTIONS_STR "isSdkSandboxAudit"
+#define APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR "isSdkSandboxNext"
+#define EPHEMERAL_APP_STR "ephemeralapp"
+#define TARGETSDKVERSION_STR "targetSdkVersion"
+#define PARTITION_STR "partition"
+#define FROM_RUNAS_STR "fromRunAs"
+#define COMPLETE_STR "complete"
 
 static bool is_preinstalled_app_partition_valid(const char *app_policy, const char *app_partition) {
 	// We forbid system/system_ext/product installed apps from being labeled with vendor sepolicy.
 	// So, either the app shouldn't be platform, or the spec should be platform.
 	return !(is_platform(app_partition) && !is_platform(app_policy));
-}
-
-
-static int seinfo_parse(char *dest, const char *src, size_t size)
-{
-	size_t len;
-	char *p;
-
-	if ((p = strchr(src, ':')) != NULL)
-		len = p - src;
-	else
-		len = strlen(src);
-
-	if (len > size - 1)
-		return -1;
-
-	strncpy(dest, src, len);
-	dest[len] = '\0';
-
-	return 0;
 }
 
 /* Sets the categories of ctx based on the level request */
@@ -781,6 +725,86 @@ int set_range_from_level(context_t ctx, enum levelFrom levelFrom, uid_t userid, 
 	return 0;
 }
 
+int parse_seinfo(const char* seinfo, struct parsed_seinfo* info) {
+	char local_seinfo[SEINFO_BUFSIZ];
+
+	memset(info, 0, sizeof(*info));
+
+	if (strlen(seinfo) >= SEINFO_BUFSIZ) {
+		selinux_log(SELINUX_ERROR, "%s:  seinfo is too large to be parsed: %zu\n",
+				__FUNCTION__, strlen(seinfo));
+		return -1;
+	}
+	strncpy(local_seinfo, seinfo, SEINFO_BUFSIZ);
+
+	char *token;
+	char *saved_colon_ptr = NULL;
+	char *saved_equal_ptr;
+	bool first = true;
+	for (token = strtok_r(local_seinfo, ":", &saved_colon_ptr); token; token = strtok_r(NULL, ":", &saved_colon_ptr)) {
+		if (first) {
+			strncpy(info->base, token, SEINFO_BUFSIZ);
+			first = false;
+			continue;
+		}
+		if (!strcmp(token, PRIVILEGED_APP_STR)) {
+			info->is |= IS_PRIV_APP;
+			continue;
+		}
+		if (!strcmp(token, EPHEMERAL_APP_STR)) {
+			info->is |= IS_EPHEMERAL_APP;
+			continue;
+		}
+		if (!strcmp(token, ISOLATED_COMPUTE_APP_STR)) {
+			info->is |= IS_ISOLATED_COMPUTE_APP;
+			continue;
+		}
+		if (!strcmp(token, APPLY_SDK_SANDBOX_AUDIT_RESTRICTIONS_STR)) {
+			info->is |= IS_SDK_SANDBOX_AUDIT;
+			continue;
+		}
+		if (!strcmp(token, APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR)) {
+			info->is |= IS_SDK_SANDBOX_NEXT;
+			continue;
+		}
+		if (!strcmp(token, FROM_RUNAS_STR)) {
+			info->is |= IS_FROM_RUN_AS;
+			continue;
+		}
+		if (!strncmp(token, TARGETSDKVERSION_STR, strlen(TARGETSDKVERSION_STR))) {
+			saved_equal_ptr = NULL;
+			char *subtoken = strtok_r(token, "=", &saved_equal_ptr);
+			subtoken = strtok_r(NULL, "=", &saved_equal_ptr);
+			if (!subtoken) {
+				selinux_log(SELINUX_ERROR, "%s:  Invalid targetSdkVersion: %s in %s\n",
+						__FUNCTION__, token, seinfo);
+				return -1;
+			}
+			info->targetSdkVersion = strtol(subtoken, NULL, 10);
+			continue;
+		}
+		if (!strncmp(token, PARTITION_STR, strlen(PARTITION_STR))) {
+			saved_equal_ptr = NULL;
+			char *subtoken = strtok_r(token, "=", &saved_equal_ptr);
+			subtoken = strtok_r(NULL, "=", &saved_equal_ptr);
+			if (!subtoken) {
+				selinux_log(SELINUX_ERROR, "%s:  Invalid partition: %s in %s\n",
+						__FUNCTION__, token, seinfo);
+				return -1;
+			}
+			info->isPreinstalledApp = true;
+			strncpy(info->partition, subtoken, strlen(subtoken));
+			continue;
+		}
+		if (!strcmp(token, COMPLETE_STR)) {
+			break;
+		}
+		selinux_log(SELINUX_WARNING, "%s:  Ignoring unknown seinfo field: %s in %s\n",
+				__FUNCTION__, token, seinfo);
+	}
+	return 0;
+}
+
 /*
  * This code is Android specific, bionic guarantees that
  * calls to non-reentrant getpwuid() are thread safe.
@@ -800,35 +824,21 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 	int i;
 	uid_t userid;
 	uid_t appid;
-	bool isPrivApp = false;
-	bool isEphemeralApp = false;
-	bool isIsolatedComputeApp = false;
-	bool isSdkSandboxAudit = false;
-	bool isSdkSandboxNext = false;
-	int32_t targetSdkVersion = 0;
-	bool fromRunAs = false;
-	bool isPreinstalledApp = false;
-	char partition[BUFSIZ];
-	char parsedseinfo[BUFSIZ];
+	struct parsed_seinfo info;
+	memset(&info, 0, sizeof(info));
 
 	if (seinfo) {
-		if (seinfo_parse(parsedseinfo, seinfo, BUFSIZ))
+		int ret = parse_seinfo(seinfo, &info);
+		if (ret) {
+			selinux_log(SELINUX_ERROR, "%s:  Invalid seinfo: %s\n", __FUNCTION__, seinfo);
 			goto err;
-		isPrivApp = strstr(seinfo, PRIVILEGED_APP_STR) ? true : false;
-		isEphemeralApp = strstr(seinfo, EPHEMERAL_APP_STR) ? true : false;
-		isIsolatedComputeApp = strstr(seinfo, ISOLATED_COMPUTE_APP_STR) ? true : false;
-		isSdkSandboxAudit = strstr(seinfo, APPLY_SDK_SANDBOX_AUDIT_RESTRICTIONS_STR) ? true : false;
-		isSdkSandboxNext = strstr(seinfo, APPLY_SDK_SANDBOX_NEXT_RESTRICTIONS_STR) ? true : false;
-		fromRunAs = strstr(seinfo, FROM_RUNAS_STR) ? true : false;
-		targetSdkVersion = get_app_targetSdkVersion(seinfo);
-		isPreinstalledApp = get_partition(seinfo, partition, BUFSIZ);
-		if (targetSdkVersion < 0) {
+		}
+		if (info.targetSdkVersion < 0) {
 			selinux_log(SELINUX_ERROR,
 					"%s:  Invalid targetSdkVersion passed for app with uid %d, seinfo %s, name %s\n",
 					__FUNCTION__, uid, seinfo, pkgname);
 			goto err;
 		}
-		seinfo = parsedseinfo;
 	}
 
 	userid = uid / AID_USER_OFFSET;
@@ -858,7 +868,7 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		if (cur->isSystemServer != isSystemServer)
 			continue;
 
-		if (cur->isEphemeralAppSet && cur->isEphemeralApp != isEphemeralApp)
+		if (cur->isEphemeralAppSet && cur->isEphemeralApp != ((info.is & IS_EPHEMERAL_APP) != 0))
 			continue;
 
 		if (cur->user.str) {
@@ -872,7 +882,7 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 		}
 
 		if (cur->seinfo) {
-			if (!seinfo || strcasecmp(seinfo, cur->seinfo))
+			if (!seinfo || strcasecmp(info.base, cur->seinfo))
 				continue;
 		}
 
@@ -889,22 +899,22 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 			}
 		}
 
-		if (cur->isPrivAppSet && cur->isPrivApp != isPrivApp)
+		if (cur->isPrivAppSet && cur->isPrivApp != ((info.is & IS_PRIV_APP) != 0))
 			continue;
 
-		if (cur->minTargetSdkVersion > targetSdkVersion)
+		if (cur->minTargetSdkVersion > info.targetSdkVersion)
 			continue;
 
-		if (cur->fromRunAs != fromRunAs)
+		if (cur->fromRunAs != ((info.is & IS_FROM_RUN_AS) != 0))
 			continue;
 
-		if (cur->isIsolatedComputeApp != isIsolatedComputeApp)
+		if (cur->isIsolatedComputeApp != ((info.is & IS_ISOLATED_COMPUTE_APP) != 0))
 			continue;
 
-		if (cur->isSdkSandboxAudit != isSdkSandboxAudit)
+		if (cur->isSdkSandboxAudit != ((info.is & IS_SDK_SANDBOX_AUDIT) != 0))
 			continue;
 
-		if (cur->isSdkSandboxNext != isSdkSandboxNext)
+		if (cur->isSdkSandboxNext != ((info.is & IS_SDK_SANDBOX_NEXT) != 0))
 			continue;
 
 		if (kind == SEAPP_TYPE && !cur->type)
@@ -930,12 +940,12 @@ int seapp_context_lookup_internal(enum seapp_kind kind,
 				goto oom;
 		}
 
-		if (isPreinstalledApp
-				&& !is_preinstalled_app_partition_valid(cur->partition, partition)) {
+		if (info.isPreinstalledApp
+				&& !is_preinstalled_app_partition_valid(cur->partition, info.partition)) {
 			// TODO(b/280547417): make this an error after fixing violations
 			selinux_log(SELINUX_WARNING,
 				"%s:  App %s preinstalled to %s can't be labeled with %s sepolicy",
-				__FUNCTION__, pkgname, partition, cur->partition);
+				__FUNCTION__, pkgname, info.partition, cur->partition);
 		}
 
 		break;
