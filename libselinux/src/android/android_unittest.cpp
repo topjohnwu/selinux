@@ -11,17 +11,8 @@ using android::base::WriteStringToFile;
 using std::string;
 
 class AndroidSELinuxTest : public ::testing::Test {
-	protected:
-	void SetUp() override {
-		default_seapp_context_ = StringPrintf("%s/seapp_contexts", tdir_.path);
-		default_seapp_path_alts_ = { .paths = {
-			{ default_seapp_context_.c_str() }
-		}};
-	}
-
+    protected:
 	TemporaryDir tdir_;
-	string default_seapp_context_;
-	path_alts_t default_seapp_path_alts_;
 };
 
 TEST_F(AndroidSELinuxTest, LoadAndLookupServiceContext)
@@ -93,13 +84,19 @@ TEST_F(AndroidSELinuxTest, FailLoadingServiceContext)
 
 TEST_F(AndroidSELinuxTest, LoadAndLookupSeAppContext)
 {
+	string seapp_contexts =
+		StringPrintf("%s/seapp_contexts", tdir_.path);
 
 	WriteStringToFile(
 		"# some comment\n"
 		"user=_app seinfo=platform domain=platform_app type=app_data_file levelFrom=user\n",
-	default_seapp_context_);
+	seapp_contexts);
 
-	EXPECT_EQ(seapp_context_reload_internal(&default_seapp_path_alts_), 0);
+	const path_alts_t seapp_paths = { .paths = {
+		{ seapp_contexts.c_str() }
+	}};
+
+	EXPECT_EQ(seapp_context_reload_internal(&seapp_paths), 0);
 
 	context_t ctx = context_new("u:r:unknown");
 	int ret = seapp_context_lookup_internal(SEAPP_DOMAIN, 10001, false, "platform", "com.android.test1", ctx);
@@ -114,42 +111,6 @@ TEST_F(AndroidSELinuxTest, LoadAndLookupSeAppContext)
 	context_free(ctx);
 }
 
-TEST_F(AndroidSELinuxTest, LoadSeAppContextInsecure)
-{
-	WriteStringToFile(
-		"user=_app name=com.android.test domain=platform_app type=app_data_file\n",
-	default_seapp_context_);
-
-	EXPECT_EQ(seapp_context_reload_internal(&default_seapp_path_alts_), -1);
-
-	WriteStringToFile(
-		"user=_app name=com.android.test isSdkSandbox=true domain=platform_app type=app_data_file\n",
-	default_seapp_context_);
-
-	EXPECT_EQ(seapp_context_reload_internal(&default_seapp_path_alts_), -1);
-
-	WriteStringToFile(
-		"user=_app isPrivApp=false name=com.android.test domain=platform_app type=app_data_file\n",
-	default_seapp_context_);
-
-	EXPECT_EQ(seapp_context_reload_internal(&default_seapp_path_alts_), -1);
-}
-
-TEST_F(AndroidSELinuxTest, LoadSeAppContextInsecureWithSeInfoOrPrivApp)
-{
-	WriteStringToFile(
-		"user=_app isPrivApp=true name=com.android.test domain=platform_app type=app_data_file\n",
-	default_seapp_context_);
-
-	EXPECT_EQ(seapp_context_reload_internal(&default_seapp_path_alts_), 0);
-
-	WriteStringToFile(
-		"user=_app seinfo=platform name=com.android.test domain=platform_app type=app_data_file\n",
-	default_seapp_context_);
-
-	EXPECT_EQ(seapp_context_reload_internal(&default_seapp_path_alts_), 0);
-}
-
 TEST(AndroidSeAppTest, ParseValidSeInfo)
 {
 	struct parsed_seinfo info;
@@ -161,7 +122,8 @@ TEST(AndroidSeAppTest, ParseValidSeInfo)
 	EXPECT_EQ(ret, 0);
 	EXPECT_STREQ(info.base, "default");
 	EXPECT_EQ(info.targetSdkVersion, 10000);
-	EXPECT_STREQ(info.isSelector, "isPrivApp");
+	EXPECT_EQ(info.is, IS_PRIV_APP);
+	EXPECT_EQ(info.isPreinstalledApp, true);
 	EXPECT_STREQ(info.partition, "system");
 
 	seinfo = "platform:ephemeralapp:partition=system:complete";
@@ -170,7 +132,8 @@ TEST(AndroidSeAppTest, ParseValidSeInfo)
 	EXPECT_EQ(ret, 0);
 	EXPECT_STREQ(info.base, "platform");
 	EXPECT_EQ(info.targetSdkVersion, 0);
-	EXPECT_STREQ(info.isSelector, "isEphemeralApp");
+	EXPECT_EQ(info.is, IS_EPHEMERAL_APP);
+	EXPECT_EQ(info.isPreinstalledApp, true);
 	EXPECT_STREQ(info.partition, "system");
 
 	seinfo = "bluetooth";
@@ -179,16 +142,8 @@ TEST(AndroidSeAppTest, ParseValidSeInfo)
 	EXPECT_EQ(ret, 0);
 	EXPECT_STREQ(info.base, "bluetooth");
 	EXPECT_EQ(info.targetSdkVersion, 0);
-	EXPECT_STREQ(info.isSelector, "");
-
-	seinfo = "default:isSdkSandboxNext:partition=system:complete";
-	ret = parse_seinfo(seinfo.c_str(), &info);
-
-	EXPECT_EQ(ret, 0);
-	EXPECT_STREQ(info.base, "default");
-	EXPECT_EQ(info.targetSdkVersion, 0);
-	EXPECT_STREQ(info.isSelector, "isSdkSandboxNext");
-	EXPECT_STREQ(info.partition, "system");
+	EXPECT_EQ(info.isPreinstalledApp, false);
+	EXPECT_EQ(info.is, 0);
 }
 
 TEST(AndroidSeAppTest, ParseInvalidSeInfo)
@@ -200,14 +155,6 @@ TEST(AndroidSeAppTest, ParseInvalidSeInfo)
 	EXPECT_EQ(ret, -1);
 
 	seinfo = "default:targetSdkVersion=:complete";
-	ret = parse_seinfo(seinfo.c_str(), &info);
-	EXPECT_EQ(ret, -1);
-
-	seinfo = "default:privapp:ephemeralapp:complete";
-	ret = parse_seinfo(seinfo.c_str(), &info);
-	EXPECT_EQ(ret, -1);
-
-	seinfo = "default:isANewSelector:isAnotherOne:complete";
 	ret = parse_seinfo(seinfo.c_str(), &info);
 	EXPECT_EQ(ret, -1);
 }
