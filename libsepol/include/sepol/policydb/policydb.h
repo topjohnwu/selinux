@@ -609,6 +609,8 @@ typedef struct policydb {
 
 	unsigned handle_unknown;
 
+	uint32_t android_extra;
+
 	sepol_security_class_t process_class;
 	sepol_security_class_t dir_class;
 	sepol_access_vector_t process_trans;
@@ -808,6 +810,10 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 
 #define POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE  (1 << 31)
 #define POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH (1 << 30)
+
+#define POLICYDB_CONFIG_ANDROID_EXTRA_MASK ( \
+				POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE | \
+				POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH)
 
 #define OBJECT_R "object_r"
 #define OBJECT_R_VAL 1

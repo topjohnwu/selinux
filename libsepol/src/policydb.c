@@ -4362,6 +4362,8 @@ int policydb_read(policydb_t * p, struct policy_file *fp, unsigned verbose)
 
 	p->handle_unknown = buf[bufindex] & POLICYDB_CONFIG_UNKNOWN_MASK;
 
+	p->android_extra = buf[bufindex] & POLICYDB_CONFIG_ANDROID_EXTRA_MASK;
+
 	bufindex++;
 
 	info = policydb_lookup_compat(r_policyvers, policy_type,
