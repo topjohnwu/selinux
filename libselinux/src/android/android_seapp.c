@@ -615,14 +615,14 @@ int seapp_context_reload_internal(const path_alts_t *context_paths)
 				__FUNCTION__,
 				cur->isSystemServer ? "true" : "false",
 				cur->isEphemeralAppSet ? (cur->isEphemeralApp ? "true" : "false") : "null",
+				cur->isIsolatedComputeApp ? "true" : "false",
+				cur->isSdkSandboxAudit ? "true" : "false",
+				cur->isSdkSandboxNext ? "true" : "false",
 				cur->user.str,
 				cur->seinfo, cur->name.str,
 				cur->isPrivAppSet ? (cur->isPrivApp ? "true" : "false") : "null",
 				cur->minTargetSdkVersion,
 				cur->fromRunAs ? "true" : "false",
-				cur->isIsolatedComputeApp ? "true" : "false",
-				cur->isSdkSandboxAudit ? "true" : "false",
-				cur->isSdkSandboxNext ? "true" : "false",
 				cur->domain, cur->type, cur->level,
 				levelFromName[cur->levelFrom]);
 		}
