@@ -222,6 +222,18 @@ cc_binary_host {
     stl: "",
 }
 
+cc_binary {
+    name: "selabel_get_digests_all_partial_matches",
+    defaults: ["libselinux_defaults"],
+    srcs: ["utils/selabel_get_digests_all_partial_matches.c"],
+
+    static_libs: [
+        "libselinux",
+    ],
+
+    stl: "",
+}
+
 rust_bindgen {
     name: "libselinux_bindgen",
     wrapper_src: "rust/selinux.h",
