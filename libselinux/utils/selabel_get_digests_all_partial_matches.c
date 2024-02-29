@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <fts.h>
+#include <selinux/android.h>
 #include <selinux/selinux.h>
 #include <selinux/label.h>
 
@@ -71,10 +72,14 @@ int main(int argc, char **argv)
 
 	paths[0] = argv[optind];
 
+#ifdef ANDROID
+	hnd = selinux_android_file_context_handle();
+#else
 	selabel_option[0].value = file;
 	selabel_option[1].value = validate;
 
 	hnd = selabel_open(SELABEL_CTX_FILE, selabel_option, 2);
+#endif
 	if (!hnd) {
 		fprintf(stderr, "ERROR: selabel_open - Could not obtain "
 							     "handle:  %s\n",
