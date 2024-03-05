@@ -52,6 +52,7 @@ common_CFLAGS = [
 
 cc_defaults {
     name: "libselinux_defaults",
+    defaults: ["libselinux_flags_defaults"],
 
     cflags: common_CFLAGS,
 
@@ -155,6 +156,28 @@ cc_defaults {
     export_include_dirs: ["include"],
 
     stl: "none",
+}
+
+soong_config_module_type {
+    name: "cc_defaults_libselinux_flags",
+    module_type: "cc_defaults",
+    config_namespace: "ANDROID",
+    bool_variables: [
+        "release_selinux_data_data_ignore",
+    ],
+    properties: [
+        "cflags",
+    ],
+}
+
+cc_defaults_libselinux_flags {
+    name: "libselinux_flags_defaults",
+    host_supported: true,
+    soong_config_variables: {
+        release_selinux_data_data_ignore: {
+            cflags: ["-DSELINUX_FLAGS_DATA_DATA_IGNORE"],
+        }
+    }
 }
 
 cc_library {

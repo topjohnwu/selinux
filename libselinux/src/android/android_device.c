@@ -281,6 +281,11 @@ struct pkg_info *package_info_lookup(const char *name)
  */
 static bool is_app_data_path(const char *pathname) {
     int flags = FNM_LEADING_DIR|FNM_PATHNAME;
+#ifdef SELINUX_FLAGS_DATA_DATA_IGNORE
+    if (!strcmp(pathname, DATA_DATA_PATH)) {
+        return true;
+    }
+#endif
     return (!strncmp(pathname, DATA_DATA_PREFIX, sizeof(DATA_DATA_PREFIX)-1) ||
         !strncmp(pathname, DATA_USER_PREFIX, sizeof(DATA_USER_PREFIX)-1) ||
         !strncmp(pathname, DATA_USER_DE_PREFIX, sizeof(DATA_USER_DE_PREFIX)-1) ||
