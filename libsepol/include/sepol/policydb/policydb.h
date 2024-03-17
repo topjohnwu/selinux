@@ -520,6 +520,12 @@ typedef struct policydb {
 	/* Whether this policydb is mls, should always be set */
 	int mls;
 
+	/* Whether this policydb enables special handling for NETLINK_ROUTE */
+	int netlink_route;
+
+	/* Whether this policydb enables special handling for NETLINK_GETNEIGH */
+	int netlink_getneigh;
+
 	/* symbol tables */
 	symtab_t symtab[SYM_NUM];
 #define p_commons symtab[SYM_COMMONS]

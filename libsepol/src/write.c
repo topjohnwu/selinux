@@ -2236,8 +2236,13 @@ int policydb_write(policydb_t * p, struct policy_file *fp)
 
 	config |= (POLICYDB_CONFIG_UNKNOWN_MASK & p->handle_unknown);
 
-	config |= POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE;
-	config |= POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH;
+	if (p->netlink_route) {
+		config |= POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE;
+	}
+
+	if (p->netlink_getneigh) {
+		config |= POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH;
+	}
 
 	/* Write the magic number and string identifiers. */
 	items = 0;

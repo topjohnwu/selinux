@@ -4360,6 +4360,18 @@ int policydb_read(policydb_t * p, struct policy_file *fp, unsigned verbose)
 		p->mls = 0;
 	}
 
+	if (buf[bufindex] & POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE) {
+		p->netlink_route = 1;
+	} else {
+		p->netlink_route = 0;
+	}
+
+	if (buf[bufindex] & POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH) {
+		p->netlink_getneigh = 1;
+	} else {
+		p->netlink_getneigh = 0;
+	}
+
 	p->handle_unknown = buf[bufindex] & POLICYDB_CONFIG_UNKNOWN_MASK;
 
 	bufindex++;
