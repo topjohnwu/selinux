@@ -48,6 +48,7 @@
 
 #include "debug.h"
 #include "private.h"
+#include "android_m_compat.h"
 
 /* Based on MurmurHash3, written by Austin Appleby and placed in the
  * public domain.
@@ -431,6 +432,8 @@ static const uint16_t spec_order[] = {
 	AVTAB_XPERMS_DONTAUDIT
 };
 
+unsigned avtab_android_m_compat;
+
 int avtab_read_item(struct policy_file *fp, uint32_t vers, avtab_t * a,
 		    int (*insertf) (avtab_t * a, avtab_key_t * k,
 				    avtab_datum_t * d, void *p), void *p)
@@ -534,6 +537,12 @@ int avtab_read_item(struct policy_file *fp, uint32_t vers, avtab_t * a,
 	key.target_class = le16_to_cpu(buf16[items++]);
 	key.specified = le16_to_cpu(buf16[items++]);
 
+	if (vers == POLICYDB_VERSION_XPERMS_IOCTL && key.specified & AVTAB_OPTYPE) {
+		key.specified = avtab_optype_to_xperms(key.specified);
+		xperms.specified = AVTAB_XPERMS_IOCTLDRIVER;
+		avtab_android_m_compat = 1;
+	}
+
 	if (key.specified & ~(AVTAB_AV | AVTAB_TYPE | AVTAB_XPERMS | AVTAB_ENABLED)) {
 		ERR(fp->handle, "invalid specifier");
 		return -1;
@@ -555,11 +564,21 @@ int avtab_read_item(struct policy_file *fp, uint32_t vers, avtab_t * a,
 			ERR(fp->handle, "truncated entry");
 			return -1;
 		}
-		xperms.specified = buf8;
-		rc = next_entry(&buf8, fp, sizeof(uint8_t));
-		if (rc < 0) {
-			ERR(fp->handle, "truncated entry");
-			return -1;
+		if (avtab_android_m_compat ||
+			(vers == POLICYDB_VERSION_XPERMS_IOCTL &&
+			buf8 != AVTAB_XPERMS_IOCTLFUNCTION &&
+			buf8 != AVTAB_XPERMS_IOCTLDRIVER &&
+			buf8 != AVTAB_XPERMS_NLMSG)) {
+			if (xperms.specified == 0)
+				xperms.specified = AVTAB_XPERMS_IOCTLFUNCTION;
+			avtab_android_m_compat = 1;
+		} else {
+			xperms.specified = buf8;
+			rc = next_entry(&buf8, fp, sizeof(uint8_t));
+			if (rc < 0) {
+				ERR(fp->handle, "truncated entry");
+				return -1;
+			}
 		}
 		xperms.driver = buf8;
 		rc = next_entry(buf32, fp, sizeof(uint32_t)*8);
